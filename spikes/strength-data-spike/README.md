@@ -32,6 +32,7 @@ token has gone stale — delete `~/.garminconnect` and log in by hand once more.
 | `--token-dir` | `$GARMINTOKENS`, else `~/.garminconnect` | |
 | `--out` | `./dumps` | |
 | `--field-check` | `./activity-list-field-check.md` | |
+| `--from-dumps` | off | Rebuild the field check from `--out`, with no Garmin call |
 
 Fourteen days is enough to catch a few of each session type, which is all the
 spike needs. If `activity-list-field-check.md` comes back saying there were no

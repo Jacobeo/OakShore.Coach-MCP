@@ -39,6 +39,10 @@ PAGE_SIZE = 20
 MAX_PAGES = 50
 
 STRENGTH_TOTALS = ("totalSets", "activeSets", "totalReps")
+# The totals decide whether spec 03 can skip a per-Activity call; the summary
+# array turned out to be on the list entry too, so it is counted here rather
+# than rediscovered from a second fetch.
+LIST_FIELDS_IN_QUESTION = (*STRENGTH_TOTALS, "summarizedExerciseSets")
 
 
 class AbortSignal(Exception):
@@ -328,13 +332,19 @@ def build_field_check(
         "",
         "## Across every Activity in the window",
         "",
-        "| Field | Key present | Non-null |",
-        "| --- | --- | --- |",
+        "| Field | Key present | Non-null | Carries a value |",
+        "| --- | --- | --- | --- |",
     ]
-    for field in STRENGTH_TOTALS:
+    for field in LIST_FIELDS_IN_QUESTION:
         present = sum(1 for _, act in activities if field in act)
         non_null = sum(1 for _, act in activities if act.get(field) is not None)
-        lines.append(f"| `{field}` | {present} / {total} | {non_null} / {total} |")
+        # A zero total and an empty summary array are both "present but says
+        # nothing", which is the case spec 03 has to plan around.
+        populated = sum(1 for _, act in activities if act.get(field))
+        lines.append(
+            f"| `{field}` | {present} / {total} | {non_null} / {total} "
+            f"| {populated} / {total} |"
+        )
 
     lines += ["", "## Strength Activities", ""]
     if not strength:
@@ -373,7 +383,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--token-dir", default=None, help="overrides $GARMINTOKENS")
     parser.add_argument("--out", type=Path, default=here / "dumps")
     parser.add_argument("--field-check", type=Path, default=here / FIELD_CHECK_NAME)
+    parser.add_argument(
+        "--from-dumps",
+        action="store_true",
+        help="rebuild the field check from --out, with no Garmin call at all",
+    )
     return parser.parse_args(argv)
+
+
+def pages_on_disk(out_dir: Path) -> list[tuple[Path, list[dict[str, Any]]]]:
+    pages = []
+    for path in sorted(out_dir.glob(f"{ACTIVITY_LIST_NAME}__page-*.json")):
+        entries = json.loads(path.read_text("utf-8"))
+        if entries:
+            pages.append((path, entries))
+    return pages
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -387,6 +411,13 @@ def main(argv: list[str] | None = None) -> int:
 
     end = date.today()
     start = end - timedelta(days=args.days)
+
+    if args.from_dumps:
+        pages = pages_on_disk(args.out)
+        args.field_check.write_text(build_field_check(pages, start, end), "utf-8")
+        print(f"Rebuilt from {len(pages)} page(s) in {args.out}\n{args.field_check}")
+        return 0
+
     writer = DumpWriter(args.out)
 
     try:
