@@ -17,7 +17,7 @@ never from a container on a cloud host ([ADR 0001](../../docs/adr/0001-sync-runs
 ```bash
 uv venv .venv
 uv pip install --python .venv/Scripts/python.exe -r requirements.txt
-.venv/Scripts/python.exe dump_garmin.py --days 28
+.venv/Scripts/python.exe dump_garmin.py --days 14
 ```
 
 The first run asks for the Garmin email, the password (not echoed, not stored)
@@ -27,15 +27,17 @@ token has gone stale — delete `~/.garminconnect` and log in by hand once more.
 
 | Flag | Default | |
 | --- | --- | --- |
-| `--days` | `28` | Window length, counted back from today |
+| `--days` | `14` | Window length, counted back from today |
 | `--pace` | `4.0` | Seconds between calls; below 3 is refused |
 | `--token-dir` | `$GARMINTOKENS`, else `~/.garminconnect` | |
 | `--out` | `./dumps` | |
 | `--field-check` | `./activity-list-field-check.md` | |
 
-The window default follows the issue's "a recent window of a few weeks".
-[Step 1 of the build order](../../docs/build-order.md) sketched 90 days; pass
-`--days 90` for that, at the cost of more pages and so more paced calls.
+Fourteen days is enough to catch a few of each session type, which is all the
+spike needs. If `activity-list-field-check.md` comes back saying there were no
+strength Activities in the window, widen it — `--days 90` is what
+[step 1 of the build order](../../docs/build-order.md) sketched — at the cost
+of more pages and so more paced calls.
 
 ## Where the token lives
 

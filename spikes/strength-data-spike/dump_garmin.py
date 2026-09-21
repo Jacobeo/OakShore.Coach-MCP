@@ -8,7 +8,7 @@ only: Garmin rate-limits by IP and datacenter ranges fare worse (ADR 0001).
 This is not the sync. It is not structured for reuse and must not be grown into
 spec 03; its durable output is the files under dumps/.
 
-    python dump_garmin.py --days 28
+    python dump_garmin.py --days 14
 """
 
 from __future__ import annotations
@@ -362,7 +362,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--days", type=int, default=28, help="window length in days (default 28)"
+        "--days", type=int, default=14, help="window length in days (default 14)"
     )
     parser.add_argument(
         "--pace",
