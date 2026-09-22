@@ -2,9 +2,11 @@
 """Throwaway harness for the strength data spike (.scratch/01-strength-data-spike.md).
 
 Logs in to Garmin Connect once by hand, persists the token, then dumps the raw
-bytes of an Activity list over a recent window and of the `exerciseSets`
-response for every strength Activity in it. Run it from the home machine only:
-Garmin rate-limits by IP and datacenter ranges fare worse (ADR 0001).
+bytes of an Activity list over a recent window, of the `exerciseSets` response
+for every strength Activity in it, of the `hrTimeInZones` response for every
+other Activity, and of the configured zone boundaries once. Run it from the
+home machine only: Garmin rate-limits by IP and datacenter ranges fare worse
+(ADR 0001).
 
 This is not the sync. It is not structured for reuse and must not be grown into
 spec 03; its durable output is the files under dumps/.
@@ -33,12 +35,18 @@ ABORT_STATUSES = (401, 403, 429)
 
 ACTIVITY_LIST_PATH = "/activitylist-service/activities/search/activities"
 ACTIVITY_LIST_NAME = "activitylist-service--search-activities"
-# These two are every path the spike can ask for. The per-Activity summary
+# These four are every path the spike can ask for. The per-Activity summary
 # endpoint is deliberately not among them (ADR 0007).
 EXERCISE_SETS_PATH = "/activity-service/activity/{activity_id}/exerciseSets"
 EXERCISE_SETS_NAME = "activity-service--exerciseSets"
+HR_TIME_IN_ZONES_PATH = "/activity-service/activity/{activity_id}/hrTimeInZones"
+HR_TIME_IN_ZONES_NAME = "activity-service--hrTimeInZones"
+# Per athlete and per sport profile, not per Activity, so it is fetched once.
+HEART_RATE_ZONES_PATH = "/biometric-service/heartRateZones"
+HEART_RATE_ZONES_NAME = "biometric-service--heartRateZones"
 FIELD_CHECK_NAME = "activity-list-field-check.md"
 COVERAGE_NAME = "exercise-set-coverage.md"
+ZONE_COVERAGE_NAME = "heart-rate-zone-coverage.md"
 # Beside the dumps rather than beside the README: it names Activities, so it is
 # gitignored with them until issue 04 decides what gets scrubbed.
 CASES_NAME = "exercise-set-cases.md"
@@ -343,6 +351,34 @@ def fetch_exercise_sets(
         print(f"  Activity {activity_id} -> {target.name} ({len(body)} bytes)")
 
 
+def fetch_hr_time_in_zones(
+    reader: PacedReader,
+    writer: DumpWriter,
+    activities: list[dict[str, Any]],
+) -> None:
+    """One paced call per cardio Activity, written verbatim before it is read."""
+    for activity in activities:
+        activity_id = str(activity["activityId"])
+        path = HR_TIME_IN_ZONES_PATH.format(activity_id=activity_id)
+        body = reader.get(path)
+        target = writer.write(
+            HR_TIME_IN_ZONES_NAME, body, path=path, activity_id=activity_id
+        )
+        print(f"  Activity {activity_id} -> {target.name} ({len(body)} bytes)")
+
+
+def fetch_heart_rate_zones(reader: PacedReader, writer: DumpWriter) -> None:
+    """The configured zone boundaries, for every sport profile, in one call.
+
+    Fetched before the per-Activity passes so that an abort part way through
+    them still leaves the boundaries on disk: without them a `hrTimeInZones`
+    dump is a row of seconds against zone numbers that mean nothing.
+    """
+    body = reader.get(HEART_RATE_ZONES_PATH)
+    target = writer.write(HEART_RATE_ZONES_NAME, body, path=HEART_RATE_ZONES_PATH)
+    print(f"  zone boundaries -> {target.name} ({len(body)} bytes)")
+
+
 def followed_a_workout(activity: dict[str, Any]) -> bool:
     """Whether `workoutId` links this Activity back to a Workout.
 
@@ -352,8 +388,8 @@ def followed_a_workout(activity: dict[str, Any]) -> bool:
     return activity.get("workoutId") is not None
 
 
-def exercise_sets_dump_for(run_dir: Path, activity_id: Any) -> Path | None:
-    target = run_dir / DumpWriter.file_name(EXERCISE_SETS_NAME, activity_id=activity_id)
+def dump_for(run_dir: Path, endpoint_name: str, activity_id: Any = None) -> Path | None:
+    target = run_dir / DumpWriter.file_name(endpoint_name, activity_id=activity_id)
     return target if target.exists() else None
 
 
@@ -374,6 +410,74 @@ def exercise_set_count(dump: Path) -> int | None:
     ):
         return None
     return len(payload["exerciseSets"])
+
+
+def json_array_in(dump: Path | None) -> list[dict[str, Any]] | None:
+    """The JSON array of objects in a dump; None if it is absent or not one.
+
+    Nothing here may raise: the bytes cost a paced call and are already on
+    disk, and a note that crashes on them would send the athlete back to
+    Garmin for a payload they already have.
+    """
+    if dump is None:
+        return None
+    try:
+        payload = json.loads(dump.read_text("utf-8", "replace") or "null")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, list) or not all(
+        isinstance(row, dict) for row in payload
+    ):
+        return None
+    return payload
+
+
+def zone_floors(rows: list[dict[str, Any]] | None) -> tuple[Any, ...] | None:
+    """The `zoneLowBoundary` of each zone row, in the order Garmin sent them."""
+    if rows is None:
+        return None
+    return tuple(row.get("zoneLowBoundary") for row in rows)
+
+
+def zone_attribution(
+    profiles: list[dict[str, Any]], floors: tuple[Any, ...] | None
+) -> str:
+    """Which configured profile an Activity's zone boundaries came from.
+
+    Matched on the boundaries, because the `hrTimeInZones` response names no
+    profile. Two profiles can be configured with identical floors, and an
+    Activity then genuinely cannot be attributed to one of them - saying so
+    beats naming whichever happened to be last.
+    """
+    if not floors or any(floor is None for floor in floors):
+        return "unreadable"
+    matched = [
+        profile.get("sport")
+        for profile in profiles
+        if profile_floors(profile) == floors
+    ]
+    if not matched:
+        return "no configured profile"
+    if len(matched) > 1:
+        return " or ".join(f"`{sport}`" for sport in matched) + " (identical floors)"
+    return f"`{matched[0]}`"
+
+
+def profile_floors(profile: dict[str, Any]) -> tuple[Any, ...]:
+    """The same boundaries as the configured profile states them.
+
+    The two endpoints disagree on shape - a row per zone against a
+    `zoneNFloor` key per zone - so one is put in the other's terms to compare
+    them at all.
+    """
+    numbered = {
+        int(key[len("zone") : -len("Floor")]): value
+        for key, value in profile.items()
+        if key.startswith("zone")
+        and key.endswith("Floor")
+        and key[len("zone") : -len("Floor")].isdigit()
+    }
+    return tuple(numbered[zone] for zone in sorted(numbered))
 
 
 def note_header(title: str, summary: str) -> list[str]:
@@ -423,7 +527,7 @@ def build_exercise_set_coverage(
     followed = [act for act in strength if followed_a_workout(act)]
     freestyle = [act for act in strength if not followed_a_workout(act)]
     located = [
-        (act, exercise_sets_dump_for(run_dir, act.get("activityId")))
+        (act, dump_for(run_dir, EXERCISE_SETS_NAME, act.get("activityId")))
         for act in strength
     ]
     on_disk = [act for act, dump in located if dump is not None]
@@ -503,6 +607,176 @@ def build_exercise_set_coverage(
     return "\n".join(lines) + "\n"
 
 
+def build_heart_rate_zone_coverage(
+    cardio: list[dict[str, Any]],
+    run_dir: Path,
+    start: date,
+    end: date,
+) -> str:
+    """Record which cardio Activities were dumped, and against which zones.
+
+    The boundaries are per sport profile, and a cross-sport comparison built
+    on one wrong set would be silently wrong, so which profile each Activity
+    was scored against is checked rather than assumed.
+    """
+    located = [
+        (act, dump_for(run_dir, HR_TIME_IN_ZONES_NAME, act.get("activityId")))
+        for act in cardio
+    ]
+    on_disk = [act for act, dump in located if dump is not None]
+    by_type: dict[str, int] = {}
+    for act in cardio:
+        by_type[type_key(act)] = by_type.get(type_key(act), 0) + 1
+
+    lines = note_header(
+        "Heart-rate zone coverage",
+        (
+            f"Window {start.isoformat()} to {end.isoformat()}: "
+            f"{len(cardio)} cardio Activities, {len(on_disk)} with their "
+            f"`hrTimeInZones` response on disk."
+        ),
+    ) + [
+        "Read off the raw dumps under `dumps/`, not off Garmin's documentation.",
+        "Activity identifiers and the boundaries in bpm are deliberately absent",
+        "here: they are in the dumps, which are not committed. What this note",
+        "records is what was fetched, and which zones each Activity was scored",
+        "against.",
+        "",
+        "## Sports in the window",
+        "",
+    ]
+    for key, count in sorted(by_type.items()):
+        lines.append(f"- `{key or '(none)'}`: {count}")
+    lines.append("")
+
+    ran = any("running" in key for key in by_type)
+    biked = any("cycling" in key or "biking" in key for key in by_type)
+    if ran and biked:
+        lines += [
+            "A run and a bike are both here, so the cardio path is validated for",
+            "both rather than for one sport and assumed for the other.",
+            "",
+        ]
+    else:
+        missing = " and ".join(
+            label for label, seen in (("run", ran), ("bike", biked)) if not seen
+        )
+        lines += [
+            f"**No {missing} Activity in this window.** The cardio path is",
+            "unvalidated for it; widen `--days` before reading anything into",
+            "the shapes below.",
+            "",
+        ]
+
+    boundaries = dump_for(run_dir, HEART_RATE_ZONES_NAME)
+    profiles = json_array_in(boundaries)
+    lines += build_zone_boundaries_section(located, boundaries, profiles)
+    lines += [
+        "## Per Activity",
+        "",
+        "| # | typeKey | zone rows | boundaries | state |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for row, (act, dump) in enumerate(located, start=1):
+        rows = json_array_in(dump)
+        if dump is None:
+            count, against, state = "-", "-", "missing"
+        elif rows is None:
+            count, against, state = "unreadable", "-", "on disk"
+        else:
+            count = str(len(rows))
+            against = zone_attribution(profiles or [], zone_floors(rows))
+            state = "on disk"
+        lines.append(f"| {row} | {type_key(act)} | {count} | {against} | {state} |")
+
+    missing_dumps = len(cardio) - len(on_disk)
+    if missing_dumps:
+        lines += [
+            "",
+            (
+                f"**{missing_dumps} of them have no dump in this run "
+                "directory.** Either the pass has not been run live over this "
+                "window, or it stopped early - an `ABORT-*.txt` beside the "
+                "dumps says which."
+            ),
+        ]
+
+    return "\n".join(lines) + "\n"
+
+
+def build_zone_boundaries_section(
+    located: list[tuple[dict[str, Any], Path | None]],
+    dump: Path | None,
+    profiles: list[dict[str, Any]] | None,
+) -> list[str]:
+    """What the one zone-boundaries call returned, profile by profile."""
+    lines = ["## Zone boundaries", ""]
+    if dump is None:
+        return lines + [
+            "**Not fetched in this run directory.** Without them a",
+            "`hrTimeInZones` dump is seconds against zone numbers that mean",
+            "nothing.",
+            "",
+        ]
+
+    lines += [
+        f"One call to `{HEART_RATE_ZONES_PATH}`, dumped to `{dump.name}`.",
+        "",
+    ]
+    if profiles is None:
+        return lines + [
+            "**The payload is not the array of profiles this note expects.**",
+            "Read the dump.",
+            "",
+        ]
+
+    lines += [
+        "| sport profile | trainingMethod | zones |",
+        "| --- | --- | --- |",
+    ]
+    for profile in profiles:
+        lines.append(
+            f"| `{profile.get('sport')}` | `{profile.get('trainingMethod')}` "
+            f"| {len(profile_floors(profile))} |"
+        )
+    lines.append("")
+
+    if len(profiles) == 1:
+        lines += [
+            f"Only the `{profiles[0].get('sport')}` profile is configured, so",
+            "there is no per-sport override to get wrong here. That is this",
+            "athlete's configuration rather than a property of the endpoint:",
+            "the response is an array, and each entry names its `sport`, so",
+            "another athlete's could hold several.",
+            "",
+        ]
+
+    scored = {
+        floors
+        for _, activity_dump in located
+        if (floors := zone_floors(json_array_in(activity_dump)))
+    }
+    configured = {floors for profile in profiles if (floors := profile_floors(profile))}
+    if scored and scored <= configured:
+        lines += [
+            "Every `hrTimeInZones` row carries its own `zoneLowBoundary`, and",
+            "every cardio dump in this window matches a configured profile, so",
+            "each Activity's zones are identified rather than assumed. What",
+            "that implies for the sync is issue 04's question, not this note's.",
+            "",
+        ]
+    elif scored:
+        lines += [
+            "**At least one cardio dump was scored against boundaries that no",
+            "configured profile states.** Zones have been changed since those",
+            "Activities were recorded, or a profile is missing from the",
+            "boundaries call. Either way, comparing them is unsafe until it is",
+            "understood.",
+            "",
+        ]
+    return lines
+
+
 def build_field_check(
     pages: list[tuple[Path, list[dict[str, Any]]]],
     start: date,
@@ -579,6 +853,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--out", type=Path, default=here / "dumps")
     parser.add_argument("--field-check", type=Path, default=here / FIELD_CHECK_NAME)
     parser.add_argument("--coverage", type=Path, default=here / COVERAGE_NAME)
+    parser.add_argument("--zone-coverage", type=Path, default=here / ZONE_COVERAGE_NAME)
     parser.add_argument(
         "--from-dumps",
         action="store_true",
@@ -615,6 +890,17 @@ def strength_activities(
     return [act for _, page in pages for act in page if is_strength(act)]
 
 
+def cardio_activities(
+    pages: list[tuple[Path, list[dict[str, Any]]]],
+) -> list[dict[str, Any]]:
+    """The cardio Activities: everything the ExerciseSet pass did not take.
+
+    Defined as the complement rather than as a list of `typeKey`s, so no
+    Activity is fetched twice and none is skipped by an unexpected one.
+    """
+    return [act for _, page in pages for act in page if not is_strength(act)]
+
+
 def pages_on_disk(run_dir: Path) -> list[tuple[Path, list[dict[str, Any]]]]:
     pages = []
     for path in sorted(run_dir.glob(f"{ACTIVITY_LIST_NAME}__page-*.json")):
@@ -631,12 +917,19 @@ def write_notes(
     end: date,
     field_check: Path,
     coverage: Path,
+    zone_coverage: Path,
 ) -> None:
-    """The two tracked notes, and the identifier-carrying one in the run dir."""
+    """The three tracked notes, and the identifier-carrying one in the run dir."""
     strength = strength_activities(pages)
     field_check.write_text(build_field_check(pages, start, end), "utf-8")
     coverage.write_text(
         build_exercise_set_coverage(strength, writer.out_dir, start, end), "utf-8"
+    )
+    zone_coverage.write_text(
+        build_heart_rate_zone_coverage(
+            cardio_activities(pages), writer.out_dir, start, end
+        ),
+        "utf-8",
     )
     writer.write_note(CASES_NAME, build_exercise_set_cases(strength))
 
@@ -668,10 +961,12 @@ def main(argv: list[str] | None = None) -> int:
             end,
             args.field_check,
             args.coverage,
+            args.zone_coverage,
         )
         print(
             f"Rebuilt from {len(pages)} page(s) in {run_dir}"
-            f"\n{args.field_check}\n{args.coverage}\n{run_dir / CASES_NAME}"
+            f"\n{args.field_check}\n{args.coverage}"
+            f"\n{args.zone_coverage}\n{run_dir / CASES_NAME}"
         )
         return 0
 
@@ -697,9 +992,14 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         pages = list(fetch_activity_list(reader, writer, start, end))
+        print("\nHeart-rate zone boundaries, once.")
+        fetch_heart_rate_zones(reader, writer)
         strength = strength_activities(pages)
         print(f"\nExerciseSets for {len(strength)} strength Activities.")
         fetch_exercise_sets(reader, writer, strength)
+        cardio = cardio_activities(pages)
+        print(f"\nhrTimeInZones for {len(cardio)} cardio Activities.")
+        fetch_hr_time_in_zones(reader, writer, cardio)
     except AbortSignal as abort:
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         note = writer.write_note(
@@ -717,12 +1017,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{error}", file=sys.stderr)
         return 2
 
-    write_notes(writer, pages, start, end, args.field_check, args.coverage)
+    write_notes(
+        writer,
+        pages,
+        start,
+        end,
+        args.field_check,
+        args.coverage,
+        args.zone_coverage,
+    )
     print(
         f"\n{reader.call_count} call(s), {sum(len(page) for _, page in pages)} "
         f"Activities.\nDumps and index: {writer.out_dir}"
         f"\nField check: {args.field_check}"
         f"\nExerciseSet coverage: {args.coverage}"
+        f"\nHeart-rate zone coverage: {args.zone_coverage}"
     )
     return 0
 

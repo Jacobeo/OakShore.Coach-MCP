@@ -36,6 +36,25 @@ name the case this athlete does not train in; the other case is an Activity
 that *followed* a Workout, and that phrase is the term for it.
 _Avoid_: unstructured, ad-hoc, unplanned, off-plan
 
+**Cardio**:
+Said of an Activity whose intensity is measured as time in HeartRateZones
+rather than in ExerciseSets — running and cycling among them. Defined as the
+complement of a strength Activity rather than as a list of sports, so a type
+nobody anticipated is never silently dropped.
+_Avoid_: endurance, aerobic, conditioning
+
+**HeartRateZone**:
+One band of the athlete's heart-rate range, identified by its number and its
+lower boundary in beats per minute. A cardio Activity records the time spent in
+each, and carries the boundaries that were in force when it happened.
+_Avoid_: zone, HR zone, intensity zone, band
+
+**SportProfile**:
+The sport a set of HeartRateZone boundaries is configured for. An athlete has a
+default profile and may override it per sport, so time in zones is only
+comparable across sports once the profile behind each Activity is known.
+_Avoid_: sport, sport type, zone set, profile
+
 ### Prescribed training
 
 **Workout**:

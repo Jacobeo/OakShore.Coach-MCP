@@ -12,10 +12,15 @@ import pytest
 
 from dump_garmin import (
     ABORT_STATUSES,
+    HEART_RATE_ZONES_PATH,
     AbortSignal,
     DumpWriter,
     PacedReader,
+    cardio_activities,
     fetch_exercise_sets,
+    fetch_heart_rate_zones,
+    fetch_hr_time_in_zones,
+    zone_attribution,
 )
 
 
@@ -176,3 +181,119 @@ def test_an_abort_mid_pass_leaves_the_remaining_activities_unfetched(tmp_path):
 
     assert caught.value.status_code == 429
     assert len(session.calls) == 2, "the third Activity is never requested"
+
+
+def cardio_activity(activity_id, type_key="running"):
+    return {"activityId": activity_id, "activityType": {"typeKey": type_key}}
+
+
+def test_cardio_is_every_activity_the_exercise_sets_pass_did_not_take():
+    activities = [
+        cardio_activity(1, "running"),
+        strength_activity(2),
+        cardio_activity(3, "indoor_cycling"),
+    ]
+
+    picked = cardio_activities([(None, activities)])
+
+    assert [act["activityId"] for act in picked] == [1, 3]
+
+
+def test_the_cardio_pass_is_paced_between_activities(tmp_path):
+    reader, _, slept = make_reader(
+        FakeResponse(200, b"[]"),
+        FakeResponse(200, b"[]"),
+        already_called=True,
+    )
+    writer = DumpWriter(tmp_path / "run")
+
+    fetch_hr_time_in_zones(
+        reader, writer, [cardio_activity(1), cardio_activity(2, "indoor_cycling")]
+    )
+
+    assert slept == [4.0, 4.0], "the first call is paced behind the pass before it"
+
+
+def test_each_cardio_dump_is_named_for_its_activity_and_its_endpoint(tmp_path):
+    reader, _, _ = make_reader(FakeResponse(200, b"[]"))
+    writer = DumpWriter(tmp_path / "run")
+
+    fetch_hr_time_in_zones(reader, writer, [cardio_activity(7)])
+
+    assert (
+        tmp_path / "run" / "activity-service--hrTimeInZones__activity-7.json"
+    ).exists()
+
+
+def test_an_abort_mid_cardio_pass_leaves_the_remaining_activities_unfetched(tmp_path):
+    reader, session, _ = make_reader(
+        FakeResponse(200, b"[]"),
+        FakeResponse(429, b"", {"Retry-After": "600"}),
+        FakeResponse(200, b"[]"),
+    )
+    writer = DumpWriter(tmp_path / "run")
+
+    with pytest.raises(AbortSignal) as caught:
+        fetch_hr_time_in_zones(
+            reader,
+            writer,
+            [cardio_activity(1), cardio_activity(2), cardio_activity(3)],
+        )
+
+    assert caught.value.status_code == 429
+    assert len(session.calls) == 2, "the third Activity is never requested"
+
+
+def test_the_cardio_pass_never_reaches_for_the_zone_boundaries(tmp_path):
+    """Why this rather than a test that `main` fetches them once.
+
+    `fetch_heart_rate_zones` takes no Activity, so it cannot be per-Activity
+    by construction; the only way the boundaries could be fetched repeatedly
+    is the per-Activity pass asking for them. That is what is asserted here.
+    """
+    reader, session, _ = make_reader(FakeResponse(200, b"[]"), FakeResponse(200, b"[]"))
+    writer = DumpWriter(tmp_path / "run")
+
+    fetch_hr_time_in_zones(reader, writer, [cardio_activity(1), cardio_activity(2)])
+
+    assert len(session.calls) == 2, "one call per Activity and nothing besides"
+    assert not [
+        call for call in session.calls if call.url.endswith(HEART_RATE_ZONES_PATH)
+    ]
+
+
+def test_the_boundaries_dump_is_named_for_the_endpoint_and_no_activity(tmp_path):
+    reader, _, _ = make_reader(FakeResponse(200, b"[]"))
+    writer = DumpWriter(tmp_path / "run")
+
+    fetch_heart_rate_zones(reader, writer)
+
+    assert (tmp_path / "run" / "biometric-service--heartRateZones.json").exists()
+
+
+def zone_profile(sport, *floors):
+    return {"sport": sport} | {
+        f"zone{number}Floor": floor for number, floor in enumerate(floors, start=1)
+    }
+
+
+def test_two_profiles_sharing_floors_are_reported_as_ambiguous():
+    """The one branch this athlete's data can never exercise.
+
+    They have a single profile, so a dump that matches two of them cannot be
+    produced by hand - and naming whichever came last is exactly the silent
+    cross-sport wrongness the boundaries call exists to prevent.
+    """
+    profiles = [zone_profile("DEFAULT", 116, 128), zone_profile("RUNNING", 116, 128)]
+
+    attribution = zone_attribution(profiles, (116, 128))
+
+    assert "DEFAULT" in attribution and "RUNNING" in attribution
+
+
+def test_boundaries_no_configured_profile_states_are_called_out():
+    profiles = [zone_profile("DEFAULT", 116, 128)]
+
+    assert zone_attribution(profiles, (99, 110)) == "no configured profile"
+    assert zone_attribution(profiles, ()) == "unreadable"
+    assert zone_attribution(profiles, (116, None)) == "unreadable"

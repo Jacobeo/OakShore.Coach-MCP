@@ -2,8 +2,9 @@
 
 Throwaway code for [spec 01](../../.scratch/01-strength-data-spike.md). It
 answers one question — do this athlete's on-watch weight and exercise
-corrections survive into the Garmin API — and its durable output is the files
-under `dumps/`, not this script.
+corrections survive into the Garmin API — and validates the cardio path at the
+same time, so that is not left as a second unknown. Its durable output is the
+files under `dumps/`, not this script.
 
 **Do not grow this into the sync.** Spec 03 is a separate program with its own
 watermark, ceiling and ingest contract; the only thing it inherits from here is
@@ -33,14 +34,21 @@ token has gone stale — delete `~/.garminconnect` and log in by hand once more.
 | `--out` | `./dumps` | |
 | `--field-check` | `./activity-list-field-check.md` | |
 | `--coverage` | `./exercise-set-coverage.md` | |
+| `--zone-coverage` | `./heart-rate-zone-coverage.md` | |
 | `--from-dumps` | off | Rebuild the notes from `--out`, with no Garmin call |
 
-One run is one list call per page, then one `exerciseSets` call per strength
-Activity. Forty-eight days is the window the two notes beside this README
-describe — 15 Activities, 7 of them strength, so eight paced calls — and
-`--days 48` is what reproduces it. The notes are rewritten in full by every
-run, so a narrower window narrows what they claim; the default fourteen days
-holds one strength Activity.
+One run is one list call per page, then the zone-boundaries call once, then one
+`exerciseSets` call per strength Activity and one `hrTimeInZones` call per
+Activity that is not. Forty-eight days is the window the three notes beside
+this README describe — 15 Activities, 7 of them strength and 8 cardio, so
+seventeen paced calls — and `--days 48` is what reproduces it. The notes are
+rewritten in full by every run, so a narrower window narrows what they claim;
+the default fourteen days holds one strength Activity.
+
+The boundaries call goes before the per-Activity passes on purpose: it is one
+cheap call, and an abort part way through the long passes still leaves it on
+disk. Without it a `hrTimeInZones` dump is seconds against zone numbers that
+mean nothing.
 
 Fourteen days is enough to catch a few Activities of each type, which is all
 the spike needs from a first look. If `activity-list-field-check.md` comes back
@@ -74,6 +82,13 @@ many rows each dump holds, and whether the Activity followed a Workout or was
 freestyle. What the payloads actually say is issue 04's question, not this
 note's.
 
+`heart-rate-zone-coverage.md`, tracked as well: which cardio Activities had
+their `hrTimeInZones` response dumped, which sports the window covers, which
+sport profiles the zone-boundaries call returned, and which profile's
+boundaries each Activity was actually scored against. The boundaries in bpm are
+left in the dumps rather than repeated here, for the same reason the Activity
+identifiers are.
+
 Everything else lands in `dumps/<run-timestamp>/`. One directory per run, so a
 later run over a shifted window cannot overwrite an earlier Activity's bytes —
 re-fetching is the thing the spike exists to avoid. `--from-dumps` reads the
@@ -87,6 +102,11 @@ most recent run, and takes the window from its `index.json` rather than from
 - `activity-service--exerciseSets__activity-<id>.json` — one file per strength
   Activity, again exactly the bytes Garmin sent, written before anything reads
   them.
+- `activity-service--hrTimeInZones__activity-<id>.json` — the same, one file
+  per Activity that is not a strength Activity.
+- `biometric-service--heartRateZones.json` — the configured zone boundaries.
+  One file per run, not one per Activity: the boundaries are per athlete and
+  per sport profile, so the call is made exactly once.
 - `exercise-set-cases.md` — which of those dumps followed a Workout and which
   was freestyle, by Activity. It lives here rather than beside this README
   because it names Activities, and identifiers are exactly what issue 04's
@@ -115,19 +135,25 @@ it is committed as a fixture corpus.
   `Retry-After` and the response body. Retrying a rate limit extends the block
   ([ADR 0005](../../docs/adr/0005-bounded-resumable-sync.md)), so 401, 403 and
   429 are called out by name in the report — and no other error status is
-  retried either. An abort part way through the per-Activity pass leaves the
-  remaining Activities unfetched and the two notes untouched; `--from-dumps`
-  rebuilds them from whatever landed.
-- **Two endpoints, and no others.** `ACTIVITY_LIST_PATH` and
-  `EXERCISE_SETS_PATH` in `dump_garmin.py` are every path the script can ask
-  for. The per-Activity *summary* endpoint is deliberately not among them: the
-  list entry already carries the strength totals and the per-Exercise rollup
+  retried either. An abort part way through either per-Activity pass leaves
+  the remaining Activities unfetched and the three notes untouched;
+  `--from-dumps` rebuilds them from whatever landed.
+- **Four endpoints, and no others.** `ACTIVITY_LIST_PATH`,
+  `EXERCISE_SETS_PATH`, `HR_TIME_IN_ZONES_PATH` and `HEART_RATE_ZONES_PATH` in
+  `dump_garmin.py` are every path the script can ask for. The per-Activity
+  *summary* endpoint is deliberately not among them: the list entry already
+  carries the strength totals and the per-Exercise rollup
   ([ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md)).
 
 The spike is otherwise untested by design. Pacing and the abort rule are the
-exception — both across the list pass and across the per-Activity pass —
-because provoking them by hand means provoking a real block. GET-only is tested
-for the same reason: demonstrating it means risking a real write.
+exception — across the list pass and across both per-Activity passes — because
+provoking them by hand means provoking a real block. GET-only is tested for the
+same reason: demonstrating it means risking a real write. Two more earn their
+place beside them: that the cardio pass never reaches for the zone boundaries,
+so one fetch of them stays one call; and that two sport profiles configured
+with identical floors are reported as ambiguous rather than silently resolved
+to one — this athlete has a single profile, so that branch cannot be provoked
+from their data at all.
 
 ```bash
 .venv/Scripts/python.exe -m pytest
