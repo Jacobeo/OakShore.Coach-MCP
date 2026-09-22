@@ -14,10 +14,22 @@ The note states, field by field and citing the dump it came from:
 - whether `setType` distinguishes working ExerciseSets from rest, so set counts
   are not inflated
 - whether `repetitionCount` matches what the athlete actually lifted
+- how many CancelledExerciseSets the corpus holds, and what they cost the
+  per-set averages they are excluded from
 - whether `summarizedExerciseSets` is populated in practice, so per-Exercise
   aggregates can be trusted or discarded
 - whether the Activity list carries `totalSets`, `activeSets` and `totalReps`
 - the actual shape of `hrTimeInZones`, and the zone boundaries per sport profile
+
+One thing not to rediscover as corrupt data: an `ACTIVE` ExerciseSet carrying a
+weight, a few seconds of duration and `repetitionCount` 0 is a
+CancelledExerciseSet, and the athlete confirmed the mechanism — skipping or
+deferring a step of a Workout on the watch means starting that Exercise and
+cancelling it, which writes exactly one zero-repetition set. It is Adherence
+evidence, joinable to the prescribed step through `wktStepIndex`, so the note
+should count these rather than filter them. `activeSets` in the Activity rollup
+counts them too, which is one more thing the rollup cannot tell apart from a
+completed set.
 
 It then names which project the answer implies, because the two outcomes lead to
 different products. If weight and Exercise names are present, the strength

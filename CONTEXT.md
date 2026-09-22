@@ -23,6 +23,13 @@ _Avoid_: set, rep set, lift
 The movement performed in an ExerciseSet, identified by a category and a name.
 _Avoid_: lift, movement, drill
 
+**CancelledExerciseSet**:
+An ExerciseSet the athlete started and cancelled to skip or defer a step of a
+Workout, which the watch requires: it records zero repetitions against a weight.
+Evidence that a prescribed step was deliberately not done, so it counts towards
+Adherence and never towards volume or a per-set average.
+_Avoid_: empty set, failed set, zero set, bad data
+
 **Freestyle**:
 Said of an Activity recorded without a Workout to follow. The word exists to
 name the case this athlete does not train in; the other case is an Activity
