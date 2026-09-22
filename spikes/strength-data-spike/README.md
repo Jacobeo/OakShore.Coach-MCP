@@ -3,8 +3,9 @@
 Throwaway code for [spec 01](../../.scratch/01-strength-data-spike.md). It
 answers one question — do this athlete's on-watch weight and exercise
 corrections survive into the Garmin API — and validates the cardio path at the
-same time, so that is not left as a second unknown. Its durable output is the
-files under `dumps/`, not this script.
+same time, so that is not left as a second unknown. Its durable output is
+[`findings.md`](findings.md) and the corpus at
+[`fixtures/garmin/`](../../fixtures/garmin/), not this script.
 
 **Do not grow this into the sync.** Spec 03 is a separate program with its own
 watermark, ceiling and ingest contract; the only thing it inherits from here is
@@ -79,8 +80,8 @@ those totals is a separate question, settled in
 `exercise-set-coverage.md`, also tracked and also identifier-free: which
 strength Activities in the window had their `exerciseSets` response dumped, how
 many rows each dump holds, and whether the Activity followed a Workout or was
-freestyle. What the payloads actually say is issue 04's question, not this
-note's.
+freestyle. What the payloads actually say is in [`findings.md`](findings.md), not
+in this note.
 
 `heart-rate-zone-coverage.md`, tracked as well: which cardio Activities had
 their `hrTimeInZones` response dumped, which sports the window covers, which
@@ -109,17 +110,33 @@ most recent run, and takes the window from its `index.json` rather than from
   per sport profile, so the call is made exactly once.
 - `exercise-set-cases.md` — which of those dumps followed a Workout and which
   was freestyle, by Activity. It lives here rather than beside this README
-  because it names Activities, and identifiers are exactly what issue 04's
-  scrubbing decision has to weigh before anything is committed.
+  because it names Activities. Those turned out to be the one class of identifier
+  the scrubbing decision keeps, so it is copied into the corpus unchanged.
 - `index.json` — which endpoint, which query parameters and which Activity each
   file came from, plus when it was fetched. The query parameters and fetch time
   are only knowable at fetch time, which is why they are captured here rather
   than reconstructed later.
 - `ABORT-<status>-<timestamp>.txt` — written only when a run stops on an error.
 
-`dumps/` is gitignored. The payloads are real personal training data, and the
-findings note in spec 01 decides what (if anything) is scrubbed before any of
-it is committed as a fixture corpus.
+`dumps/` is gitignored. The payloads are real personal training data.
+
+## The answer
+
+[`findings.md`](findings.md), beside this README, is what the spike was for: what
+every field actually holds, read off named dumps, and which of spec 01's two
+project forks that implies. Read it before writing code against a Garmin payload.
+
+[`scrub_dumps.py`](scrub_dumps.py) turns one run under `dumps/` into the tracked
+corpus at [`fixtures/garmin/`](../../fixtures/garmin/), replacing the account, the
+device, the athlete's name and anything locating a session with stable
+placeholders. It refuses to publish if a raw identifier survives into its own
+output, which is why it is the one part of the spike besides pacing and GET-only
+with tests: everything else here writes to a gitignored directory, and this writes
+to one git keeps.
+
+```bash
+.venv/Scripts/python.exe scrub_dumps.py dumps/20260922T090450Z ../../fixtures/garmin
+```
 
 ## Safety properties, and how they are enforced
 
@@ -155,6 +172,9 @@ with identical floors are reported as ambiguous rather than silently resolved
 to one — this athlete has a single profile, so that branch cannot be provoked
 from their data at all.
 
+Alongside them, [`test_scrub_dumps.py`](test_scrub_dumps.py) covers the scrubber,
+for the reason given above. Its input is synthetic, so it runs for anyone.
+
 ```bash
 .venv/Scripts/python.exe -m pytest
 ```
@@ -174,5 +194,5 @@ should decide its own approach rather than inherit this one.
 [AGENTS.md](../../AGENTS.md) requires every tracked file to be added to
 `coach-mcp.sln` in the same change. No solution file exists yet, and AGENTS.md
 puts its creation with the change that creates `src/` — so these files are on
-disk and not in a solution. Whoever creates the solution should add `spikes/`
-and `docs/adr/` as solution folders then.
+disk and not in a solution. Whoever creates the solution should add `spikes/`,
+`docs/adr/` and `fixtures/garmin/` as solution folders then.

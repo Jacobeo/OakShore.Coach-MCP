@@ -137,8 +137,10 @@ reported to fail from the ChatGPT mobile app — so treat the desktop as the pla
 where scheduling happens.
 
 **Done when** a prescribed strength session appears on your watch with the
-prescribed weights, and the resulting Activity comes back with exercise names
-attached.
+prescribed weights, and the resulting Activity comes back with its Exercise
+attached — the category, and a name where the Exercise has one. A null `name`
+against a populated `category` is the answer for the flat bench press, not a
+failure ([findings](../spikes/strength-data-spike/findings.md)).
 
 ## Layout
 
@@ -146,6 +148,7 @@ attached.
 coach-mcp/
 ├── CONTEXT.md
 ├── docs/{adr,example-session.md,build-order.md}
+├── fixtures/garmin/         real scrubbed Garmin payloads, replayed by both seams
 ├── spikes/                  throwaway, committed for the record
 ├── src/
 │   ├── Coach.Api/           MCP server, ingest endpoint

@@ -20,7 +20,9 @@ repetitions and weight lifted.
 _Avoid_: set, rep set, lift
 
 **Exercise**:
-The movement performed in an ExerciseSet, identified by a category and a name.
+The movement performed in an ExerciseSet, identified by a category and, where the
+category has variants, a name. A category with no name is a whole Exercise, not a
+missing one: the flat bench press is `BENCH_PRESS` with no name at all.
 _Avoid_: lift, movement, drill
 
 **CancelledExerciseSet**:

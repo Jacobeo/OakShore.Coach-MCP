@@ -55,17 +55,17 @@ dumps.
 **Blocked by:** 02 (ExerciseSet dumps for strength Activities), 03 (Heart-rate
 zone dumps for cardio Activities)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A findings note in the repo states, for this athlete's own data, whether
+- [x] A findings note in the repo states, for this athlete's own data, whether
       `weight` and Exercise names are present
-- [ ] Each of the field questions above is answered from a named dump file, not
+- [x] Each of the field questions above is answered from a named dump file, not
       from documentation
-- [ ] The unit of `weight` is stated, or its absence is stated
-- [ ] The note names which of the two project forks applies, and whether
+- [x] The unit of `weight` is stated, or its absence is stated
+- [x] The note names which of the two project forks applies, and whether
       `docs/build-order.md` changes as a result
-- [ ] The dumps live in a stable location with an index saying which endpoint and
+- [x] The dumps live in a stable location with an index saying which endpoint and
       which Activity each file came from
-- [ ] A decision is recorded on what was scrubbed from the committed payloads,
+- [x] A decision is recorded on what was scrubbed from the committed payloads,
       or that nothing needed scrubbing
-- [ ] No follow-up question in this spec requires re-fetching anything
+- [x] No follow-up question in this spec requires re-fetching anything

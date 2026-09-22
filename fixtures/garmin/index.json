@@ -1,0 +1,143 @@
+[
+  {
+    "file": "activity-service--exerciseSets__activity-23898645459.json",
+    "endpoint": "/activity-service/activity/23898645459/exerciseSets",
+    "params": null,
+    "activityId": "23898645459",
+    "bytes": 22951,
+    "fetchedAtUtc": "2026-09-22T09:05:30+00:00"
+  },
+  {
+    "file": "activity-service--exerciseSets__activity-23930958725.json",
+    "endpoint": "/activity-service/activity/23930958725/exerciseSets",
+    "params": null,
+    "activityId": "23930958725",
+    "bytes": 24901,
+    "fetchedAtUtc": "2026-09-22T09:05:26+00:00"
+  },
+  {
+    "file": "activity-service--exerciseSets__activity-24011353395.json",
+    "endpoint": "/activity-service/activity/24011353395/exerciseSets",
+    "params": null,
+    "activityId": "24011353395",
+    "bytes": 25462,
+    "fetchedAtUtc": "2026-09-22T09:05:21+00:00"
+  },
+  {
+    "file": "activity-service--exerciseSets__activity-24098326007.json",
+    "endpoint": "/activity-service/activity/24098326007/exerciseSets",
+    "params": null,
+    "activityId": "24098326007",
+    "bytes": 32688,
+    "fetchedAtUtc": "2026-09-22T09:05:17+00:00"
+  },
+  {
+    "file": "activity-service--exerciseSets__activity-24185357395.json",
+    "endpoint": "/activity-service/activity/24185357395/exerciseSets",
+    "params": null,
+    "activityId": "24185357395",
+    "bytes": 31584,
+    "fetchedAtUtc": "2026-09-22T09:05:13+00:00"
+  },
+  {
+    "file": "activity-service--exerciseSets__activity-24272601315.json",
+    "endpoint": "/activity-service/activity/24272601315/exerciseSets",
+    "params": null,
+    "activityId": "24272601315",
+    "bytes": 29064,
+    "fetchedAtUtc": "2026-09-22T09:05:09+00:00"
+  },
+  {
+    "file": "activity-service--exerciseSets__activity-24444892080.json",
+    "endpoint": "/activity-service/activity/24444892080/exerciseSets",
+    "params": null,
+    "activityId": "24444892080",
+    "bytes": 25349,
+    "fetchedAtUtc": "2026-09-22T09:05:04+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-23965663197.json",
+    "endpoint": "/activity-service/activity/23965663197/hrTimeInZones",
+    "params": null,
+    "activityId": "23965663197",
+    "bytes": 302,
+    "fetchedAtUtc": "2026-09-22T09:06:04+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-23984557387.json",
+    "endpoint": "/activity-service/activity/23984557387/hrTimeInZones",
+    "params": null,
+    "activityId": "23984557387",
+    "bytes": 297,
+    "fetchedAtUtc": "2026-09-22T09:05:59+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-24052567443.json",
+    "endpoint": "/activity-service/activity/24052567443/hrTimeInZones",
+    "params": null,
+    "activityId": "24052567443",
+    "bytes": 301,
+    "fetchedAtUtc": "2026-09-22T09:05:55+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-24174672446.json",
+    "endpoint": "/activity-service/activity/24174672446/hrTimeInZones",
+    "params": null,
+    "activityId": "24174672446",
+    "bytes": 287,
+    "fetchedAtUtc": "2026-09-22T09:05:51+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-24211302187.json",
+    "endpoint": "/activity-service/activity/24211302187/hrTimeInZones",
+    "params": null,
+    "activityId": "24211302187",
+    "bytes": 293,
+    "fetchedAtUtc": "2026-09-22T09:05:47+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-24238408527.json",
+    "endpoint": "/activity-service/activity/24238408527/hrTimeInZones",
+    "params": null,
+    "activityId": "24238408527",
+    "bytes": 301,
+    "fetchedAtUtc": "2026-09-22T09:05:43+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-24313465171.json",
+    "endpoint": "/activity-service/activity/24313465171/hrTimeInZones",
+    "params": null,
+    "activityId": "24313465171",
+    "bytes": 301,
+    "fetchedAtUtc": "2026-09-22T09:05:39+00:00"
+  },
+  {
+    "file": "activity-service--hrTimeInZones__activity-24399329227.json",
+    "endpoint": "/activity-service/activity/24399329227/hrTimeInZones",
+    "params": null,
+    "activityId": "24399329227",
+    "bytes": 300,
+    "fetchedAtUtc": "2026-09-22T09:05:34+00:00"
+  },
+  {
+    "file": "activitylist-service--search-activities__page-00.json",
+    "endpoint": "/activitylist-service/activities/search/activities",
+    "params": {
+      "startDate": "2026-08-05",
+      "endDate": "2026-09-22",
+      "start": "0",
+      "limit": "20"
+    },
+    "activityId": null,
+    "bytes": 73757,
+    "fetchedAtUtc": "2026-09-22T09:04:56+00:00"
+  },
+  {
+    "file": "biometric-service--heartRateZones.json",
+    "endpoint": "/biometric-service/heartRateZones",
+    "params": null,
+    "activityId": null,
+    "bytes": 280,
+    "fetchedAtUtc": "2026-09-22T09:05:00+00:00"
+  }
+]
