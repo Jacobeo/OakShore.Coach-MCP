@@ -17,9 +17,17 @@ in this note are reproducible from what is in the repository.
 **`weight` is populated. Exercise identity is populated. The athlete's on-watch
 corrections survive into the Garmin API.**
 
-The clearest single piece of evidence, from
-`activity-service--exerciseSets__activity-24185357395.json` — one prescribed
-Workout step, `wktStepIndex` 5, three ExerciseSets:
+The proof turns on how a Garmin Workout is built, which the athlete states
+plainly: **a Workout step names one Exercise with one target — reps and weight —
+and a repeat count.** Every ExerciseSet of a step therefore shares one target by
+construction. The prescription cannot produce two different numbers under one
+`wktStepIndex`. So **any within-step variation is a correction**, and the only
+places a correction can come from are the watch during the Activity and Garmin
+Connect afterwards.
+
+That turns a per-set field into a falsifiable test, and the corpus answers it.
+`activity-service--exerciseSets__activity-24185357395.json`, `wktStepIndex` 5 —
+one step, one trap bar deadlift target, three sets:
 
 | reps | weight |
 | --- | --- |
@@ -27,13 +35,22 @@ Workout step, `wktStepIndex` 5, three ExerciseSets:
 | 3 | 100 000 g |
 | 3 | 105 000 g |
 
-One step of one Workout, three different weights, ascending. Garmin has no way
-to hold those three numbers unless the athlete entered them on the watch while
-lifting. `activity-service--exerciseSets__activity-24272601315.json` shows the
-same at `wktStepIndex` 4 — 3×100, 3×100, 3×110 kg — and
-`activity-service--exerciseSets__activity-24444892080.json` shows repetitions
-moving within a step at a fixed weight: 8, 4, 4, 0 at 75 000 g under
-`wktStepIndex` 4.
+Three weights under one target is a correction, and the athlete confirms this one
+was made on the watch. Across the corpus, **5 of the 34 prescribed steps carry
+within-step variation** (cancelled sets excluded, since those vary by definition):
+
+| Activity | step | sets as recorded | corrected |
+| --- | --- | --- | --- |
+| 24185357395 | 5 | 3×95, 3×100, 3×105 kg | weight |
+| 24185357395 | 8 | 5×10, 5×12 kg | weight |
+| 24272601315 | 4 | 3×100, 3×100, 3×110 kg | weight |
+| 24444892080 | 4 | 8, 4, 4 at 75 kg | reps |
+| 23898645459 | 15 | 5, 10, 10 at bodyweight | reps |
+
+Both fields move, independently, in both directions. **The corrections are in the
+API, per set, joined to the step they diverge from.** That is Adherence evidence
+of exactly the kind [ADR 0002](../../docs/adr/0002-own-datastore-is-the-system-of-record.md)
+makes the datastore the record of, and it is measurable rather than inferred.
 
 So **fork 1 applies** (see [Which project this implies](#which-project-this-implies)).
 
@@ -113,23 +130,44 @@ entered rather than inferred: an accelerometer estimate would not land on 67.5 k
 boundary.** Storing grams as an integer keeps every observed value exact and
 makes 0.5 kg representable without a float.
 
-Three values are not weights and must not be ingested as such:
+**`weight` is never absent on a set that was actually performed.** All 99 working
+ACTIVE rows carry a value. The only two nulls among ACTIVE rows are
+CancelledExerciseSets, where there is nothing to record.
+
+The three non-positive values, and what each one means:
 
 | value | rows | what it is |
 | --- | --- | --- |
-| `null` | 94 | 92 REST rows, plus 2 ACTIVE rows |
-| `-1.0` | 18 | 15 REST rows in one Activity, plus 3 ACTIVE `STANDING_CALF_RAISE` rows |
-| `0.0` | 12 | ACTIVE, banded and bodyweight movements |
+| `null` | 94 | 92 REST rows, plus 2 cancelled ACTIVE rows |
+| `-1.0` | 18 | 3 working `STANDING_CALF_RAISE` rows, plus 15 REST rows in one Activity |
+| `0.0` | 12 | working, banded movements with no external load |
 
-`-1.0` is a sentinel for "no weight recorded", not a weight. It appears on ACTIVE
-rows (`activity-service--exerciseSets__activity-23898645459.json`, the three
-`STANDING_CALF_RAISE` sets at `wktStepIndex` 15) and on every REST row of
-`activity-service--exerciseSets__activity-23930958725.json`. Garmin's own rollup
-treats it as zero: that Activity's `CALF_RAISE` entry in
-`summarizedExerciseSets` reports `maxWeight` 0 and `volume` 0 against 25
-repetitions. **A negative `weight` must be read as unknown, and never
-arithmetically.** `0.0`, by contrast, is a real answer — a banded glute bridge
-carries no external load.
+**`-1.0` means bodyweight.** Not "unknown", and not "zero" — a stated load whose
+magnitude is the athlete's own mass. Garmin Connect renders those same three sets
+as `Bodyweight` in both the weight and the volume column, and the athlete
+confirms that is what they were: 5, 10 and 10 standing calf raises at
+`wktStepIndex` 15 of
+`activity-service--exerciseSets__activity-23898645459.json`.
+
+So the three non-positive values are three different answers and must not be
+collapsed: `null` is nothing performed, `-1` is bodyweight, `0` is performed with
+no external load. Only `0` and `-1` appear on working sets, and they mean
+different things — a banded glute bridge at `0` genuinely adds no load beyond
+the band, while a calf raise at `-1` is loaded by the athlete.
+
+**Garmin's own rollup loses that distinction.** The `CALF_RAISE` entry in that
+Activity's `summarizedExerciseSets` reports `maxWeight` 0 and `volume` 0 against
+25 repetitions — 25 loaded repetitions recorded as no work at all. That is one
+more dimension in which the rollup is lossy and the per-set rows are not, on top
+of the set-to-set decay and weight variation
+[ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md)
+already records.
+
+It also leaves a question this spike does not answer: whether *our* volume for a
+bodyweight set should stay zero, as Garmin has it, or be computed from the body
+weight on the AthleteProfile. Both are defensible and the choice belongs with the
+analytics in step 6, not here. What matters at the ingest boundary is that the
+bodyweight case arrives distinguishable, which it does.
 
 ### `setType` — yes, it separates working from rest
 
@@ -203,7 +241,7 @@ the matching `exerciseSets` dump under these rules:
 
 - `sets` = count of ACTIVE rows, CancelledExerciseSets included
 - `reps` = Σ `repetitionCount`
-- `maxWeight` = max(`weight`, 0) — so the `-1.0` sentinel floors to 0
+- `maxWeight` = max(`weight`, 0) — so a bodyweight set's `-1` floors to 0
 - `volume` = Σ `repetitionCount` × max(`weight`, 0), in grams
 - `duration` = Σ `duration`, **in milliseconds** where the per-set field is seconds
 
@@ -282,7 +320,7 @@ dumps: the list entry's `hrTimeInZone_1`–`hrTimeInZone_5` are identical to
 `secsInZone` on all 8 Activities, so the sync reads the seconds off the list,
 fetches the boundaries once per run, and never calls `hrTimeInZones`.
 
-## One Activity that does not look like the others
+## The one Activity edited in Garmin Connect, and what that costs
 
 `activity-service--exerciseSets__activity-23930958725.json` (2026-08-10) differs
 from the other six in every structural respect at once:
@@ -296,22 +334,48 @@ from the other six in every structural respect at once:
 | REST `weight` | `-1.0` | `null` |
 | REST `startTime` | `null` | populated |
 
-The list entry gives no explanation: same `deviceId`, `manufacturer: GARMIN`,
-`manualActivity: false`, `workoutId` populated. And its data carries one value
-that is hard to credit — `CHOP` / `CABLE_ROTATIONAL_LIFT` at 8 reps of 12 000 g
-followed by 8 reps of **85 000 g**, where the same movement is 12–12.5 kg in every
-other Activity in the corpus. That single value inflates the Activity's
-`summarizedExerciseSets` volume for the movement to 776 000 g.
+The list entry gives no hint: same `deviceId`, `manufacturer: GARMIN`,
+`manualActivity: false`, `workoutId` populated. **The athlete confirms they edited
+this session in Garmin Connect**, so the table above is the signature of a
+Connect-side edit rather than an anomaly to explain away. That makes the two
+kinds of correction distinguishable in the payload:
 
-A single candidate at probability exactly 100.0, with the Workout step and
-message indices gone, is what one would expect from sets rewritten after the fact
-rather than recorded live. **That is inference, not observation, and the dumps
-cannot settle it.** It is the one question in this note that needs the athlete
-rather than the data — see the note at the end.
+| | corrected on the watch | corrected in Garmin Connect |
+| --- | --- | --- |
+| how it shows | within-step variation, structure intact | the structural signature above |
+| `wktStepIndex` | preserved | gone |
+| `exercises[]` | 3 ranked candidates | 1 candidate at exactly `100.0` |
+| `messageIndex` | preserved | gone |
 
-Its practical weight is low either way: it is 1 Activity in 7, and the
-`wktStepIndex: null` case it exhibits has to be handled regardless, because the
-other six each carry one such row too.
+**The cost is the Adherence join.** A watch correction is measurable against the
+step it diverges from, because `wktStepIndex` survives it — that is the whole
+basis of the five corrections listed at the top of this note. A Connect edit
+removes `wktStepIndex` from every row, so the Activity has 0 of 0 joinable steps
+and nothing it records can be compared to what was prescribed. The sets are still
+there; the link to the Workout is not.
+
+Two consequences follow, one for the code and one for the athlete.
+
+For the code: the signature is a usable **detector**. An Activity whose rows all
+carry one candidate at probability 100.0 with no `wktStepIndex` was edited after
+recording, and its Adherence should be reported as unmeasurable rather than as
+zero divergence — the second would read as perfect adherence to a plan the data
+cannot see.
+
+For the athlete: **correct on the watch, not in Connect.** A watch correction is
+the signal this project is built to read; a Connect edit silently discards it.
+That is a behavioural note rather than a constraint, and it is worth knowing
+before a decade of history is backfilled.
+
+It also explains the one value in the corpus that is hard to credit — `CHOP` /
+`CABLE_ROTATIONAL_LIFT` at 8 reps of 12 000 g followed by 8 reps of **85 000 g**,
+where that movement is 12–12.5 kg in every other Activity, inflating the
+Activity's rollup volume for it to 776 000 g. A hand edit against a long
+drop-down is a far better explanation than an 85 kg cable rotational lift, but
+either way it is committed data and the store will hold it. **An implausible
+weight is not something the ingest boundary should reject**: it has no way to
+know an athlete's plausible range, and silently dropping a real lift is worse
+than keeping an odd one.
 
 ## Which project this implies
 
@@ -322,10 +386,12 @@ stands. The bulk export is valuable for backfilling years of the same, and Garmi
 write-back stays where it is — a convenience that automates a manual step, last in
 the order because it is the only step that can damage anything.
 
-Fork 2 is ruled out for this athlete's recorded history, with one honest limit:
-every strength Activity in the window followed a pushed Workout, so the claim is
+Fork 2 is ruled out for this athlete's recorded history, with two honest limits.
+Every strength Activity in the window followed a pushed Workout, so the claim is
 about the way this athlete actually trains and not about freestyle sessions, of
-which the corpus holds none.
+which the corpus holds none. And the per-set corrections are only *joinable* to a
+prescription while the Activity is left as the watch recorded it — the one
+Connect-edited session in the corpus has no `wktStepIndex` on any row.
 
 ### Does `docs/build-order.md` change?
 
@@ -363,13 +429,23 @@ and each one is a line of code somewhere in step 3 or step 4.
 - Take the **first** entry of `exercises[]`, not all of them, and keep its
   `probability`. An empty array means REST. Candidates can disagree, and when
   they do the top one can be `UNKNOWN`.
-- Treat `weight` as grams; store it as an integer. **Negative is unknown**, null
-  is unknown, `0` is a real unloaded set.
+- Treat `weight` as grams; store it as an integer. The three non-positive values
+  are three different answers: **`-1` is bodyweight**, `0` is performed with no
+  external load, `null` is nothing performed. Never treat `-1` as a gram count,
+  and never collapse it into `0`.
 - Treat `repetitionCount == 0` on an ACTIVE row as a CancelledExerciseSet:
   counted for Adherence, excluded from volume and from per-set averages. Never
   use duration to detect one.
 - Never assume `wktStepIndex` or `messageIndex` is present. Both are null on rows
-  in six of seven dumps and on every row of one.
+  in six of seven dumps and on every row of one. An Activity with no
+  `wktStepIndex` anywhere has no Adherence to report — not zero divergence,
+  which reads as perfect adherence to a plan the data cannot see.
+- Keep the whole `exercises[]` array, or at least the candidate count and the top
+  probability. One candidate at exactly `100.0` across every row, with
+  `wktStepIndex` absent, is the signature of an Activity edited in Garmin Connect
+  rather than recorded, and that is worth knowing at query time.
+- Do not reject an implausible `weight`. The boundary cannot know an athlete's
+  range, and dropping a real lift is worse than storing an odd one.
 - Per-set `startTime` is **GMT with no offset marker** — `2026-09-21T14:34:01.0`
   against a list `startTimeGMT` of `2026-09-21 14:34:01` and a `startTimeLocal`
   of `16:34:01`. Parsing it as local time moves every ExerciseSet by the offset.
@@ -467,11 +543,18 @@ from the repository alone. A question about the four scrubbed coordinate fields 
 the two scrubbed names is answerable from the raw run on the athlete's machine.
 Neither needs Garmin.
 
-## The one open question
+## What the dumps could not answer, and the athlete did
 
-Whether `activity-service--exerciseSets__activity-23930958725.json` — the
-2026-08-10 session — had its sets edited in Garmin Connect after the fact. The
-dumps show the signature and cannot show the cause, and the answer decides whether
-"single candidate at probability 100.0, no `wktStepIndex`, no `messageIndex`" is a
-marker the sync can use to spot edited Activities, or just one odd recording. It
-changes nothing above either way.
+Two claims in this note rest on the athlete rather than on the payloads, and are
+marked as such where they appear:
+
+- **How a Workout step works** — one Exercise, one target, a repeat count — which
+  is what makes within-step variation proof of a correction rather than a
+  curiosity. Nothing in a response says this; it is a property of the tool the
+  Workout was built in.
+- **That the 2026-08-10 session was edited in Garmin Connect**, which turns a
+  structural oddity into a detector for edited Activities.
+
+Both were open questions when this note was first written and are recorded here
+so that the distinction between observation and testimony survives. Everything
+else above is read off the committed corpus and recomputable from it.

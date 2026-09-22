@@ -16,7 +16,9 @@ _Avoid_: session, workout, training
 
 **ExerciseSet**:
 One set within a strength Activity, either working or resting, carrying
-repetitions and weight lifted.
+repetitions and weight lifted. A working set may be performed at bodyweight,
+which is a stated load rather than a missing one, and is distinct from a set
+performed with no load at all.
 _Avoid_: set, rep set, lift
 
 **Exercise**:
@@ -61,7 +63,11 @@ _Avoid_: sport, sport type, zone set, profile
 
 **Workout**:
 A reusable structured definition of a training session: its steps, targets and
-intensities. A description of work to be done, never work that was done.
+intensities. A description of work to be done, never work that was done. One step
+names a single Exercise with one target — repetitions and weight — and how many
+times to repeat it, so every ExerciseSet of a step shares one target. Recorded
+sets that differ within a step therefore record a correction, which is what makes
+Adherence measurable per set.
 _Avoid_: session, planned workout, template
 
 **ScheduledWorkout**:

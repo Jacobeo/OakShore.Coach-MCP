@@ -40,7 +40,7 @@ Read it rather than inferring provenance from file names.
 What the payloads actually say, field by field, is in
 [findings.md](../../spikes/strength-data-spike/findings.md). Read that before
 writing code against these files — several fields do not mean what their names
-suggest, and `weight` in particular carries two sentinel values that are not
+suggest, and `weight` in particular carries two non-gram values that are not
 weights.
 
 ## What was changed, and what was not
