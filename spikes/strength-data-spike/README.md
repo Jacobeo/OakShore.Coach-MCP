@@ -50,10 +50,15 @@ the same file.
 
 `activity-list-field-check.md`, beside this README: whether the list entry
 carries `totalSets`, `activeSets` and `totalReps`, so spec 03 knows whether it
-can skip a per-Activity call. It is tracked, and carries no Activity
-identifiers so that it can be.
+can skip the per-Activity summary call. It is tracked, and carries no Activity
+identifiers so that it can be. The `exerciseSets` call is a separate question,
+settled in [ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md).
 
-Everything else lands in `dumps/`:
+Everything else lands in `dumps/<run-timestamp>/`. One directory per run, so a
+later run over a shifted window cannot overwrite an earlier Activity's bytes —
+re-fetching is the thing the spike exists to avoid. `--from-dumps` reads the
+most recent run, and takes the window from its `index.json` rather than from
+`--days`.
 
 - `activitylist-service--search-activities__page-NN.json` — one file per page
   of the Activity list, exactly the bytes Garmin sent. Nothing is parsed into

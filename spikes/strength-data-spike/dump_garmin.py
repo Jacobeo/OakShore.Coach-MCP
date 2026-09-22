@@ -391,9 +391,31 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def pages_on_disk(out_dir: Path) -> list[tuple[Path, list[dict[str, Any]]]]:
+def latest_run(out_dir: Path) -> Path:
+    runs = sorted(path for path in out_dir.glob("*") if path.is_dir())
+    if not runs:
+        raise RuntimeError(f"No runs under {out_dir}; fetch something first.")
+    return runs[-1]
+
+
+def window_on_disk(run_dir: Path) -> tuple[date, date] | None:
+    """The window a run actually fetched, which --days cannot be trusted for."""
+    index = run_dir / "index.json"
+    if not index.exists():
+        return None
+    for entry in json.loads(index.read_text("utf-8")):
+        params = entry.get("params") or {}
+        if params.get("startDate") and params.get("endDate"):
+            return (
+                date.fromisoformat(params["startDate"]),
+                date.fromisoformat(params["endDate"]),
+            )
+    return None
+
+
+def pages_on_disk(run_dir: Path) -> list[tuple[Path, list[dict[str, Any]]]]:
     pages = []
-    for path in sorted(out_dir.glob(f"{ACTIVITY_LIST_NAME}__page-*.json")):
+    for path in sorted(run_dir.glob(f"{ACTIVITY_LIST_NAME}__page-*.json")):
         entries = json.loads(path.read_text("utf-8"))
         if entries:
             pages.append((path, entries))
@@ -413,12 +435,21 @@ def main(argv: list[str] | None = None) -> int:
     start = end - timedelta(days=args.days)
 
     if args.from_dumps:
-        pages = pages_on_disk(args.out)
+        try:
+            run_dir = latest_run(args.out)
+        except RuntimeError as error:
+            print(error, file=sys.stderr)
+            return 2
+        pages = pages_on_disk(run_dir)
+        start, end = window_on_disk(run_dir) or (start, end)
         args.field_check.write_text(build_field_check(pages, start, end), "utf-8")
-        print(f"Rebuilt from {len(pages)} page(s) in {args.out}\n{args.field_check}")
+        print(f"Rebuilt from {len(pages)} page(s) in {run_dir}\n{args.field_check}")
         return 0
 
-    writer = DumpWriter(args.out)
+    # One directory per run. A later run over a shifted window must not
+    # overwrite an earlier Activity's bytes: re-fetching is the one thing the
+    # spike exists to avoid.
+    writer = DumpWriter(args.out / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ"))
 
     try:
         client = authenticate(resolve_token_dir(args.token_dir))
