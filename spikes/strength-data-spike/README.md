@@ -48,11 +48,10 @@ saying there were no strength Activities in the window, widen it — `--days 90`
 is what [step 1 of the build order](../../docs/build-order.md) sketched — at
 the cost of more pages and so more paced calls.
 
-A wider window is also the only way to look for a freestyle Activity. Every
-strength Activity dumped so far followed a Workout pushed to the watch, so the
-degraded case research warns about — accelerometer-inferred, `weight` null,
-Exercise category `UNKNOWN` — has not been observed in this athlete's history
-yet.
+Every strength Activity dumped followed a Workout pushed to the watch, because
+that is how this athlete trains. The degraded case research warns about —
+accelerometer-inferred, `weight` null, Exercise category `UNKNOWN` — is not in
+this history to find.
 
 ## Where the token lives
 
@@ -70,12 +69,10 @@ those totals is a separate question, settled in
 [ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md).
 
 `exercise-set-coverage.md`, also tracked and also identifier-free: which
-strength Activities in the window had their `exerciseSets` response dumped, and
-for each whether the athlete followed a Workout pushed to the watch or lifted
-freestyle. A window that holds only one of those two cases says so in as many
-words, because the two are expected to produce different payloads and an
-absence is easy to misread as a finding. What the payloads actually say is
-issue 04's question, not this note's.
+strength Activities in the window had their `exerciseSets` response dumped, how
+many rows each dump holds, and whether the Activity followed a Workout or was
+freestyle. What the payloads actually say is issue 04's question, not this
+note's.
 
 Everything else lands in `dumps/<run-timestamp>/`. One directory per run, so a
 later run over a shifted window cannot overwrite an earlier Activity's bytes —

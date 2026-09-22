@@ -417,9 +417,8 @@ def build_exercise_set_coverage(
 ) -> str:
     """Record which strength Activities were dumped, and from which case.
 
-    The followed-Workout and freestyle split is the question issue 02 asks, so
-    a window holding only one of the two cases says so here rather than
-    leaving it to be inferred from an absence.
+    A window holding only one of the two cases says so, rather than leaving it
+    to be inferred from an absence.
     """
     followed = [act for act in strength if followed_a_workout(act)]
     freestyle = [act for act in strength if not followed_a_workout(act)]
@@ -452,21 +451,17 @@ def build_exercise_set_coverage(
     ]
     if strength and not freestyle:
         lines += [
-            "**No freestyle strength Activity exists in this window.** Every one",
-            "of them was lifted against a Workout pushed to the watch, so this",
-            "run cannot show the difference between the two cases - it can only",
-            "show the best case for Garmin's data model. The comparison stays",
-            "open until a window containing a freestyle Activity is dumped; a",
-            "wider `--days` is the only way to look for one.",
+            "No freestyle Activity in this window, which is the athlete's normal",
+            "case rather than a gap: every strength Activity is lifted against a",
+            "Workout pushed to the watch. The degraded case is unobserved, and",
+            "nothing downstream should be designed for it.",
             "",
         ]
     elif strength and not followed:
         lines += [
-            "**No followed-Workout strength Activity exists in this window.**",
-            "Every one of them was lifted freestyle, so this run shows only the",
-            "case research expects to be degraded - accelerometer-inferred, with",
-            "a null `weight` and an `UNKNOWN` Exercise category. A wider",
-            "`--days` is the only way to look for a followed Activity.",
+            "**No followed-Workout strength Activity exists in this window**,",
+            "which would be a surprise: the athlete lifts against a Workout",
+            "pushed to the watch. Check the window before reading the payloads.",
             "",
         ]
     elif not strength:
