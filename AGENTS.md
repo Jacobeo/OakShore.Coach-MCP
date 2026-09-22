@@ -145,4 +145,4 @@ a nearby comment stale, fix or remove it.
 - **[gaudit/](gaudit/)** — a vendored copy of the third-party `taxuspt/garmin-mcp` server,
   kept to read for Garmin API behaviour. Never imported, never edited, never a model for our
   structure (110+ thin passthrough tools is the opposite of this project's curated surface).
-- **`spikes/`** — throwaway scripts, committed for the record, never imported.
+- **[spikes/](spikes/)** — throwaway scripts, committed for the record, never imported.

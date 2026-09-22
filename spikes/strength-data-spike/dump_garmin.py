@@ -296,7 +296,7 @@ def is_strength(activity: dict[str, Any]) -> bool:
     if "strength" in type_key.lower():
         return True
     # A non-zero strength total on an unexpected typeKey is still a strength
-    # session; a zeroed one on a run is not.
+    # Activity; a zeroed one on a run is not.
     return any(activity.get(field) for field in STRENGTH_TOTALS)
 
 

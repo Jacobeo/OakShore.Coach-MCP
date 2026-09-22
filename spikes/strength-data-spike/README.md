@@ -34,8 +34,8 @@ token has gone stale — delete `~/.garminconnect` and log in by hand once more.
 | `--field-check` | `./activity-list-field-check.md` | |
 | `--from-dumps` | off | Rebuild the field check from `--out`, with no Garmin call |
 
-Fourteen days is enough to catch a few of each session type, which is all the
-spike needs. If `activity-list-field-check.md` comes back saying there were no
+Fourteen days is enough to catch a few Activities of each type, which is all
+the spike needs. If `activity-list-field-check.md` comes back saying there were no
 strength Activities in the window, widen it — `--days 90` is what
 [step 1 of the build order](../../docs/build-order.md) sketched — at the cost
 of more pages and so more paced calls.

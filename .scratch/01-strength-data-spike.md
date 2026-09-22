@@ -64,7 +64,8 @@ Never from Azure, and never from a container on a cloud host.
 **Authentication.** One interactive login, answering the MFA prompt by hand. The
 resulting token file is persisted and reused; the spike must not log in again on
 subsequent runs. This is the same token the sync in spec 03 will consume, so its
-location is a decision, not an accident.
+location is a decision, not an accident: it is recorded in
+[ADR 0006](../docs/adr/0006-garmin-token-file-location.md).
 
 **Calls made.** A list call over a recent window of a few weeks; for each
 returned Activity, the exercise-sets call when it is a strength Activity and the
@@ -89,8 +90,13 @@ should not be grown into spec 03. Its durable output is the dumps, not the scrip
 
 ## Testing Decisions
 
-This is a spike, and it has no automated tests. Writing tests for throwaway code
-that exists to answer a question would be ceremony.
+This is a spike, and it has almost no automated tests. Writing tests for
+throwaway code that exists to answer a question would be ceremony.
+
+The exception is `spikes/strength-data-spike/test_dump_garmin.py`, which covers
+pacing, the abort rule and GET-only. Those three are acceptance criteria that
+cannot be demonstrated by hand, because demonstrating them means provoking a
+real block or a real Garmin write. Nothing else in the spike is tested.
 
 Success is defined by the questions in the user stories being answerable from the
 dumps. The spike is done when a person has read the output and can state, for
