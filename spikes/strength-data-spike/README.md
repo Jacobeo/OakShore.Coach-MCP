@@ -17,7 +17,7 @@ never from a container on a cloud host ([ADR 0001](../../docs/adr/0001-sync-runs
 ```bash
 uv venv .venv
 uv pip install --python .venv/Scripts/python.exe -r requirements.txt
-.venv/Scripts/python.exe dump_garmin.py --days 14
+.venv/Scripts/python.exe dump_garmin.py --days 48
 ```
 
 The first run asks for the Garmin email, the password (not echoed, not stored)
@@ -32,13 +32,27 @@ token has gone stale — delete `~/.garminconnect` and log in by hand once more.
 | `--token-dir` | `$GARMINTOKENS`, else `~/.garminconnect` | |
 | `--out` | `./dumps` | |
 | `--field-check` | `./activity-list-field-check.md` | |
-| `--from-dumps` | off | Rebuild the field check from `--out`, with no Garmin call |
+| `--coverage` | `./exercise-set-coverage.md` | |
+| `--from-dumps` | off | Rebuild the notes from `--out`, with no Garmin call |
+
+One run is one list call per page, then one `exerciseSets` call per strength
+Activity. Forty-eight days is the window the two notes beside this README
+describe — 15 Activities, 7 of them strength, so eight paced calls — and
+`--days 48` is what reproduces it. The notes are rewritten in full by every
+run, so a narrower window narrows what they claim; the default fourteen days
+holds one strength Activity.
 
 Fourteen days is enough to catch a few Activities of each type, which is all
-the spike needs. If `activity-list-field-check.md` comes back saying there were no
-strength Activities in the window, widen it — `--days 90` is what
-[step 1 of the build order](../../docs/build-order.md) sketched — at the cost
-of more pages and so more paced calls.
+the spike needs from a first look. If `activity-list-field-check.md` comes back
+saying there were no strength Activities in the window, widen it — `--days 90`
+is what [step 1 of the build order](../../docs/build-order.md) sketched — at
+the cost of more pages and so more paced calls.
+
+A wider window is also the only way to look for a freestyle Activity. Every
+strength Activity dumped so far followed a Workout pushed to the watch, so the
+degraded case research warns about — accelerometer-inferred, `weight` null,
+Exercise category `UNKNOWN` — has not been observed in this athlete's history
+yet.
 
 ## Where the token lives
 
@@ -51,8 +65,17 @@ the same file.
 `activity-list-field-check.md`, beside this README: whether the list entry
 carries `totalSets`, `activeSets` and `totalReps`, so spec 03 knows whether it
 can skip the per-Activity summary call. It is tracked, and carries no Activity
-identifiers so that it can be. The `exerciseSets` call is a separate question,
-settled in [ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md).
+identifiers so that it can be. Whether the sync needs `exerciseSets` on top of
+those totals is a separate question, settled in
+[ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md).
+
+`exercise-set-coverage.md`, also tracked and also identifier-free: which
+strength Activities in the window had their `exerciseSets` response dumped, and
+for each whether the athlete followed a Workout pushed to the watch or lifted
+freestyle. A window that holds only one of those two cases says so in as many
+words, because the two are expected to produce different payloads and an
+absence is easy to misread as a finding. What the payloads actually say is
+issue 04's question, not this note's.
 
 Everything else lands in `dumps/<run-timestamp>/`. One directory per run, so a
 later run over a shifted window cannot overwrite an earlier Activity's bytes —
@@ -64,6 +87,13 @@ most recent run, and takes the window from its `index.json` rather than from
   of the Activity list, exactly the bytes Garmin sent. Nothing is parsed into
   them and nothing is reformatted. Every response is written before anything
   reads it, so a payload that breaks the parser is on disk rather than lost.
+- `activity-service--exerciseSets__activity-<id>.json` — one file per strength
+  Activity, again exactly the bytes Garmin sent, written before anything reads
+  them.
+- `exercise-set-cases.md` — which of those dumps followed a Workout and which
+  was freestyle, by Activity. It lives here rather than beside this README
+  because it names Activities, and identifiers are exactly what issue 04's
+  scrubbing decision has to weigh before anything is committed.
 - `index.json` — which endpoint, which query parameters and which Activity each
   file came from, plus when it was fetched. The query parameters and fetch time
   are only knowable at fetch time, which is why they are captured here rather
@@ -82,16 +112,25 @@ it is committed as a fixture corpus.
   history are why [ADR 0004](../../docs/adr/0004-garmin-writes-are-additive-only.md)
   exists.
 - **At least a few seconds between calls.** Four by default, including between
-  login and the first list call.
+  login and the first list call, and between every Activity of the
+  `exerciseSets` pass.
 - **Stop, never retry.** Any error status ends the run and reports the status,
   `Retry-After` and the response body. Retrying a rate limit extends the block
   ([ADR 0005](../../docs/adr/0005-bounded-resumable-sync.md)), so 401, 403 and
   429 are called out by name in the report — and no other error status is
-  retried either.
+  retried either. An abort part way through the per-Activity pass leaves the
+  remaining Activities unfetched and the two notes untouched; `--from-dumps`
+  rebuilds them from whatever landed.
+- **Two endpoints, and no others.** `ACTIVITY_LIST_PATH` and
+  `EXERCISE_SETS_PATH` in `dump_garmin.py` are every path the script can ask
+  for. The per-Activity *summary* endpoint is deliberately not among them: the
+  list entry already carries the strength totals and the per-Exercise rollup
+  ([ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md)).
 
-The spike is otherwise untested by design. Those three properties are the
-exception, because provoking them by hand means provoking a real block or a
-real write:
+The spike is otherwise untested by design. Pacing and the abort rule are the
+exception — both across the list pass and across the per-Activity pass —
+because provoking them by hand means provoking a real block. GET-only is tested
+for the same reason: demonstrating it means risking a real write.
 
 ```bash
 .venv/Scripts/python.exe -m pytest

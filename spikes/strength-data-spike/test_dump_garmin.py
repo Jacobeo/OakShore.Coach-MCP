@@ -10,7 +10,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from dump_garmin import ABORT_STATUSES, AbortSignal, PacedReader
+from dump_garmin import (
+    ABORT_STATUSES,
+    AbortSignal,
+    DumpWriter,
+    PacedReader,
+    fetch_exercise_sets,
+)
 
 
 class FakeResponse:
@@ -124,3 +130,49 @@ def test_only_ever_issues_get_requests():
     assert [call.method for call in session.calls] == ["GET"]
     assert session.calls[0].url == "https://connectapi.example/a"
     assert session.calls[0].params == {"start": "0"}
+
+
+def strength_activity(activity_id, workout_id=None):
+    return {
+        "activityId": activity_id,
+        "workoutId": workout_id,
+        "activityType": {"typeKey": "strength_training"},
+        "totalSets": 3,
+    }
+
+
+def test_the_per_activity_pass_is_paced_between_activities(tmp_path):
+    reader, _, slept = make_reader(
+        FakeResponse(200, b'{"exerciseSets": []}'),
+        FakeResponse(200, b'{"exerciseSets": []}'),
+        FakeResponse(200, b'{"exerciseSets": []}'),
+        already_called=True,
+    )
+    writer = DumpWriter(tmp_path / "run")
+
+    fetch_exercise_sets(
+        reader,
+        writer,
+        [strength_activity(1), strength_activity(2), strength_activity(3)],
+    )
+
+    assert slept == [4.0, 4.0, 4.0], "the first call is paced behind the list pass"
+
+
+def test_an_abort_mid_pass_leaves_the_remaining_activities_unfetched(tmp_path):
+    reader, session, _ = make_reader(
+        FakeResponse(200, b'{"exerciseSets": []}'),
+        FakeResponse(429, b"", {"Retry-After": "600"}),
+        FakeResponse(200, b'{"exerciseSets": []}'),
+    )
+    writer = DumpWriter(tmp_path / "run")
+
+    with pytest.raises(AbortSignal) as caught:
+        fetch_exercise_sets(
+            reader,
+            writer,
+            [strength_activity(1), strength_activity(2), strength_activity(3)],
+        )
+
+    assert caught.value.status_code == 429
+    assert len(session.calls) == 2, "the third Activity is never requested"

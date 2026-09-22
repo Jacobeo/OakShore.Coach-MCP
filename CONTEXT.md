@@ -23,6 +23,12 @@ _Avoid_: set, rep set, lift
 The movement performed in an ExerciseSet, identified by a category and a name.
 _Avoid_: lift, movement, drill
 
+**Freestyle**:
+Said of an Activity recorded without a Workout to follow, so nothing links what
+was done to anything prescribed. The other case is an Activity that *followed* a
+Workout; that phrase is the term, there is no noun for it.
+_Avoid_: unstructured, ad-hoc, unplanned, off-plan
+
 ### Prescribed training
 
 **Workout**:

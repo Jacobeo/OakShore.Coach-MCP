@@ -2,8 +2,9 @@
 """Throwaway harness for the strength data spike (.scratch/01-strength-data-spike.md).
 
 Logs in to Garmin Connect once by hand, persists the token, then dumps the raw
-bytes of an Activity list over a recent window. Run it from the home machine
-only: Garmin rate-limits by IP and datacenter ranges fare worse (ADR 0001).
+bytes of an Activity list over a recent window and of the `exerciseSets`
+response for every strength Activity in it. Run it from the home machine only:
+Garmin rate-limits by IP and datacenter ranges fare worse (ADR 0001).
 
 This is not the sync. It is not structured for reuse and must not be grown into
 spec 03; its durable output is the files under dumps/.
@@ -32,7 +33,15 @@ ABORT_STATUSES = (401, 403, 429)
 
 ACTIVITY_LIST_PATH = "/activitylist-service/activities/search/activities"
 ACTIVITY_LIST_NAME = "activitylist-service--search-activities"
+# These two are every path the spike can ask for. The per-Activity summary
+# endpoint is deliberately not among them (ADR 0007).
+EXERCISE_SETS_PATH = "/activity-service/activity/{activity_id}/exerciseSets"
+EXERCISE_SETS_NAME = "activity-service--exerciseSets"
 FIELD_CHECK_NAME = "activity-list-field-check.md"
+COVERAGE_NAME = "exercise-set-coverage.md"
+# Beside the dumps rather than beside the README: it names Activities, so it is
+# gitignored with them until issue 04 decides what gets scrubbed.
+CASES_NAME = "exercise-set-cases.md"
 PAGE_SIZE = 20
 # A few weeks of Activities is far under this. The cap exists so a server that
 # never returns an empty page cannot loop us into a burst of requests.
@@ -153,6 +162,20 @@ class DumpWriter:
             for entry in json.loads(self._index_path.read_text("utf-8")):
                 self._entries[entry["file"]] = entry
 
+    @staticmethod
+    def file_name(
+        endpoint_name: str,
+        *,
+        activity_id: Any = None,
+        page: int | None = None,
+    ) -> str:
+        name = endpoint_name
+        if activity_id is not None:
+            name += f"__activity-{activity_id}"
+        if page is not None:
+            name += f"__page-{page:02d}"
+        return f"{name}.json"
+
     def write(
         self,
         endpoint_name: str,
@@ -163,12 +186,9 @@ class DumpWriter:
         activity_id: str | None = None,
         page: int | None = None,
     ) -> Path:
-        name = endpoint_name
-        if activity_id is not None:
-            name += f"__activity-{activity_id}"
-        if page is not None:
-            name += f"__page-{page:02d}"
-        target = self.out_dir / f"{name}.json"
+        target = self.out_dir / self.file_name(
+            endpoint_name, activity_id=activity_id, page=page
+        )
         target.write_bytes(body)
 
         self._entries[target.name] = {
@@ -291,13 +311,201 @@ def fetch_activity_list(
     raise RuntimeError(f"Activity list did not end within {MAX_PAGES} pages; stopping.")
 
 
+def type_key(activity: dict[str, Any]) -> str:
+    return (activity.get("activityType") or {}).get("typeKey") or ""
+
+
 def is_strength(activity: dict[str, Any]) -> bool:
-    type_key = (activity.get("activityType") or {}).get("typeKey") or ""
-    if "strength" in type_key.lower():
+    if "strength" in type_key(activity).lower():
         return True
     # A non-zero strength total on an unexpected typeKey is still a strength
     # Activity; a zeroed one on a run is not.
     return any(activity.get(field) for field in STRENGTH_TOTALS)
+
+
+def fetch_exercise_sets(
+    reader: PacedReader,
+    writer: DumpWriter,
+    activities: list[dict[str, Any]],
+) -> None:
+    """One paced call per strength Activity, written verbatim before it is read.
+
+    The read endpoint shares its path with the write that ADR 0004 forbids,
+    and `PacedReader` is what keeps them apart: it can only issue `GET`.
+    """
+    for activity in activities:
+        activity_id = str(activity["activityId"])
+        path = EXERCISE_SETS_PATH.format(activity_id=activity_id)
+        body = reader.get(path)
+        target = writer.write(
+            EXERCISE_SETS_NAME, body, path=path, activity_id=activity_id
+        )
+        print(f"  Activity {activity_id} -> {target.name} ({len(body)} bytes)")
+
+
+def followed_a_workout(activity: dict[str, Any]) -> bool:
+    """Whether `workoutId` links this Activity back to a Workout.
+
+    A freestyle Activity has none, and the two cases are expected to produce
+    different `exerciseSets` payloads (ADR 0007).
+    """
+    return activity.get("workoutId") is not None
+
+
+def exercise_sets_dump_for(run_dir: Path, activity_id: Any) -> Path | None:
+    target = run_dir / DumpWriter.file_name(EXERCISE_SETS_NAME, activity_id=activity_id)
+    return target if target.exists() else None
+
+
+def exercise_set_count(dump: Path) -> int | None:
+    """How many `exerciseSets` rows a dump holds; None if they cannot be read.
+
+    An empty array is worth telling apart from a dump that was never fetched,
+    so the count is reported. Nothing here may raise: the bytes cost a paced
+    call and are already on disk, and a note that crashes on them would send
+    the athlete back to Garmin for a payload they already have.
+    """
+    try:
+        payload = json.loads(dump.read_text("utf-8", "replace") or "null")
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict) or not isinstance(
+        payload.get("exerciseSets"), list
+    ):
+        return None
+    return len(payload["exerciseSets"])
+
+
+def note_header(title: str, summary: str) -> list[str]:
+    generated = datetime.now(UTC).isoformat(timespec="seconds")
+    return [
+        f"# {title}",
+        "",
+        f"Generated by `dump_garmin.py` at {generated}.",
+        summary,
+        "",
+    ]
+
+
+def build_exercise_set_cases(strength: list[dict[str, Any]]) -> str:
+    """Which dump came from which case, by Activity, for the run directory.
+
+    The tracked coverage note carries no identifiers, so this is where the two
+    cases are tied to individual dumps.
+    """
+    lines = [
+        "# Which case each ExerciseSet dump came from",
+        "",
+        "| Activity | followed a Workout | dump |",
+        "| --- | --- | --- |",
+    ]
+    for act in strength:
+        activity_id = act.get("activityId")
+        lines.append(
+            f"| {activity_id} "
+            f"| {'yes' if followed_a_workout(act) else 'no'} "
+            f"| `{DumpWriter.file_name(EXERCISE_SETS_NAME, activity_id=activity_id)}` |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def build_exercise_set_coverage(
+    strength: list[dict[str, Any]],
+    run_dir: Path,
+    start: date,
+    end: date,
+) -> str:
+    """Record which strength Activities were dumped, and from which case.
+
+    The followed-Workout and freestyle split is the question issue 02 asks, so
+    a window holding only one of the two cases says so here rather than
+    leaving it to be inferred from an absence.
+    """
+    followed = [act for act in strength if followed_a_workout(act)]
+    freestyle = [act for act in strength if not followed_a_workout(act)]
+    located = [
+        (act, exercise_sets_dump_for(run_dir, act.get("activityId")))
+        for act in strength
+    ]
+    on_disk = [act for act, dump in located if dump is not None]
+
+    lines = note_header(
+        "ExerciseSet dump coverage",
+        (
+            f"Window {start.isoformat()} to {end.isoformat()}: "
+            f"{len(strength)} strength Activities, {len(on_disk)} with their "
+            f"`exerciseSets` response on disk."
+        ),
+    ) + [
+        "Read off the raw dumps under `dumps/`, not off Garmin's documentation.",
+        "Activity and Workout identifiers are deliberately absent here: they are",
+        "in the dumps, which are not committed, and in `exercise-set-cases.md`",
+        "beside them. What the rows hold - `weight`, Exercise names, `setType` -",
+        "is issue 04's question; this note records only what was fetched and",
+        "which of the two cases it came from.",
+        "",
+        "## The two cases",
+        "",
+        f"- Followed a Workout pushed to the watch: **{len(followed)}**",
+        f"- Freestyle, no Workout linked: **{len(freestyle)}**",
+        "",
+    ]
+    if strength and not freestyle:
+        lines += [
+            "**No freestyle strength Activity exists in this window.** Every one",
+            "of them was lifted against a Workout pushed to the watch, so this",
+            "run cannot show the difference between the two cases - it can only",
+            "show the best case for Garmin's data model. The comparison stays",
+            "open until a window containing a freestyle Activity is dumped; a",
+            "wider `--days` is the only way to look for one.",
+            "",
+        ]
+    elif strength and not followed:
+        lines += [
+            "**No followed-Workout strength Activity exists in this window.**",
+            "Every one of them was lifted freestyle, so this run shows only the",
+            "case research expects to be degraded - accelerometer-inferred, with",
+            "a null `weight` and an `UNKNOWN` Exercise category. A wider",
+            "`--days` is the only way to look for a followed Activity.",
+            "",
+        ]
+    elif not strength:
+        lines += [
+            "**No strength Activity exists in this window**, so neither case is",
+            "dumped. Widen `--days` before reading anything into that.",
+            "",
+        ]
+
+    lines += [
+        "## Per Activity",
+        "",
+        "| # | typeKey | followed a Workout | `exerciseSets` rows | dump |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for row, (act, dump) in enumerate(located, start=1):
+        if dump is None:
+            rows, state = "-", "missing"
+        else:
+            count = exercise_set_count(dump)
+            rows = "unreadable" if count is None else str(count)
+            state = "on disk"
+        lines.append(
+            f"| {row} | {type_key(act)} "
+            f"| {'yes' if followed_a_workout(act) else 'no'} | {rows} | {state} |"
+        )
+
+    missing = len(strength) - len(on_disk)
+    if missing:
+        lines += [
+            "",
+            (
+                f"**{missing} of them have no dump in this run directory.** "
+                "Either the pass has not been run live over this window, or it "
+                "stopped early - an `ABORT-*.txt` beside the dumps says which."
+            ),
+        ]
+
+    return "\n".join(lines) + "\n"
 
 
 def build_field_check(
@@ -314,18 +522,13 @@ def build_field_check(
     total = len(activities)
     strength = [(path, act) for path, act in activities if is_strength(act)]
 
-    lines = [
-        "# Activity list field check",
-        "",
-        (
-            f"Generated by `dump_garmin.py` at "
-            f"{datetime.now(UTC).isoformat(timespec='seconds')}."
-        ),
+    lines = note_header(
+        "Activity list field check",
         (
             f"Window {start.isoformat()} to {end.isoformat()}: {total} Activities "
             f"over {len(pages)} page(s), {len(strength)} of them strength."
         ),
-        "",
+    ) + [
         "Read off the raw page dumps under `dumps/`, not off Garmin's",
         "documentation. Activity identifiers are deliberately absent here: they",
         "are in the dumps, which are not committed.",
@@ -360,10 +563,7 @@ def build_field_check(
         ]
         for row, (path, act) in enumerate(strength, start=1):
             values = " | ".join(repr(act.get(field)) for field in STRENGTH_TOTALS)
-            lines.append(
-                f"| {row} | {(act.get('activityType') or {}).get('typeKey')} "
-                f"| {values} | `{path.name}` |"
-            )
+            lines.append(f"| {row} | {type_key(act)} | {values} | `{path.name}` |")
 
     return "\n".join(lines) + "\n"
 
@@ -383,10 +583,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--token-dir", default=None, help="overrides $GARMINTOKENS")
     parser.add_argument("--out", type=Path, default=here / "dumps")
     parser.add_argument("--field-check", type=Path, default=here / FIELD_CHECK_NAME)
+    parser.add_argument("--coverage", type=Path, default=here / COVERAGE_NAME)
     parser.add_argument(
         "--from-dumps",
         action="store_true",
-        help="rebuild the field check from --out, with no Garmin call at all",
+        help="rebuild the notes from --out, with no Garmin call at all",
     )
     return parser.parse_args(argv)
 
@@ -413,6 +614,12 @@ def window_on_disk(run_dir: Path) -> tuple[date, date] | None:
     return None
 
 
+def strength_activities(
+    pages: list[tuple[Path, list[dict[str, Any]]]],
+) -> list[dict[str, Any]]:
+    return [act for _, page in pages for act in page if is_strength(act)]
+
+
 def pages_on_disk(run_dir: Path) -> list[tuple[Path, list[dict[str, Any]]]]:
     pages = []
     for path in sorted(run_dir.glob(f"{ACTIVITY_LIST_NAME}__page-*.json")):
@@ -420,6 +627,23 @@ def pages_on_disk(run_dir: Path) -> list[tuple[Path, list[dict[str, Any]]]]:
         if entries:
             pages.append((path, entries))
     return pages
+
+
+def write_notes(
+    writer: DumpWriter,
+    pages: list[tuple[Path, list[dict[str, Any]]]],
+    start: date,
+    end: date,
+    field_check: Path,
+    coverage: Path,
+) -> None:
+    """The two tracked notes, and the identifier-carrying one in the run dir."""
+    strength = strength_activities(pages)
+    field_check.write_text(build_field_check(pages, start, end), "utf-8")
+    coverage.write_text(
+        build_exercise_set_coverage(strength, writer.out_dir, start, end), "utf-8"
+    )
+    writer.write_note(CASES_NAME, build_exercise_set_cases(strength))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -442,8 +666,18 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         pages = pages_on_disk(run_dir)
         start, end = window_on_disk(run_dir) or (start, end)
-        args.field_check.write_text(build_field_check(pages, start, end), "utf-8")
-        print(f"Rebuilt from {len(pages)} page(s) in {run_dir}\n{args.field_check}")
+        write_notes(
+            DumpWriter(run_dir),
+            pages,
+            start,
+            end,
+            args.field_check,
+            args.coverage,
+        )
+        print(
+            f"Rebuilt from {len(pages)} page(s) in {run_dir}"
+            f"\n{args.field_check}\n{args.coverage}\n{run_dir / CASES_NAME}"
+        )
         return 0
 
     # One directory per run. A later run over a shifted window must not
@@ -468,6 +702,9 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         pages = list(fetch_activity_list(reader, writer, start, end))
+        strength = strength_activities(pages)
+        print(f"\nExerciseSets for {len(strength)} strength Activities.")
+        fetch_exercise_sets(reader, writer, strength)
     except AbortSignal as abort:
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         note = writer.write_note(
@@ -475,7 +712,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(
             f"\nSTOPPED after {reader.call_count} call(s), without retrying."
-            f"\n\n{abort.report()}\n\nWritten to {note}",
+            f"\n\n{abort.report()}\n\nWritten to {note}"
+            "\n\nThe notes are left as they were; what did land is in the run "
+            "directory, and --from-dumps rebuilds them from it.",
             file=sys.stderr,
         )
         return 2
@@ -483,11 +722,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{error}", file=sys.stderr)
         return 2
 
-    args.field_check.write_text(build_field_check(pages, start, end), "utf-8")
+    write_notes(writer, pages, start, end, args.field_check, args.coverage)
     print(
         f"\n{reader.call_count} call(s), {sum(len(page) for _, page in pages)} "
         f"Activities.\nDumps and index: {writer.out_dir}"
         f"\nField check: {args.field_check}"
+        f"\nExerciseSet coverage: {args.coverage}"
     )
     return 0
 
