@@ -61,8 +61,10 @@ Python, on your PC, per [ADR 0005](./adr/0005-bounded-resumable-sync.md):
   committed at a time
 - Hard ceiling on wellness-days per run, most recent first
 - Paced requests; abort and notify on 401, 403, 429; retry only network and 5xx
-- Activities: list by date range, then one enrichment call each — exercise sets
-  for strength, HR time in zones for cardio
+- Activities: list by date range, then one enrichment call per *strength*
+  Activity for exercise sets. Time in zones is read off the list entry and the
+  zone boundaries are fetched once per run, per
+  [ADR 0008](./adr/0008-one-heart-rate-zone-set.md)
 - Wellness per day: sleep, HRV, body battery, stress, daily summary, training
   status, training readiness
 - POSTs batches to the ingest endpoint. Never touches the database directly

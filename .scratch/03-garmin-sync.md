@@ -98,13 +98,18 @@ everything on the way in.
 
 **Call shape.** The Activity list covers an arbitrary date range in one call and
 already carries strength set and repetition totals, so the per-Activity summary
-call is not used. Enrichment is roughly one further call per Activity: exercise
-sets for strength Activities, heart-rate time in zones for cardio. Zone
-boundaries are fetched once, per sport profile. Cost therefore scales with days
-of wellness data, not with the number of Activities.
+call is not used. It also carries `hrTimeInZone_1` through `hrTimeInZone_5`, so
+the per-Activity time-in-zones call is not used either
+([ADR 0008](../docs/adr/0008-one-heart-rate-zone-set.md)). Enrichment is one
+further call per *strength* Activity, for exercise sets. Zone boundaries are
+fetched once per run, and the response carries one entry per configured sport
+profile. Cost therefore scales with days of wellness data, not with the number
+of Activities.
 
 **Known payload hazards**, each of which costs an hour if discovered late: the
-zones response is an unordered list and must be sorted by zone number; weight
+per-Activity zones response is an unordered list that must be sorted by zone
+number, which is one more reason to read the list entry's explicitly numbered
+`hrTimeInZone_N` fields instead; weight
 appears in grams in the exercise-sets JSON but in a scaled kilogram unit in FIT
 files, so a canonical unit must be established at the ingest boundary; activity
 detail samples are positional and must be zipped onto their metric descriptors;
