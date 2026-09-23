@@ -7,8 +7,9 @@ are pointers to it and hold no content of their own.
 ## Status
 
 No application code yet. The repository holds the domain language, the decisions already
-fixed, and the specs. `src/`, `tests/` and the solution file do not exist; the first person
-to create them follows the layout in [docs/build-order.md](docs/build-order.md), the
+fixed, and the specs. `coach-mcp.sln` contains links to the repository files.
+`src/` and `tests/` do not exist; the first person to create them follows the layout in
+[docs/build-order.md](docs/build-order.md), the
 dependency rules below, and the solution rule below that.
 
 ## No guesswork — ask
@@ -146,3 +147,19 @@ a nearby comment stale, fix or remove it.
   kept to read for Garmin API behaviour. Never imported, never edited, never a model for our
   structure (110+ thin passthrough tools is the opposite of this project's curated surface).
 - **[spikes/](spikes/)** — throwaway scripts, committed for the record, never imported.
+
+## Agent skills
+
+### Issue tracker
+
+Before reading or publishing tickets, read [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md).
+Issues live as local Markdown under `.scratch/`.
+
+### Triage labels
+
+Before assigning triage status, read [docs/agents/triage-labels.md](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context layout. When working with domain terminology or decisions,
+read [docs/agents/domain.md](docs/agents/domain.md).

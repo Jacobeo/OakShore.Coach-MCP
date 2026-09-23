@@ -1,0 +1,122 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{EFEE0F68-5713-4B6C-99D6-88F51C08F678}"
+	ProjectSection(SolutionItems) = preProject
+		CONTEXT.md = CONTEXT.md
+		docs\build-order.md = docs\build-order.md
+		docs\example-session.md = docs\example-session.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{9ADE9AEC-C3C5-4343-B2DA-B67D0788C92D}"
+	ProjectSection(SolutionItems) = preProject
+		docs\adr\0001-sync-runs-at-home.md = docs\adr\0001-sync-runs-at-home.md
+		docs\adr\0002-own-datastore-is-the-system-of-record.md = docs\adr\0002-own-datastore-is-the-system-of-record.md
+		docs\adr\0003-python-for-garmin-dotnet-for-the-rest.md = docs\adr\0003-python-for-garmin-dotnet-for-the-rest.md
+		docs\adr\0004-garmin-writes-are-additive-only.md = docs\adr\0004-garmin-writes-are-additive-only.md
+		docs\adr\0005-bounded-resumable-sync.md = docs\adr\0005-bounded-resumable-sync.md
+		docs\adr\0006-garmin-token-file-location.md = docs\adr\0006-garmin-token-file-location.md
+		docs\adr\0007-prescription-needs-per-exerciseset-detail.md = docs\adr\0007-prescription-needs-per-exerciseset-detail.md
+		docs\adr\0008-one-heart-rate-zone-set.md = docs\adr\0008-one-heart-rate-zone-set.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "agents", "agents", "{B3BE0EBF-4AC1-4D9D-A26B-10AD35452E72}"
+	ProjectSection(SolutionItems) = preProject
+		docs\agents\domain.md = docs\agents\domain.md
+		docs\agents\issue-tracker.md = docs\agents\issue-tracker.md
+		docs\agents\triage-labels.md = docs\agents\triage-labels.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Fixtures", "Fixtures", "{78695B84-ACCE-4F58-B2C0-27DFED237D05}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "garmin", "garmin", "{C10CB272-332B-4B5B-AA9E-43E601637523}"
+	ProjectSection(SolutionItems) = preProject
+		fixtures\garmin\activitylist-service--search-activities__page-00.json = fixtures\garmin\activitylist-service--search-activities__page-00.json
+		fixtures\garmin\activity-service--exerciseSets__activity-23898645459.json = fixtures\garmin\activity-service--exerciseSets__activity-23898645459.json
+		fixtures\garmin\activity-service--exerciseSets__activity-23930958725.json = fixtures\garmin\activity-service--exerciseSets__activity-23930958725.json
+		fixtures\garmin\activity-service--exerciseSets__activity-24011353395.json = fixtures\garmin\activity-service--exerciseSets__activity-24011353395.json
+		fixtures\garmin\activity-service--exerciseSets__activity-24098326007.json = fixtures\garmin\activity-service--exerciseSets__activity-24098326007.json
+		fixtures\garmin\activity-service--exerciseSets__activity-24185357395.json = fixtures\garmin\activity-service--exerciseSets__activity-24185357395.json
+		fixtures\garmin\activity-service--exerciseSets__activity-24272601315.json = fixtures\garmin\activity-service--exerciseSets__activity-24272601315.json
+		fixtures\garmin\activity-service--exerciseSets__activity-24444892080.json = fixtures\garmin\activity-service--exerciseSets__activity-24444892080.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-23965663197.json = fixtures\garmin\activity-service--hrTimeInZones__activity-23965663197.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-23984557387.json = fixtures\garmin\activity-service--hrTimeInZones__activity-23984557387.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-24052567443.json = fixtures\garmin\activity-service--hrTimeInZones__activity-24052567443.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-24174672446.json = fixtures\garmin\activity-service--hrTimeInZones__activity-24174672446.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-24211302187.json = fixtures\garmin\activity-service--hrTimeInZones__activity-24211302187.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-24238408527.json = fixtures\garmin\activity-service--hrTimeInZones__activity-24238408527.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-24313465171.json = fixtures\garmin\activity-service--hrTimeInZones__activity-24313465171.json
+		fixtures\garmin\activity-service--hrTimeInZones__activity-24399329227.json = fixtures\garmin\activity-service--hrTimeInZones__activity-24399329227.json
+		fixtures\garmin\biometric-service--heartRateZones.json = fixtures\garmin\biometric-service--heartRateZones.json
+		fixtures\garmin\exercise-set-cases.md = fixtures\garmin\exercise-set-cases.md
+		fixtures\garmin\index.json = fixtures\garmin\index.json
+		fixtures\garmin\README.md = fixtures\garmin\README.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "gaudit", "gaudit", "{5A1575AC-FD78-423D-8580-EB169C54A664}"
+	ProjectSection(SolutionItems) = preProject
+		gaudit\tax_actanalysis.py = gaudit\tax_actanalysis.py
+		gaudit\tax_pyproject.toml = gaudit\tax_pyproject.toml
+		gaudit\tax_README.md = gaudit\tax_README.md
+		gaudit\tax_training.py = gaudit\tax_training.py
+		gaudit\tax_wb.py = gaudit\tax_wb.py
+		gaudit\tax_workouts.py = gaudit\tax_workouts.py
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{001D62EF-D3A4-45A1-B227-CEB0217BABC4}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		AGENTS.md = AGENTS.md
+		CLAUDE.md = CLAUDE.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Specs", "Specs", "{297033D4-477B-4DB0-ABEE-930136AC31EC}"
+	ProjectSection(SolutionItems) = preProject
+		.scratch\00-README.md = .scratch\00-README.md
+		.scratch\01-strength-data-spike.md = .scratch\01-strength-data-spike.md
+		.scratch\02-athlete-profile-vertical-slice.md = .scratch\02-athlete-profile-vertical-slice.md
+		.scratch\03-garmin-sync.md = .scratch\03-garmin-sync.md
+		.scratch\04-program-and-prescription.md = .scratch\04-program-and-prescription.md
+		.scratch\05-garmin-writeback.md = .scratch\05-garmin-writeback.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "01-strength-data-spike", "01-strength-data-spike", "{F7931667-6C19-4EA8-B704-2DDF4249D295}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "issues", "issues", "{2B45FE8A-6E84-48F6-973E-A66C6CA3C817}"
+	ProjectSection(SolutionItems) = preProject
+		.scratch\01-strength-data-spike\issues\01-authenticated-dump-harness.md = .scratch\01-strength-data-spike\issues\01-authenticated-dump-harness.md
+		.scratch\01-strength-data-spike\issues\02-exercise-set-dumps.md = .scratch\01-strength-data-spike\issues\02-exercise-set-dumps.md
+		.scratch\01-strength-data-spike\issues\03-heart-rate-zone-dumps.md = .scratch\01-strength-data-spike\issues\03-heart-rate-zone-dumps.md
+		.scratch\01-strength-data-spike\issues\04-findings-and-fixture-corpus.md = .scratch\01-strength-data-spike\issues\04-findings-and-fixture-corpus.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "spikes", "spikes", "{3EB856F6-99B3-45EF-B0D7-92E9D3D4FC34}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "strength-data-spike", "strength-data-spike", "{D53C39C2-5F3F-4DF6-8DD5-13E6C1693081}"
+	ProjectSection(SolutionItems) = preProject
+		spikes\strength-data-spike\activity-list-field-check.md = spikes\strength-data-spike\activity-list-field-check.md
+		spikes\strength-data-spike\dump_garmin.py = spikes\strength-data-spike\dump_garmin.py
+		spikes\strength-data-spike\exercise-set-coverage.md = spikes\strength-data-spike\exercise-set-coverage.md
+		spikes\strength-data-spike\findings.md = spikes\strength-data-spike\findings.md
+		spikes\strength-data-spike\heart-rate-zone-coverage.md = spikes\strength-data-spike\heart-rate-zone-coverage.md
+		spikes\strength-data-spike\README.md = spikes\strength-data-spike\README.md
+		spikes\strength-data-spike\requirements.txt = spikes\strength-data-spike\requirements.txt
+		spikes\strength-data-spike\scrub_dumps.py = spikes\strength-data-spike\scrub_dumps.py
+		spikes\strength-data-spike\test_dump_garmin.py = spikes\strength-data-spike\test_dump_garmin.py
+		spikes\strength-data-spike\test_scrub_dumps.py = spikes\strength-data-spike\test_scrub_dumps.py
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9ADE9AEC-C3C5-4343-B2DA-B67D0788C92D} = {EFEE0F68-5713-4B6C-99D6-88F51C08F678}
+		{B3BE0EBF-4AC1-4D9D-A26B-10AD35452E72} = {EFEE0F68-5713-4B6C-99D6-88F51C08F678}
+		{C10CB272-332B-4B5B-AA9E-43E601637523} = {78695B84-ACCE-4F58-B2C0-27DFED237D05}
+		{F7931667-6C19-4EA8-B704-2DDF4249D295} = {297033D4-477B-4DB0-ABEE-930136AC31EC}
+		{2B45FE8A-6E84-48F6-973E-A66C6CA3C817} = {F7931667-6C19-4EA8-B704-2DDF4249D295}
+		{D53C39C2-5F3F-4DF6-8DD5-13E6C1693081} = {3EB856F6-99B3-45EF-B0D7-92E9D3D4FC34}
+	EndGlobalSection
+EndGlobal
