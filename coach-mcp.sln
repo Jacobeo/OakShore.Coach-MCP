@@ -107,11 +107,24 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "strength-data-spike", "stre
 		spikes\strength-data-spike\test_scrub_dumps.py = spikes\strength-data-spike\test_scrub_dumps.py
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "02-athlete-profile-vertical-slice", "02-athlete-profile-vertical-slice", "{678D4C08-D024-4B47-AAD7-F7A35D098328}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "issues", "issues", "{5EB98E31-58D8-4168-BE79-37D0F1A20F83}"
+	ProjectSection(SolutionItems) = preProject
+		.scratch\02-athlete-profile-vertical-slice\issues\01-body-weight-through-mcp.md = .scratch\02-athlete-profile-vertical-slice\issues\01-body-weight-through-mcp.md
+		.scratch\02-athlete-profile-vertical-slice\issues\02-provision-and-deploy.md = .scratch\02-athlete-profile-vertical-slice\issues\02-provision-and-deploy.md
+		.scratch\02-athlete-profile-vertical-slice\issues\03-connect-chatgpt-and-claude.md = .scratch\02-athlete-profile-vertical-slice\issues\03-connect-chatgpt-and-claude.md
+		.scratch\02-athlete-profile-vertical-slice\issues\04-stable-facts-and-goal.md = .scratch\02-athlete-profile-vertical-slice\issues\04-stable-facts-and-goal.md
+		.scratch\02-athlete-profile-vertical-slice\issues\05-temporary-constraints.md = .scratch\02-athlete-profile-vertical-slice\issues\05-temporary-constraints.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{678D4C08-D024-4B47-AAD7-F7A35D098328} = {297033D4-477B-4DB0-ABEE-930136AC31EC}
+		{5EB98E31-58D8-4168-BE79-37D0F1A20F83} = {678D4C08-D024-4B47-AAD7-F7A35D098328}
 		{9ADE9AEC-C3C5-4343-B2DA-B67D0788C92D} = {EFEE0F68-5713-4B6C-99D6-88F51C08F678}
 		{B3BE0EBF-4AC1-4D9D-A26B-10AD35452E72} = {EFEE0F68-5713-4B6C-99D6-88F51C08F678}
 		{C10CB272-332B-4B5B-AA9E-43E601637523} = {78695B84-ACCE-4F58-B2C0-27DFED237D05}
