@@ -1,10 +1,10 @@
 using System.ComponentModel;
 using System.Text.Json;
-using Coach.Domain;
+using OakShore.Coach.Domain;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 
-namespace Coach.Api;
+namespace OakShore.Coach.Api;
 
 [McpServerToolType]
 public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpContextAccessor context)

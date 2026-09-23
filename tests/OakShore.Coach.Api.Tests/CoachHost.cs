@@ -11,8 +11,9 @@ using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using Testcontainers.MsSql;
 using Xunit;
+using OakShore.Coach.Api;
 
-namespace Coach.Api.Tests;
+namespace OakShore.Coach.Api.Tests;
 
 public sealed class DatabaseFixture : IAsyncLifetime
 {

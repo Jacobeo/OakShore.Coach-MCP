@@ -5,7 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Xunit;
 
-namespace Coach.Api.Tests;
+namespace OakShore.Coach.Api.Tests;
 
 public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<DatabaseFixture>
 {

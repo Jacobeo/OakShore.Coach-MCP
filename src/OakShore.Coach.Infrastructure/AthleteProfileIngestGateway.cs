@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
-using Coach.Domain;
+using OakShore.Coach.Domain;
 
-namespace Coach.Infrastructure;
+namespace OakShore.Coach.Infrastructure;
 
 public sealed class AthleteProfileIngestGateway(HttpClient client) : IAthleteProfileIngestGateway
 {

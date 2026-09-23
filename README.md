@@ -25,7 +25,7 @@ test host are supplied by the harness. Repositories and SQL Server are real.
 Set these environment variables before running the API:
 
 ```powershell
-dotnet run --project src/Coach.Api --urls http://127.0.0.1:5180
+dotnet run --project src/OakShore.Coach.Api --urls http://127.0.0.1:5180
 ```
 
 | Variable | Value |
@@ -36,7 +36,7 @@ dotnet run --project src/Coach.Api --urls http://127.0.0.1:5180
 | `Ingest__BaseUrl` | Reachable URL of this API, e.g. `http://127.0.0.1:5180`; defaults to the audience |
 
 The Infrastructure project applies its idempotent
-[`0001_InitialAthleteProfile.sql`](src/Coach.Infrastructure/Migrations/0001_InitialAthleteProfile.sql)
+[`0001_InitialAthleteProfile.sql`](src/OakShore.Coach.Infrastructure/Migrations/0001_InitialAthleteProfile.sql)
 on startup. The database login needs schema-creation rights for this local
 slice. The database must already exist. This first migration can be reapplied
 after host recreation; future schema changes require their own migrations.
@@ -95,8 +95,8 @@ and verifies that the tool cannot persist a value through another route.
 
 ## Project boundaries
 
-`Coach.Domain` owns profile rules and repository/gateway interfaces and uses
-only the BCL. `Coach.Infrastructure` owns SQL Server mapping, persistence, and
-the ingest HTTP gateway. `Coach.Api` owns authentication, endpoint/tool mapping,
+`OakShore.Coach.Domain` owns profile rules and repository/gateway interfaces and uses
+only the BCL. `OakShore.Coach.Infrastructure` owns SQL Server mapping, persistence, and
+the ingest HTTP gateway. `OakShore.Coach.Api` owns authentication, endpoint/tool mapping,
 and composition in `Program.cs`. Tests assert these dependency directions with
 NetArchTest. The Python spike is independent of this slice.

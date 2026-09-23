@@ -39,26 +39,26 @@ concept has no term yet, add it to CONTEXT.md in the same change that introduces
 
 ## Architecture — dependency rules
 
-Four components, arrows pointing inward at `Coach.Domain`:
+Four components, arrows pointing inward at `OakShore.Coach.Domain`:
 
 | Project | References | Holds |
 | --- | --- | --- |
-| `Coach.Domain` | Nothing beyond the BCL | Domain types, and the interfaces the outer layers implement |
-| `Coach.Infrastructure` | `Coach.Domain` | Persistence, FIT parsing, the ingest write path |
-| `Coach.Api` | `Coach.Domain`, `Coach.Infrastructure` | MCP tools, the ingest endpoint, composition root |
+| `OakShore.Coach.Domain` | Nothing beyond the BCL | Domain types, and the interfaces the outer layers implement |
+| `OakShore.Coach.Infrastructure` | `OakShore.Coach.Domain` | Persistence, FIT parsing, the ingest write path |
+| `OakShore.Coach.Api` | `OakShore.Coach.Domain`, `OakShore.Coach.Infrastructure` | MCP tools, the ingest endpoint, composition root |
 | `src/sync/` (Python) | — | Garmin client; POSTs to ingest over HTTP |
 
 Checkable consequences:
 
-- **`Coach.Domain` has no `PackageReference`.** No EF Core or Dapper, no ASP.NET, no Azure
+- **`OakShore.Coach.Domain` has no `PackageReference`.** No EF Core or Dapper, no ASP.NET, no Azure
   SDK, no MCP SDK, no `Garmin.FIT.Sdk`. If a domain type needs one of those, the abstraction
   is in the wrong project.
 - **Domain types stay free of infrastructure attributes** — no EF mapping attributes, no
   serialisation attributes. Mapping lives with the mapper.
-- **Repository and gateway interfaces are declared in `Coach.Domain`** and implemented in
-  `Coach.Infrastructure`.
-- **SQL, connection strings and `DbContext` appear only in `Coach.Infrastructure`.** A
-  data-access `using` in `Coach.Api` or `Coach.Domain` means a line was crossed.
+- **Repository and gateway interfaces are declared in `OakShore.Coach.Domain`** and implemented in
+  `OakShore.Coach.Infrastructure`.
+- **SQL, connection strings and `DbContext` appear only in `OakShore.Coach.Infrastructure`.** A
+  data-access `using` in `OakShore.Coach.Api` or `OakShore.Coach.Domain` means a line was crossed.
 - **Constructor injection only.** `new` on a service appears in `Program.cs` or in a test,
   nowhere else. `Program.cs` is the single composition root.
 - **The Python sync never opens a database connection** ([ADR 0003](docs/adr/0003-python-for-garmin-dotnet-for-the-rest.md)).
@@ -67,7 +67,7 @@ Checkable consequences:
   replay fixtures at that boundary.
 
 These rules exist to be tested, not read. The change that creates `src/` also creates
-`tests/Coach.ArchitectureTests`, asserting each dependency direction with NetArchTest, so a
+`tests/OakShore.Coach.ArchitectureTests`, asserting each dependency direction with NetArchTest, so a
 violation is a red test rather than a review comment.
 
 ## Every tracked file belongs to the solution
@@ -101,7 +101,7 @@ you cannot see there is a file you do not open, review or remember.)
 ## MCP tools
 
 - A tool method does three things: validate input, call one domain service, return
-  `structuredContent`. Business logic in a tool method belongs in `Coach.Domain`.
+  `structuredContent`. Business logic in a tool method belongs in `OakShore.Coach.Domain`.
 - **Every response carries the time its data was last synced**
   ([ADR 0002](docs/adr/0002-own-datastore-is-the-system-of-record.md)). A response shape
   without a freshness field is incomplete.

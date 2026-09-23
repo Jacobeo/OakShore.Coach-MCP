@@ -45,7 +45,7 @@ responses, with no Garmin dependency.
 
 ## Outcome
 
-Implemented in `src/Coach.Domain`, `src/Coach.Infrastructure`, and `src/Coach.Api`.
+Implemented in `src/OakShore.Coach.Domain`, `src/OakShore.Coach.Infrastructure`, and `src/OakShore.Coach.Api`.
 The authenticated MCP tools and version 1 ingest batch contract use positive
 kilograms with one decimal place, as confirmed by the athlete. Boundary tests
 exercise a real SQL Server container, including isolation, invalid input,

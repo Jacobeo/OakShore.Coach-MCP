@@ -1,4 +1,4 @@
-namespace Coach.Domain;
+namespace OakShore.Coach.Domain;
 
 public interface IAthleteProfileIngestGateway
 {

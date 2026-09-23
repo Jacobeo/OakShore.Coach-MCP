@@ -123,15 +123,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "issues", "issues", "{5EB98E
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coach.Domain", "src\Coach.Domain\Coach.Domain.csproj", "{89D300BE-D87A-43D6-B618-F0C071CAA92D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OakShore.Coach.Domain", "src\OakShore.Coach.Domain\OakShore.Coach.Domain.csproj", "{89D300BE-D87A-43D6-B618-F0C071CAA92D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coach.Infrastructure", "src\Coach.Infrastructure\Coach.Infrastructure.csproj", "{964BCB3B-A2FD-4FD1-A774-78123BE72130}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OakShore.Coach.Infrastructure", "src\OakShore.Coach.Infrastructure\OakShore.Coach.Infrastructure.csproj", "{964BCB3B-A2FD-4FD1-A774-78123BE72130}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coach.Api", "src\Coach.Api\Coach.Api.csproj", "{8DF631A1-F9B9-4246-9D14-BDD45E5ADF0C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OakShore.Coach.Api", "src\OakShore.Coach.Api\OakShore.Coach.Api.csproj", "{8DF631A1-F9B9-4246-9D14-BDD45E5ADF0C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coach.Api.Tests", "tests\Coach.Api.Tests\Coach.Api.Tests.csproj", "{AC027FAC-0924-4CDD-AFAA-9BD417F518A4}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OakShore.Coach.Api.Tests", "tests\OakShore.Coach.Api.Tests\OakShore.Coach.Api.Tests.csproj", "{AC027FAC-0924-4CDD-AFAA-9BD417F518A4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coach.ArchitectureTests", "tests\Coach.ArchitectureTests\Coach.ArchitectureTests.csproj", "{2E48B232-0D9B-4E29-89DF-F50862E612AD}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OakShore.Coach.ArchitectureTests", "tests\OakShore.Coach.ArchitectureTests\OakShore.Coach.ArchitectureTests.csproj", "{2E48B232-0D9B-4E29-89DF-F50862E612AD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

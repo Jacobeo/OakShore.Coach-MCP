@@ -34,7 +34,7 @@ Lives in `spikes/`, committed for the record, never imported.
 conversation reaches a real tool on Azure, every later step is built on hope.
 
 - Datastore: Azure SQL, free offer. Schema carries `UserId` from the first table
-- `Coach.Api`: ASP.NET Core, `ModelContextProtocol.AspNetCore`, stateless,
+- `OakShore.Coach.Api`: ASP.NET Core, `ModelContextProtocol.AspNetCore`, stateless,
   `MapMcp("/mcp")`, separate `/health` for probes
 - OAuth against a hosted identity provider (WorkOS or Stytch), protected
   resource metadata published, audience validated
@@ -151,9 +151,9 @@ coach-mcp/
 ├── fixtures/garmin/         real scrubbed Garmin payloads, replayed by both seams
 ├── spikes/                  throwaway, committed for the record
 ├── src/
-│   ├── Coach.Api/           MCP server, ingest endpoint
-│   ├── Coach.Domain/        Program, Phase, Activity, ExerciseSet, Constraint
-│   ├── Coach.Infrastructure/ persistence, FIT parsing
+│   ├── OakShore.Coach.Api/           MCP server, ingest endpoint
+│   ├── OakShore.Coach.Domain/        Program, Phase, Activity, ExerciseSet, Constraint
+│   ├── OakShore.Coach.Infrastructure/ persistence, FIT parsing
 │   └── sync/                Python, runs at home
 └── tests/
 ```

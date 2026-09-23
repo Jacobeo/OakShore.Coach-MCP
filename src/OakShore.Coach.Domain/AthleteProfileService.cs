@@ -1,4 +1,4 @@
-namespace Coach.Domain;
+namespace OakShore.Coach.Domain;
 
 public sealed class AthleteProfileService(IAthleteProfileRepository repository, IAthleteProfileIngestGateway ingest)
 {

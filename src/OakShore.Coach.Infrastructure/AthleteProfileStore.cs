@@ -1,8 +1,8 @@
-using Coach.Domain;
+using OakShore.Coach.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
-namespace Coach.Infrastructure;
+namespace OakShore.Coach.Infrastructure;
 
 public sealed class AthleteProfileStore(IConfiguration configuration) : DbContext
 {
@@ -24,7 +24,7 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        const string resource = "Coach.Infrastructure.Migrations.0001_InitialAthleteProfile.sql";
+        const string resource = "OakShore.Coach.Infrastructure.Migrations.0001_InitialAthleteProfile.sql";
         await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
             ?? throw new InvalidOperationException($"Missing schema migration {resource}.");
         using var reader = new StreamReader(stream);

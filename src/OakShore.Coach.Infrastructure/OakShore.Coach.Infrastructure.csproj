@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <ProjectReference Include="../Coach.Domain/Coach.Domain.csproj" />
+    <ProjectReference Include="../OakShore.Coach.Domain/OakShore.Coach.Domain.csproj" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.20" />
     <EmbeddedResource Include="Migrations/0001_InitialAthleteProfile.sql" />
   </ItemGroup>

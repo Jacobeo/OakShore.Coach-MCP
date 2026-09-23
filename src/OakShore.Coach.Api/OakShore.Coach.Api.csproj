@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <ItemGroup>
-    <ProjectReference Include="../Coach.Domain/Coach.Domain.csproj" />
-    <ProjectReference Include="../Coach.Infrastructure/Coach.Infrastructure.csproj" />
+    <ProjectReference Include="../OakShore.Coach.Domain/OakShore.Coach.Domain.csproj" />
+    <ProjectReference Include="../OakShore.Coach.Infrastructure/OakShore.Coach.Infrastructure.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.20" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
   </ItemGroup>
