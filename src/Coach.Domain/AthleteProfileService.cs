@@ -7,7 +7,7 @@ public sealed class AthleteProfileService(IAthleteProfileRepository repository, 
 
     public Task<AthleteProfileResponse> UpdateAsync(decimal bodyWeightKg, CancellationToken cancellationToken)
     {
-        AthleteProfileIngestService.ValidateBodyWeight(bodyWeightKg);
+        AthleteProfile.ValidateBodyWeight(bodyWeightKg);
         return ingest.SendAsync(new AthleteProfileBatch(1, [new AthleteProfileChange(bodyWeightKg)]), cancellationToken);
     }
 }

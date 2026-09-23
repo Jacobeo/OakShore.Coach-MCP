@@ -35,10 +35,11 @@ dotnet run --project src/Coach.Api --urls http://127.0.0.1:5180
 | `Persistence__ConnectionString` | SQL Server connection string for a dedicated Coach database |
 | `Ingest__BaseUrl` | Reachable URL of this API, e.g. `http://127.0.0.1:5180`; defaults to the audience |
 
-The Infrastructure project creates the initial schema on startup with EF Core
-`EnsureCreated`. The database login needs schema-creation rights for this local
-slice. This is an initial-schema bootstrap, not a migration runner for an
-existing schema.
+The Infrastructure project applies its idempotent
+[`0001_InitialAthleteProfile.sql`](src/Coach.Infrastructure/Migrations/0001_InitialAthleteProfile.sql)
+on startup. The database login needs schema-creation rights for this local
+slice. The database must already exist. This first migration can be reapplied
+after host recreation; future schema changes require their own migrations.
 
 `/health` is anonymous and returns `{ "status": "ok" }` without calling MCP.
 `/.well-known/oauth-protected-resource` publishes the configured resource and

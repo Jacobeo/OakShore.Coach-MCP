@@ -13,15 +13,10 @@ public sealed class AthleteProfileIngestService(IAthleteProfileRepository reposi
         if (batch.AthleteProfiles is not { Count: > 0 and <= 100 })
             throw new ArgumentException("Supply between 1 and 100 AthleteProfile changes.");
         foreach (var change in batch.AthleteProfiles)
-            ValidateBodyWeight(change?.BodyWeightKg);
+            AthleteProfile.ValidateBodyWeight(change?.BodyWeightKg);
 
         var profile = new AthleteProfile(userId, batch.AthleteProfiles[^1]!.BodyWeightKg!.Value);
         return repository.SaveAsync(profile, clock.GetUtcNow(), cancellationToken);
     }
 
-    public static void ValidateBodyWeight(decimal? bodyWeightKg)
-    {
-        if (bodyWeightKg is null or <= 0 or >= 100_000_000_000_000_000m || decimal.Round(bodyWeightKg.Value, 1) != bodyWeightKg)
-            throw new ArgumentException("Body weight must be positive kilograms with at most one decimal place, below 100000000000000000.");
-    }
 }

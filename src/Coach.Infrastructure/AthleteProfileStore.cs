@@ -22,7 +22,15 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         profile.Property(row => row.BodyWeightKg).HasPrecision(18, 1);
     }
 
-    public Task InitializeAsync(CancellationToken cancellationToken) => Database.EnsureCreatedAsync(cancellationToken);
+    public async Task InitializeAsync(CancellationToken cancellationToken)
+    {
+        const string resource = "Coach.Infrastructure.Migrations.0001_InitialAthleteProfile.sql";
+        await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
+            ?? throw new InvalidOperationException($"Missing schema migration {resource}.");
+        using var reader = new StreamReader(stream);
+        var script = await reader.ReadToEndAsync(cancellationToken);
+        await Database.ExecuteSqlRawAsync(script, cancellationToken);
+    }
 }
 
 internal sealed class AthleteProfileRow
