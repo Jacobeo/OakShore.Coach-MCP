@@ -175,11 +175,17 @@ of the set-to-set decay and weight variation
 [ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md)
 already records.
 
-It also leaves a question this spike does not answer: whether *our* volume for a
-bodyweight set should stay zero, as Garmin has it, or be computed from the body
-weight on the AthleteProfile. Both are defensible and the choice belongs with the
-analytics in step 6, not here. What matters at the ingest boundary is that the
-bodyweight case arrives distinguishable, which it does.
+That leaves the question of what *our* volume for a bodyweight set should be:
+zero, as Garmin has it, or computed from the body weight on the AthleteProfile.
+**The athlete's position is bodyweight, provisionally** — 25 loaded calf raises
+are not no work — with the treatment expected to be revisited once the analytics
+in step 6 exist.
+
+Provisionally is cheap here, and worth noting why. **The stored value is `-1`,
+not a computed volume.** Whether a bodyweight set contributes body mass or zero
+is then a decision taken when a figure is read, so reversing it is a change to
+one expression rather than a migration over a decade of rows. The ingest
+boundary's only job is to keep the case distinguishable, which it does.
 
 ### `setType` — yes, it separates working from rest
 
