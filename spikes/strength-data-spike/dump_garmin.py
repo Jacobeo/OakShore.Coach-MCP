@@ -48,7 +48,8 @@ FIELD_CHECK_NAME = "activity-list-field-check.md"
 COVERAGE_NAME = "exercise-set-coverage.md"
 ZONE_COVERAGE_NAME = "heart-rate-zone-coverage.md"
 # Beside the dumps rather than beside the README: it names Activities, so it is
-# gitignored with them until issue 04 decides what gets scrubbed.
+# gitignored with them. Activity identifiers turned out to be the one class the
+# scrubbing decision keeps, so a copy reaches the committed corpus.
 CASES_NAME = "exercise-set-cases.md"
 PAGE_SIZE = 20
 # A few weeks of Activities is far under this. The cap exists so a server that
@@ -544,8 +545,8 @@ def build_exercise_set_coverage(
         "Activity and Workout identifiers are deliberately absent here: they are",
         "in the dumps, which are not committed, and in `exercise-set-cases.md`",
         "beside them. What the rows hold - `weight`, Exercise names, `setType` -",
-        "is issue 04's question; this note records only what was fetched and",
-        "which of the two cases it came from.",
+        "is answered in `findings.md`; this note records only what was fetched",
+        "and which of the two cases it came from.",
         "",
         "## The two cases",
         "",
@@ -762,7 +763,8 @@ def build_zone_boundaries_section(
             "Every `hrTimeInZones` row carries its own `zoneLowBoundary`, and",
             "every cardio dump in this window matches a configured profile, so",
             "each Activity's zones are identified rather than assumed. What",
-            "that implies for the sync is issue 04's question, not this note's.",
+            "that implies for the sync is settled in ADR 0008: the seconds are",
+            "read off the Activity list and this endpoint is not called at all.",
             "",
         ]
     elif scored:
