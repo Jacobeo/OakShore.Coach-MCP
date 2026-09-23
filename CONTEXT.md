@@ -28,10 +28,12 @@ missing one: the flat bench press is `BENCH_PRESS` with no name at all.
 _Avoid_: lift, movement, drill
 
 **CancelledExerciseSet**:
-An ExerciseSet the athlete started and cancelled to skip or defer a step of a
-Workout, which the watch requires: it records zero repetitions against a weight.
-Evidence that a prescribed step was deliberately not done, so it counts towards
-Adherence and never towards volume or a per-set average.
+An ExerciseSet the athlete started and cancelled, which the watch requires in
+order to skip or defer a step of a Workout: it records zero repetitions against a
+weight. It marks a block begun and stopped, not work missed — the same step is
+usually completed later in the session — so whether it was a skip or a deferral
+is answered by the rest of the Activity, never by the row alone. Never counts
+towards volume or a per-set average.
 _Avoid_: empty set, failed set, zero set, bad data
 
 **Freestyle**:
@@ -66,8 +68,10 @@ A reusable structured definition of a training session: its steps, targets and
 intensities. A description of work to be done, never work that was done. One step
 names a single Exercise with one target — repetitions and weight — and how many
 times to repeat it, so every ExerciseSet of a step shares one target. Recorded
-sets that differ within a step therefore record a correction, which is what makes
-Adherence measurable per set.
+sets that differ within a step therefore record a correction the athlete made
+while training. A Workout is mutable and deletable, so a recorded Activity naming
+one is evidence that it followed *a* Workout, never a way to recover what that
+Workout asked for.
 _Avoid_: session, planned workout, template
 
 **ScheduledWorkout**:

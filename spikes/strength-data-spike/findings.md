@@ -36,8 +36,9 @@ one step, one trap bar deadlift target, three sets:
 | 3 | 105 000 g |
 
 Three weights under one target is a correction, and the athlete confirms this one
-was made on the watch. Across the corpus, **5 of the 34 prescribed steps carry
-within-step variation** (cancelled sets excluded, since those vary by definition):
+was made on the watch. Across the corpus, **5 of the 34 recorded steps carry
+within-step variation** (cancelled sets excluded, since those vary by
+definition):
 
 | Activity | step | sets as recorded | corrected |
 | --- | --- | --- | --- |
@@ -48,9 +49,20 @@ within-step variation** (cancelled sets excluded, since those vary by definition
 | 23898645459 | 15 | 5, 10, 10 at bodyweight | reps |
 
 Both fields move, independently, in both directions. **The corrections are in the
-API, per set, joined to the step they diverge from.** That is Adherence evidence
-of exactly the kind [ADR 0002](../../docs/adr/0002-own-datastore-is-the-system-of-record.md)
-makes the datastore the record of, and it is measurable rather than inferred.
+API, per set.**
+
+What they are *not* is a measurement against Garmin's prescription, and it is
+worth being exact about that here rather than leaving it implied.
+`wktStepIndex` groups the sets of a block; it does not carry the block's target,
+and the `workoutId` that would is not something the store can rely on resolving —
+see [What `wktStepIndex` is for, and what it is
+not](#what-wktstepindex-is-for-and-what-it-is-not). So the value of these five
+rows is intrinsic: a descending rep ladder at a fixed weight says the athlete was
+at their limit, and an ascending weight ladder at fixed reps says they were
+warming up into a working set. Those readings need no plan at all, and they are
+exactly the set-to-set detail
+[ADR 0007](../../docs/adr/0007-prescription-needs-per-exerciseset-detail.md)
+says a prescription depends on.
 
 So **fork 1 applies** (see [Which project this implies](#which-project-this-implies)).
 
@@ -206,10 +218,25 @@ Eight of the 107 ACTIVE rows carry `repetitionCount: 0`:
 | 24444892080 | `ROW` / `SEATED_CABLE_ROW` | 7 | 4.411 s | 85 000 g |
 | 24444892080 | `BENCH_PRESS` | 4 | 12.544 s | 75 000 g |
 
-Seven of the eight join to a prescribed step through `wktStepIndex`, so they are
-usable Adherence evidence exactly as [CONTEXT.md](../../CONTEXT.md) describes.
-The eighth is the unclassifiable `UNKNOWN` row, which has no `wktStepIndex` and
-so evidences nothing beyond itself.
+**Most of them are not skipped work.** Checking each against the other rows of
+its own Activity — did any working set land on the same `wktStepIndex`? — splits
+the eight three ways:
+
+| | count |
+| --- | --- |
+| **Resumed** — the block was completed later in the same session | 5 |
+| **Abandoned** — no working set at that step anywhere in the Activity | 2 |
+| No `wktStepIndex`, so unknowable | 1 |
+
+So a CancelledExerciseSet marks a block *started and cancelled*, and nothing
+more. Whether that was a skip or a deferral is a separate question, answered by
+the rest of the Activity rather than by the row itself, and in this corpus the
+answer is usually "deferral". Reading all eight as skipped work would report this
+athlete as having missed five pieces of training they actually did.
+
+This is also the strongest practical argument for storing `wktStepIndex`: without
+it a skip and a deferral are indistinguishable. The eighth row, the unclassifiable
+`UNKNOWN`, has no step and evidences nothing beyond its own existence.
 
 **`repetitionCount == 0` is the only reliable signal.** The duration heuristic in
 the issue description does not survive the corpus: cancelled sets run from 1.973 s
@@ -347,25 +374,27 @@ kinds of correction distinguishable in the payload:
 | `exercises[]` | 3 ranked candidates | 1 candidate at exactly `100.0` |
 | `messageIndex` | preserved | gone |
 
-**The cost is the Adherence join.** A watch correction is measurable against the
-step it diverges from, because `wktStepIndex` survives it — that is the whole
-basis of the five corrections listed at the top of this note. A Connect edit
-removes `wktStepIndex` from every row, so the Activity has 0 of 0 joinable steps
-and nothing it records can be compared to what was prescribed. The sets are still
-there; the link to the Workout is not.
+**The cost is the block grouping, not Adherence.** A Connect edit strips
+`wktStepIndex` from every row, so that Activity's sets cannot be gathered into
+the blocks they were performed in, and the correction signal above cannot be read
+from it at all. Adherence is unaffected, because Adherence was never measured
+against Garmin — see the next section.
 
 Two consequences follow, one for the code and one for the athlete.
 
 For the code: the signature is a usable **detector**. An Activity whose rows all
 carry one candidate at probability 100.0 with no `wktStepIndex` was edited after
-recording, and its Adherence should be reported as unmeasurable rather than as
-zero divergence — the second would read as perfect adherence to a plan the data
-cannot see.
+recording, and any per-block reading of it — set-to-set decay, a weight ramp, a
+cancelled-then-resumed block — should be reported as unavailable rather than as
+absent. Those are different claims: the first says the shape cannot be seen, the
+second says the session had no shape.
 
-For the athlete: **correct on the watch, not in Connect.** A watch correction is
-the signal this project is built to read; a Connect edit silently discards it.
-That is a behavioural note rather than a constraint, and it is worth knowing
-before a decade of history is backfilled.
+For the athlete: **correcting on the watch preserves more than correcting in
+Connect.** Both leave the sets, the reps and the weights intact, so the volume
+and the per-Exercise history are the same either way. What a Connect edit costs
+is the within-session shape — which sets belonged together, and in what order
+they were actually attempted. Worth knowing, and a good deal narrower than it
+looked before this note was corrected.
 
 It also explains the one value in the corpus that is hard to credit — `CHOP` /
 `CABLE_ROTATIONAL_LIFT` at 8 reps of 12 000 g followed by 8 reps of **85 000 g**,
@@ -376,6 +405,82 @@ either way it is committed data and the store will hold it. **An implausible
 weight is not something the ingest boundary should reject**: it has no way to
 know an athlete's plausible range, and silently dropping a real lift is worse
 than keeping an odd one.
+
+## What `wktStepIndex` is for, and what it is not
+
+This note originally treated `wktStepIndex` as a join onto the prescribed
+Workout, and described a Connect-edited Activity as having no Adherence to
+report. **Both were wrong**, and the reason is worth recording because it would
+otherwise get rediscovered as a bug.
+
+**`workoutId` is not a foreign key the store can resolve.** A Garmin Workout is
+mutable and deletable, and this athlete reuses a small number of them — the seven
+strength Activities in the corpus reference just two, `1675565879` and
+`1535387640`, one of which covers four sessions spread over four weeks. Editing
+either Workout changes what a past Activity appears to have been prescribed,
+because the Activity holds only the id. Deleting one leaves the id pointing at
+nothing. And the decade of history in the bulk export will reference Workouts
+that are long gone or long since rewritten. Even a same-day sync can lose the
+race against an edit.
+
+So **the prescribed target must come from our own store, never from Garmin.**
+That is what [CONTEXT.md](../../CONTEXT.md) already says — Adherence is measured
+against ScheduledWorkouts where they exist and against the Phase's weekly
+allocation where they do not — and what
+[ADR 0002](../../docs/adr/0002-own-datastore-is-the-system-of-record.md) settled.
+An Activity edited in Connect still has full Adherence against a ScheduledWorkout
+we wrote.
+
+`wktStepIndex` keeps a narrower and entirely self-contained job: **it groups the
+sets of one block within one Activity.** No Workout lookup, no cross-Activity
+assumption, just an index in the payload being read.
+
+That job cannot be done any other way, which is what makes it worth storing.
+Sets are **not recorded in step order.** From
+`activity-service--exerciseSets__activity-24098326007.json`, the ACTIVE rows in
+`messageIndex` order:
+
+| `messageIndex` | `wktStepIndex` | Exercise | reps |
+| --- | --- | --- | --- |
+| 13, 15 | 7 | `DUMBBELL_SPLIT_SQUAT` | 6, 6 |
+| 17 | 10 | `SEATED_CABLE_ROW` | **0** |
+| 18, 20, 22 | 13 | `BENCH_PRESS` | 5, 5, 5 |
+| 24 | 16 | `CABLE_ROTATIONAL_LIFT` | **0** |
+| 25, 27, 29 | 10 | `SEATED_CABLE_ROW` | 6, 6, 6 |
+| 31, 33 | 16 | `CABLE_ROTATIONAL_LIFT` | 8, 8 |
+
+The athlete started step 10, cancelled it, did step 13, started step 16,
+cancelled it, came back to finish step 10, then came back to finish step 16.
+Grouping by consecutive runs of the same Exercise would read that as two separate
+blocks of rows and two separate blocks of chops, and would read each cancelled
+set as a standalone event rather than as the start of a block that was resumed
+later. Only `wktStepIndex` recovers it.
+
+It is also what separates a skipped block from a deferred one. Five of the eight
+CancelledExerciseSets in the corpus have working sets at the same step later in
+the session; two do not. Without the index, all eight read the same way.
+
+It also separates two blocks of the *same* Exercise, which nothing else does. In
+that same Activity the glute bridge appears at step 1 as 8, 8, 8 and at step 4 as
+1, 1, 1 — two different pieces of work. `summarizedExerciseSets` merges them into
+one entry of 6 sets and 27 repetitions, losing the distinction entirely, which is
+one more count against the rollup.
+
+**`workoutId` keeps one job too**, and only one: non-null means the session
+followed a Workout, which is the Freestyle distinction in CONTEXT.md. That is a
+boolean about provenance and it stays true after the Workout it names is deleted.
+Storing the id alongside it costs nothing and may help a human reading a row, but
+nothing should be built on being able to fetch it.
+
+There is one exception, and it arrives for free in
+[step 8](../../docs/build-order.md). When *we* create the Garmin Workout from our
+own ScheduledWorkout, we know both ends at that moment and can record the
+mapping. From then on a returning Activity's `workoutId` resolves to a
+ScheduledWorkout in our store, whose target is immutable because we own it. The
+join becomes reliable not by reading Garmin more carefully but by never needing
+to read it back — which is
+[ADR 0002](../../docs/adr/0002-own-datastore-is-the-system-of-record.md) doing
+exactly the job it was written for.
 
 ## Which project this implies
 
@@ -416,8 +521,26 @@ this note:
 call-shape consequences of this corpus, so there is nothing left for the build
 order to restate.
 
-[CONTEXT.md](../../CONTEXT.md) changes in one place: **Exercise** was defined as
-"identified by a category and a name", and the corpus says the name is optional.
+Nor does the corrected reading of `wktStepIndex` change it. Step 7 already writes
+ScheduledWorkouts into our own store and step 8 already creates the Garmin
+Workout from one, so the build order never depended on reading a prescription
+back out of Garmin. It was this note that had drifted, not the plan.
+
+[CONTEXT.md](../../CONTEXT.md) changes in three places, each a correction the
+corpus or the athlete forced:
+
+- **Exercise** was "identified by a category and a name". The name is optional,
+  and null on this athlete's most frequent lift.
+- **ExerciseSet** gains bodyweight as a stated load, distinct from a set
+  performed with no load at all.
+- **Workout** gains the step-and-repeat structure, which is what makes a
+  within-step difference readable as a correction — and the warning that a
+  Workout is mutable, so naming one is evidence a session was structured, never a
+  route back to what it asked for.
+- **CancelledExerciseSet** said it was evidence a step "was deliberately not
+  done". Five of the eight in the corpus were resumed later in the same session,
+  so it marks a block begun and stopped, and the skip-or-deferral question is
+  answered by the rest of the Activity.
 
 ## What the ingest boundary has to do defensively
 
@@ -434,12 +557,18 @@ and each one is a line of code somewhere in step 3 or step 4.
   external load, `null` is nothing performed. Never treat `-1` as a gram count,
   and never collapse it into `0`.
 - Treat `repetitionCount == 0` on an ACTIVE row as a CancelledExerciseSet:
-  counted for Adherence, excluded from volume and from per-set averages. Never
-  use duration to detect one.
+  excluded from volume and from per-set averages, and never detected by duration.
+  Do not read one as skipped work — check whether its `wktStepIndex` has working
+  sets elsewhere in the Activity, because most of them are deferrals that were
+  resumed.
 - Never assume `wktStepIndex` or `messageIndex` is present. Both are null on rows
-  in six of seven dumps and on every row of one. An Activity with no
-  `wktStepIndex` anywhere has no Adherence to report — not zero divergence,
-  which reads as perfect adherence to a plan the data cannot see.
+  in six of seven dumps and on every row of one. Where it is present, store it:
+  it is the only thing that groups the sets of a block, and sets are not recorded
+  in step order. Where it is absent, the block structure is unavailable — which
+  is not the same as the session having had none.
+- Store `workoutId` as provenance, and never resolve it. Non-null means the
+  session followed a Workout; the Workout itself may have been rewritten or
+  deleted since, so the prescribed target comes from our own ScheduledWorkout.
 - Keep the whole `exercises[]` array, or at least the candidate count and the top
   probability. One candidate at exactly `100.0` across every row, with
   `wktStepIndex` absent, is the signature of an Activity edited in Garmin Connect
@@ -545,8 +674,8 @@ Neither needs Garmin.
 
 ## What the dumps could not answer, and the athlete did
 
-Two claims in this note rest on the athlete rather than on the payloads, and are
-marked as such where they appear:
+Three claims in this note rest on the athlete rather than on the payloads, and
+are marked as such where they appear:
 
 - **How a Workout step works** — one Exercise, one target, a repeat count — which
   is what makes within-step variation proof of a correction rather than a
@@ -554,7 +683,12 @@ marked as such where they appear:
   Workout was built in.
 - **That the 2026-08-10 session was edited in Garmin Connect**, which turns a
   structural oddity into a detector for edited Activities.
+- **That Garmin Workouts are edited and deleted freely.** The corpus shows the
+  reuse — two `workoutId`s across seven Activities, one of them spanning four
+  weeks — but not the churn, and it is the churn that makes `workoutId`
+  unresolvable and sends the prescribed target to our own store instead.
 
-Both were open questions when this note was first written and are recorded here
-so that the distinction between observation and testimony survives. Everything
+Each was an open question when this note was first written, and the third
+corrected a claim the note had already made. They are recorded here so the
+distinction between what was observed and what was reported survives; everything
 else above is read off the committed corpus and recomputable from it.
