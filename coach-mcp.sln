@@ -8,6 +8,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{EFEE0F68-5
 		CONTEXT.md = CONTEXT.md
 		docs\build-order.md = docs\build-order.md
 		docs\example-session.md = docs\example-session.md
+		docs\hosting-cost-decision.md = docs\hosting-cost-decision.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{9ADE9AEC-C3C5-4343-B2DA-B67D0788C92D}"
