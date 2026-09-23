@@ -5,6 +5,9 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+.local/
+.vs/
+TestResults/
 
 # Real training data, not committed. See spikes/strength-data-spike/README.md.
 spikes/strength-data-spike/dumps/

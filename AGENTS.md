@@ -6,11 +6,10 @@ are pointers to it and hold no content of their own.
 
 ## Status
 
-No application code yet. The repository holds the domain language, the decisions already
-fixed, and the specs. `coach-mcp.sln` contains links to the repository files.
-`src/` and `tests/` do not exist; the first person to create them follows the layout in
-[docs/build-order.md](docs/build-order.md), the
-dependency rules below, and the solution rule below that.
+The local AthleteProfile body-weight slice lives in `src/`, with MCP boundary tests
+and architecture checks in `tests/`. See [README.md](README.md) for configuration
+and test commands. Hosting and hosted identity setup remain separate tickets in
+spec 02. `coach-mcp.sln` includes the projects and repository files.
 
 ## No guesswork — ask
 
