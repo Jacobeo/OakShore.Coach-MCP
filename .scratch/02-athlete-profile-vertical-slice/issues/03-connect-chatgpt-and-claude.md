@@ -7,7 +7,7 @@ phone after desktop setup, without a repeated sign-in loop.
 
 **Blocked by:** 02: Provision infrastructure and deploy the body-weight slice.
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Source:** [AthleteProfile vertical slice](../../02-athlete-profile-vertical-slice.md).
 
