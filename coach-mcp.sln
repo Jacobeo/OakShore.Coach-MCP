@@ -155,6 +155,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Migrations", "Migrations", 
 	ProjectSection(SolutionItems) = preProject
 		src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql = src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql
 		src\OakShore.Coach.Infrastructure\Migrations\0005_Activities.sql = src\OakShore.Coach.Infrastructure\Migrations\0005_Activities.sql
+		src\OakShore.Coach.Infrastructure\Migrations\0006_ActivityName.sql = src\OakShore.Coach.Infrastructure\Migrations\0006_ActivityName.sql
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sync", "Sync", "{C235129B-A641-43ED-941A-F524366EA99A}"

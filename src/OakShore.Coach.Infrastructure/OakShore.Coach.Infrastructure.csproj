@@ -7,5 +7,6 @@
     <EmbeddedResource Include="Migrations/0003_PrioritizedGoals.sql" />
     <EmbeddedResource Include="Migrations/0004_TemporaryConstraints.sql" />
     <EmbeddedResource Include="Migrations/0005_Activities.sql" />
+    <EmbeddedResource Include="Migrations/0006_ActivityName.sql" />
   </ItemGroup>
 </Project>

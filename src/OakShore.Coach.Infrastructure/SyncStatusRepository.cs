@@ -17,7 +17,7 @@ public sealed class SyncStatusRepository(AthleteProfileStore store) : ISyncStatu
             .Where(row => row.UserId == userId)
             .OrderByDescending(row => row.StartTimeUtc).ThenByDescending(row => row.ActivityId)
             .Select(row => new Activity(row.ActivityId, row.StartTimeUtc, row.TypeKey,
-                row.DurationSeconds, row.DistanceMeters, row.TotalSets, row.ActiveSets, row.TotalReps))
+                row.DurationSeconds, row.DistanceMeters, row.TotalSets, row.ActiveSets, row.TotalReps, row.ActivityName))
             .FirstOrDefaultAsync(cancellationToken);
         var activityLastSyncedAt = await store.IngestBatches.AsNoTracking()
             .Where(row => row.UserId == userId)

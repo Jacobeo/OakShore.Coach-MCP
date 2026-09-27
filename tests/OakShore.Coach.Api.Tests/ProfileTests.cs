@@ -738,6 +738,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         var activities = fixture.RootElement.EnumerateArray().Select(activity => new
         {
             activityId = activity.GetProperty("activityId").GetInt64(),
+            activityName = activity.GetProperty("activityName").GetString(),
             startTimeUtc = activity.GetProperty("startTimeGMT").GetString()!.Replace(' ', 'T') + "Z",
             typeKey = activity.GetProperty("activityType").GetProperty("typeKey").GetString(),
             durationSeconds = activity.GetProperty("duration").GetDecimal(),
@@ -762,6 +763,8 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(clock.GetUtcNow(), Collection(saved, "Activity").GetProperty("lastSyncedAt").GetDateTimeOffset());
         Assert.Equal(1, Collection(saved, "AthleteProfile").GetProperty("count").GetInt32());
         Assert.Equal(24444892080L, saved.GetProperty("latestActivity").GetProperty("activityId").GetInt64());
+        Assert.Equal("strength_training", saved.GetProperty("latestActivity").GetProperty("activityName").GetString());
+        Assert.Equal("strength_training", saved.GetProperty("latestActivity").GetProperty("typeKey").GetString());
         Assert.Equal(2820.37890625, saved.GetProperty("latestActivity").GetProperty("durationSeconds").GetDouble());
         Assert.Equal(14, saved.GetProperty("latestActivity").GetProperty("totalSets").GetInt32());
 
@@ -777,15 +780,29 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
             version = 2,
             activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-22" },
             activities = new[] { new { activityId = 24444892080L, startTimeUtc = "2026-09-21T14:34:01Z",
-                typeKey = "strength_training", durationSeconds = 3000.0, distanceMeters = 0.0,
+                activityName = "Sunday strength", typeKey = "strength_training", durationSeconds = 3000.0, distanceMeters = 0.0,
                 totalSets = 14, activeSets = 14, totalReps = 82 } }
         });
         Assert.Equal(HttpStatusCode.OK, corrected.StatusCode);
         var updated = await CallTool(client, "get_sync_status");
         Assert.Equal(15, Collection(updated, "Activity").GetProperty("count").GetInt32());
         Assert.Equal(3000.0, updated.GetProperty("latestActivity").GetProperty("durationSeconds").GetDouble());
+        Assert.Equal("Sunday strength", updated.GetProperty("latestActivity").GetProperty("activityName").GetString());
         Assert.Equal(clock.GetUtcNow(), Collection(updated, "Activity").GetProperty("lastSyncedAt").GetDateTimeOffset());
         Assert.Equal(Collection(saved, "AthleteProfile").ToString(), Collection(updated, "AthleteProfile").ToString());
+
+        using var unnamed = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2,
+            activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-22" },
+            activities = new[] { new { activityId = 24444892080L, startTimeUtc = "2026-09-21T14:34:01Z",
+                typeKey = "strength_training", durationSeconds = 3100.0, distanceMeters = 0.0,
+                totalSets = 14, activeSets = 14, totalReps = 82 } }
+        });
+        Assert.Equal(HttpStatusCode.OK, unnamed.StatusCode);
+        var preserved = await CallTool(client, "get_sync_status");
+        Assert.Equal(3100.0, preserved.GetProperty("latestActivity").GetProperty("durationSeconds").GetDouble());
+        Assert.Equal("Sunday strength", preserved.GetProperty("latestActivity").GetProperty("activityName").GetString());
     }
 
     [Fact]

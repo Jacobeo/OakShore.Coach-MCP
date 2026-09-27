@@ -26,7 +26,7 @@ agent can qualify its answer instead of reasoning confidently over a gap.
 > **You:** Did the Activity sync land?
 >
 > **Agent:** The store has 15 Activities, last synced at 12:00 UTC. The most
-> recent is a strength Activity from yesterday afternoon. The
+> recent is a strength Activity named “Sunday strength” from yesterday afternoon. The
 > AthleteProfile has one record, last synced at 12:00 UTC.
 
 ## 1. Bootstrap: creating the AthleteProfile

@@ -12,6 +12,8 @@ not the system of record.
 
 **Activity**:
 A single completed, recorded training session. The unit of "what I actually did".
+Its name and activity type describe the whole Activity; individual Exercise names
+belong to its ExerciseSets.
 _Avoid_: session, workout, training
 
 **ExerciseSet**:

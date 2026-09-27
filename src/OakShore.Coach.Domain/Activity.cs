@@ -10,7 +10,8 @@ public sealed record Activity(
     double? DistanceMeters,
     int? TotalSets,
     int? ActiveSets,
-    int? TotalReps);
+    int? TotalReps,
+    string? ActivityName);
 
 public sealed record ActivityInput(
     long ActivityId,
@@ -20,7 +21,8 @@ public sealed record ActivityInput(
     double? DistanceMeters = null,
     int? TotalSets = null,
     int? ActiveSets = null,
-    int? TotalReps = null)
+    int? TotalReps = null,
+    string? ActivityName = null)
 {
     public Activity ToActivity()
     {
@@ -38,6 +40,8 @@ public sealed record ActivityInput(
             throw new ArgumentException("Activity distanceMeters must be finite and between 0 and 1000000000.");
         if (TotalSets < 0 || ActiveSets < 0 || TotalReps < 0 || ActiveSets > TotalSets)
             throw new ArgumentException("Activity strength totals must be nonnegative and activeSets cannot exceed totalSets.");
-        return new Activity(ActivityId, start, TypeKey, duration, DistanceMeters, TotalSets, ActiveSets, TotalReps);
+        if (ActivityName is not null && (ActivityName.Length > 500 || string.IsNullOrWhiteSpace(ActivityName)))
+            throw new ArgumentException("Activity activityName must be 1 to 500 nonblank characters when supplied.");
+        return new Activity(ActivityId, start, TypeKey, duration, DistanceMeters, TotalSets, ActiveSets, TotalReps, ActivityName);
     }
 }

@@ -16,6 +16,7 @@ def activity_from_garmin(entry: dict[str, Any]) -> dict[str, Any]:
     started = datetime.strptime(entry["startTimeGMT"], "%Y-%m-%d %H:%M:%S")
     activity: dict[str, Any] = {
         "activityId": entry["activityId"],
+        "activityName": entry.get("activityName"),
         "startTimeUtc": started.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
         "typeKey": entry["activityType"]["typeKey"],
         "durationSeconds": entry["duration"],

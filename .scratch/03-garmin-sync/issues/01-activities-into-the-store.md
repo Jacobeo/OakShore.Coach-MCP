@@ -22,6 +22,8 @@ This is the first slice through the Python sync and establishes the Python seam.
   versions and invalid input are rejected without persisting any part of a batch.
 - [x] Activities persist with UserId on every table and query, and re-posting the
   same batch leaves the stored result unchanged.
+- [x] Garmin's Activity name and type persist with each Activity and appear in
+  the most recent Activity summary; an older batch without a name preserves it.
 - [x] A read tool reports, per collection, how many records are stored and when
   each was last synced, distinguishing nothing-stored from stored-and-stale. It
   is annotated read-only and returns structuredContent alone.

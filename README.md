@@ -315,16 +315,19 @@ when present, profile changes and Activities commit in one transaction. Version 
 retains its existing contract.
 
 ```json
-{"version":2,"activityRange":{"fromDate":"2026-09-21","toDate":"2026-09-22"},"activities":[{"activityId":24444892080,"startTimeUtc":"2026-09-21T14:34:01Z","typeKey":"strength_training","durationSeconds":2820.37890625,"distanceMeters":0,"totalSets":14,"activeSets":14,"totalReps":82}]}
+{"version":2,"activityRange":{"fromDate":"2026-09-21","toDate":"2026-09-22"},"activities":[{"activityId":24444892080,"activityName":"Sunday strength","startTimeUtc":"2026-09-21T14:34:01Z","typeKey":"strength_training","durationSeconds":2820.37890625,"distanceMeters":0,"totalSets":14,"activeSets":14,"totalReps":82}]}
 ```
 
 Activity IDs must be positive and distinct within a batch; timestamps must be
 UTC with `Z`. Duration and distance are in seconds and metres, and strength
 totals are nonnegative. Invalid input leaves both collections unchanged. The
+optional `activityName` carries Garmin's Activity name (up to 500 characters);
+omitting it from a later batch preserves the stored name. `typeKey` identifies
+the Activity type, such as running, indoor cycling, or strength training. The
 store identifies a version 2 batch by its validated content: reposting the same
 batch preserves records and sync times. The `get_sync_status` read-only MCP tool
 returns a count and `lastSyncedAt` for each collection, plus the most recent
-Activity summary. A null time means no
+Activity summary, including its name and type. A null time means no
 successful sync; a zero count with a time means a successful empty ActivityRange.
 
 Run the manual sync on the home machine with Python installed and the Garmin

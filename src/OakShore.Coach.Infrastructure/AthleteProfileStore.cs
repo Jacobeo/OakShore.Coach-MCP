@@ -39,6 +39,7 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         activity.HasKey(row => new { row.UserId, row.ActivityId });
         activity.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
         activity.Property(row => row.TypeKey).HasMaxLength(100);
+        activity.Property(row => row.ActivityName).HasMaxLength(500);
 
         var batch = modelBuilder.Entity<IngestBatchRow>();
         batch.ToTable("IngestBatches");
@@ -57,7 +58,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
             "OakShore.Coach.Infrastructure.Migrations.0002_StableFactsAndGoal.sql",
             "OakShore.Coach.Infrastructure.Migrations.0003_PrioritizedGoals.sql",
             "OakShore.Coach.Infrastructure.Migrations.0004_TemporaryConstraints.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0005_Activities.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0005_Activities.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0006_ActivityName.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -102,6 +104,7 @@ internal sealed class ActivityRow
     public int? TotalSets { get; set; }
     public int? ActiveSets { get; set; }
     public int? TotalReps { get; set; }
+    public string? ActivityName { get; set; }
 }
 
 internal sealed class IngestBatchRow

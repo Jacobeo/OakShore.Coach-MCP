@@ -67,6 +67,7 @@ class ActivitySyncTests(unittest.TestCase):
         self.assertEqual(15, len(batch["activities"]))
         first = batch["activities"][0]
         self.assertEqual(24444892080, first["activityId"])
+        self.assertEqual("strength_training", first["activityName"])
         self.assertEqual("2026-09-21T14:34:01Z", first["startTimeUtc"])
         self.assertEqual("strength_training", first["typeKey"])
         self.assertEqual(14, first["totalSets"])

@@ -33,6 +33,8 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             row.TotalSets = activity.TotalSets;
             row.ActiveSets = activity.ActiveSets;
             row.TotalReps = activity.TotalReps;
+            if (activity.ActivityName is not null)
+                row.ActivityName = activity.ActivityName;
         }
         var dates = range.Validate();
         store.IngestBatches.Add(new IngestBatchRow
