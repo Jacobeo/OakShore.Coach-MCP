@@ -159,8 +159,9 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         var update = Assert.Single(tools, tool => tool.GetProperty("name").GetString() == "update_athlete_profile");
         Assert.True(read.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean());
         Assert.False(update.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean());
-        Assert.Equal("number", update.GetProperty("inputSchema").GetProperty("properties").GetProperty("bodyWeightKg").GetProperty("type").GetString());
-        Assert.Contains(update.GetProperty("inputSchema").GetProperty("required").EnumerateArray(), item => item.GetString() == "bodyWeightKg");
+        Assert.Contains(update.GetProperty("inputSchema").GetProperty("properties").GetProperty("bodyWeightKg").GetProperty("type").EnumerateArray(),
+            item => item.GetString() == "number");
+        Assert.False(update.GetProperty("inputSchema").TryGetProperty("required", out _));
         Assert.False(update.GetProperty("inputSchema").GetProperty("properties").TryGetProperty("userId", out _));
         await CallTool(client, "get_athlete_profile");
     }
@@ -234,6 +235,192 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(77.1m, saved.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
         Assert.Equal(77.1m, read.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
         Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), read.GetProperty("lastSyncedAt").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task Stable_facts_and_goal_are_saved_through_ingest_and_read_through_mcp()
+    {
+        var userId = Guid.NewGuid().ToString();
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host, userId);
+        using var response = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new[]
+            {
+                new
+                {
+                    availableEquipment = new[] { "Full gym", "Stationary bike" },
+                    intendedTrainingFrequencyPerWeek = 3,
+                    intendedTrainingDurationMinutes = 60,
+                    lastingLimitations = new[] { "Weak ankles and feet" },
+                    goal = new { description = "Play 7-a-side football", targetDate = "2099-04-01" }
+                }
+            }
+        });
+        response.EnsureSuccessStatusCode();
+        var saved = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var read = await CallTool(client, "get_athlete_profile");
+        var profile = read.GetProperty("profile");
+        Assert.Equal(JsonValueKind.Null, profile.GetProperty("bodyWeightKg").ValueKind);
+        Assert.Equal(new[] { "Full gym", "Stationary bike" }, profile.GetProperty("availableEquipment").EnumerateArray().Select(item => item.GetString()));
+        Assert.Equal(3, profile.GetProperty("intendedTrainingFrequencyPerWeek").GetInt32());
+        Assert.Equal(60, profile.GetProperty("intendedTrainingDurationMinutes").GetInt32());
+        Assert.Equal("Weak ankles and feet", profile.GetProperty("lastingLimitations")[0].GetString());
+        Assert.Equal("Play 7-a-side football", profile.GetProperty("goal").GetProperty("description").GetString());
+        Assert.Equal("2099-04-01", profile.GetProperty("goal").GetProperty("targetDate").GetString());
+        Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), read.GetProperty("lastSyncedAt").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task Tool_updates_each_stable_fact_without_erasing_unmentioned_facts()
+    {
+        var userId = Guid.NewGuid().ToString();
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host, userId);
+        using var seed = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new[] { new { bodyWeightKg = 80m, availableEquipment = new[] { "Full gym" } } }
+        });
+        seed.EnsureSuccessStatusCode();
+        var frequency = await CallTool(client, "update_athlete_profile", new { intendedTrainingFrequencyPerWeek = 3 });
+        Assert.Equal(80m, frequency.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
+        var duration = await CallTool(client, "update_athlete_profile", new { intendedTrainingDurationMinutes = 60 });
+        Assert.Equal(3, duration.GetProperty("profile").GetProperty("intendedTrainingFrequencyPerWeek").GetInt32());
+        var limitations = await CallTool(client, "update_athlete_profile", new { lastingLimitations = new[] { "Weak ankles" } });
+        Assert.Equal("Weak ankles", limitations.GetProperty("profile").GetProperty("lastingLimitations")[0].GetString());
+        var goal = await CallTool(client, "update_athlete_profile", new { goal = new { description = "Football season", targetDate = "2099-04-01" } });
+        Assert.Equal("Football season", goal.GetProperty("profile").GetProperty("goal").GetProperty("description").GetString());
+        var equipment = await CallTool(client, "update_athlete_profile", new { availableEquipment = new[] { "Bike" } });
+        Assert.Equal("Bike", equipment.GetProperty("profile").GetProperty("availableEquipment")[0].GetString());
+        var cleared = await CallTool(client, "update_athlete_profile", new { lastingLimitations = Array.Empty<string>() });
+        Assert.Empty(cleared.GetProperty("profile").GetProperty("lastingLimitations").EnumerateArray());
+        var read = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(80m, read.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
+        Assert.Equal(3, read.GetProperty("profile").GetProperty("intendedTrainingFrequencyPerWeek").GetInt32());
+        Assert.Equal(60, read.GetProperty("profile").GetProperty("intendedTrainingDurationMinutes").GetInt32());
+        Assert.Equal("Football season", read.GetProperty("profile").GetProperty("goal").GetProperty("description").GetString());
+        Assert.Equal(cleared.GetProperty("lastSyncedAt").GetDateTimeOffset(), read.GetProperty("lastSyncedAt").GetDateTimeOffset());
+    }
+
+    [Theory]
+    [InlineData("{\"intendedTrainingFrequencyPerWeek\":0}", "frequency")]
+    [InlineData("{\"intendedTrainingDurationMinutes\":1441}", "duration")]
+    [InlineData("{\"availableEquipment\":[\"  \"]}", "equipment")]
+    [InlineData("{\"lastingLimitations\":[null]}", "limitations")]
+    [InlineData("{\"goal\":{\"description\":\"Football\",\"targetDate\":\"2020-01-01\"}}", "date")]
+    [InlineData("{\"goal\":{\"description\":\"Football\",\"targetDate\":\"2099-02-30\"}}", "date")]
+    [InlineData("{\"goal\":{\"description\":\" \",\"targetDate\":\"2099-04-01\"}}", "description")]
+    public async Task Invalid_stable_fact_tool_update_reports_error_and_preserves_profile(string arguments, string field)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        using var seed = await client.PostAsJsonAsync("/ingest", new { version = 1, athleteProfiles = new[] { new { bodyWeightKg = 80m } } });
+        seed.EnsureSuccessStatusCode();
+        var before = await CallTool(client, "get_athlete_profile");
+        var result = await Rpc(client, "tools/call", new { name = "update_athlete_profile", arguments = JsonDocument.Parse(arguments).RootElement });
+        var error = result.GetProperty("result");
+        Assert.True(error.GetProperty("isError").GetBoolean());
+        Assert.Empty(error.GetProperty("content").EnumerateArray());
+        Assert.Contains(field, error.GetProperty("structuredContent").GetProperty("error").GetString()!, StringComparison.OrdinalIgnoreCase);
+        var after = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(before.ToString(), after.ToString());
+    }
+
+    [Fact]
+    public async Task Invalid_later_ingest_change_rejects_the_whole_batch()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        using var seed = await client.PostAsJsonAsync("/ingest", new { version = 1, athleteProfiles = new[] { new { bodyWeightKg = 80m } } });
+        seed.EnsureSuccessStatusCode();
+        var before = await CallTool(client, "get_athlete_profile");
+        using var rejected = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new object[]
+            {
+                new { availableEquipment = new[] { "Bike" } },
+                new { goal = new { description = "Football", targetDate = "2020-01-01" } }
+            }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        var feedback = await rejected.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("date", feedback.GetProperty("error").GetString()!, StringComparison.OrdinalIgnoreCase);
+        var after = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(before.ToString(), after.ToString());
+    }
+
+    [Fact]
+    public async Task Goal_date_rejected_at_ingest_still_returns_structured_tool_feedback()
+    {
+        await using var host = new CoachHost(database)
+        {
+            Clock = new AdvancingClock(
+                new DateTimeOffset(2099, 1, 1, 23, 59, 59, TimeSpan.Zero),
+                new DateTimeOffset(2099, 1, 2, 0, 0, 0, TimeSpan.Zero))
+        };
+        using var client = AthleteClient(host);
+        var result = await Rpc(client, "tools/call", new
+        {
+            name = "update_athlete_profile",
+            arguments = new { goal = new { description = "Football", targetDate = "2099-01-01" } }
+        });
+        var error = result.GetProperty("result");
+        Assert.True(error.GetProperty("isError").GetBoolean());
+        Assert.Empty(error.GetProperty("content").EnumerateArray());
+        Assert.Contains("date", error.GetProperty("structuredContent").GetProperty("error").GetString()!, StringComparison.OrdinalIgnoreCase);
+        var empty = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(JsonValueKind.Null, empty.GetProperty("profile").ValueKind);
+    }
+
+    private sealed class AdvancingClock(DateTimeOffset first, DateTimeOffset after) : TimeProvider
+    {
+        private int calls;
+        public override DateTimeOffset GetUtcNow() => Interlocked.Increment(ref calls) == 1 ? first : after;
+    }
+
+    [Fact]
+    public async Task Stable_facts_are_isolated_between_user_ids()
+    {
+        await using var host = new CoachHost(database);
+        using var first = AthleteClient(host);
+        using var second = AthleteClient(host);
+        var saved = await CallTool(first, "update_athlete_profile", new
+        {
+            availableEquipment = new[] { "Full gym" }, goal = new { description = "Football", targetDate = "2099-04-01" }
+        });
+        Assert.Equal("Full gym", saved.GetProperty("profile").GetProperty("availableEquipment")[0].GetString());
+        var empty = await CallTool(second, "get_athlete_profile");
+        Assert.Equal(JsonValueKind.Null, empty.GetProperty("profile").ValueKind);
+        await CallTool(second, "update_athlete_profile", new { lastingLimitations = new[] { "Weak ankles" } });
+        var firstRead = await CallTool(first, "get_athlete_profile");
+        Assert.Empty(firstRead.GetProperty("profile").GetProperty("lastingLimitations").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Stable_facts_survive_host_recreation()
+    {
+        var userId = Guid.NewGuid().ToString();
+        JsonElement saved;
+        await using (var host = new CoachHost(database))
+        {
+            using var client = AthleteClient(host, userId);
+            saved = await CallTool(client, "update_athlete_profile", new
+            {
+                availableEquipment = new[] { "Bike" },
+                intendedTrainingFrequencyPerWeek = 3,
+                intendedTrainingDurationMinutes = 60,
+                lastingLimitations = new[] { "Weak ankles" },
+                goal = new { description = "Football", targetDate = "2099-04-01" }
+            });
+        }
+        await using var recreated = new CoachHost(database);
+        using var reader = AthleteClient(recreated, userId);
+        var persisted = await CallTool(reader, "get_athlete_profile");
+        Assert.Equal(saved.GetProperty("profile").ToString(), persisted.GetProperty("profile").ToString());
+        Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), persisted.GetProperty("lastSyncedAt").GetDateTimeOffset());
     }
 
     private static HttpClient AthleteClient(CoachHost host, string? userId = null)

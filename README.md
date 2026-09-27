@@ -1,8 +1,9 @@
 # Coach MCP
 
-The local body-weight slice exposes `get_athlete_profile` and
+The local AthleteProfile slice exposes `get_athlete_profile` and
 `update_athlete_profile` at `/mcp`, with authenticated writes through `/ingest`.
-It implements [ticket 01](.scratch/02-athlete-profile-vertical-slice/issues/01-body-weight-through-mcp.md).
+It implements [ticket 01](.scratch/02-athlete-profile-vertical-slice/issues/01-body-weight-through-mcp.md)
+and [ticket 04](.scratch/02-athlete-profile-vertical-slice/issues/04-stable-facts-and-goal.md).
 
 ## Verify locally
 
@@ -36,11 +37,10 @@ dotnet run --project src/OakShore.Coach.Api --urls http://127.0.0.1:5180
 | `Persistence__ConnectionString` | SQL Server connection string for a dedicated Coach database |
 | `Ingest__BaseUrl` | Reachable URL of this API, e.g. `http://127.0.0.1:5180`; defaults to the public server origin |
 
-The Infrastructure project applies its idempotent
-[`0001_InitialAthleteProfile.sql`](src/OakShore.Coach.Infrastructure/Migrations/0001_InitialAthleteProfile.sql)
+The Infrastructure project applies its idempotent AthleteProfile migrations
 on startup. The database login needs schema-creation rights for this local
-slice. The database must already exist. This first migration can be reapplied
-after host recreation; future schema changes require their own migrations.
+slice. The database must already exist. The second migration preserves existing
+body weights while adding stable facts and Goal fields.
 
 `/health` is anonymous and returns `{ "status": "ok" }` without calling MCP.
 `/.well-known/oauth-protected-resource` publishes the configured resource and
@@ -250,7 +250,7 @@ POST /ingest
 Authorization: Bearer <access-token>
 Content-Type: application/json
 
-{"version":1,"athleteProfiles":[{"bodyWeightKg":82.5}]}
+{"version":1,"athleteProfiles":[{"bodyWeightKg":82.5,"availableEquipment":["Full gym","Stationary bike"],"intendedTrainingFrequencyPerWeek":3,"intendedTrainingDurationMinutes":60,"lastingLimitations":["Weak ankles"],"goal":{"description":"Play 7-a-side football","targetDate":"2099-04-01"}}]}
 ```
 
 `sub` determines `UserId`; neither endpoint accepts a caller-selected athlete.
@@ -258,17 +258,28 @@ The subject must be nonblank, at most 255 characters, and have no surrounding
 whitespace. Database comparisons are case-sensitive. Unexpected ingest fields,
 including supplied `userId` fields, are rejected.
 
-Implementation choices for this first contract:
+Contract rules:
 
 - Body weight is positive kilograms, with at most one decimal place. Values
   must fit `decimal(18,1)` (less than 10^17 kg); there is no medical range rule.
+- `availableEquipment` and `lastingLimitations` are free-text lists with at most
+  50 entries. Each entry has 1–200 nonblank characters and no surrounding
+  whitespace. An empty list clears that list. Lasting limitations are stable
+  facts; temporary Constraints belong to ticket 05.
+- `intendedTrainingFrequencyPerWeek` is an integer from 1 to 21 times per week.
+  `intendedTrainingDurationMinutes` is an integer from 1 to 1440 minutes.
+- `goal` has a description of 1–500 nonblank characters without surrounding
+  whitespace and a `targetDate` in ISO `YYYY-MM-DD` format. The date must be
+  today or later in UTC when saved.
+- Every supplied fact replaces its saved value. Omitted facts remain unchanged.
+  An initial update may create a profile without body weight. A null field
+  behaves like an omitted field; use an empty array to clear either list.
 - A batch has 1–100 changes for the authenticated athlete. All changes validate
-  before writing. Changes apply in list order; the final value becomes the
-  current AthleteProfile in one transaction. Unsupported versions and invalid
-  batches leave both the value and freshness unchanged.
+  before writing. Changes apply in list order in one transaction. Unsupported
+  versions and invalid batches leave all facts and freshness unchanged.
 - `lastSyncedAt` is the server's UTC acceptance time for the saved batch.
   An empty store returns `{"profile":null,"lastSyncedAt":null}`. A saved result
-  carries `profile.userId`, `profile.bodyWeightKg`, and `lastSyncedAt`.
+  carries all profile facts and `lastSyncedAt`.
 - MCP success responses have `structuredContent` and an empty `content` array.
   Update returns the saved facts. Validation errors report no data freshness;
   protocol/binding errors use the SDK's error format.

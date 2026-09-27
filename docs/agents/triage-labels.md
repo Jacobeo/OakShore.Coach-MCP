@@ -8,4 +8,5 @@ Local tickets record these roles in their Status field.
 | needs-info | needs-info | Waiting for more information |
 | ready-for-agent | ready-for-agent | Fully specified for agent implementation |
 | ready-for-human | ready-for-human | Requires human implementation |
+| done | done | Completed and verified |
 | wontfix | wontfix | Will not be actioned |

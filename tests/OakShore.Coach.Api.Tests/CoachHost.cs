@@ -28,6 +28,7 @@ public sealed class DatabaseFixture : IAsyncLifetime
 public sealed class CoachHost(DatabaseFixture database) : WebApplicationFactory<Program>
 {
     public bool DenyIngest { get; init; }
+    public TimeProvider? Clock { get; init; }
     public const string PublicUrl = "https://coach.example";
     public const string Audience = PublicUrl + "/mcp";
     public const string Issuer = "https://issuer.example";
@@ -42,6 +43,8 @@ public sealed class CoachHost(DatabaseFixture database) : WebApplicationFactory<
             .UseSetting("Ingest:BaseUrl", PublicUrl);
         builder.ConfigureServices(services =>
         {
+            if (Clock is not null)
+                services.AddSingleton(Clock);
             if (DenyIngest)
                 services.AddAuthorization(options => options.AddPolicy("Athlete", policy =>
                     policy.RequireAuthenticatedUser().RequireAssertion(context =>

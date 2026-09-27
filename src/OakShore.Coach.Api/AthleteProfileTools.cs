@@ -11,7 +11,7 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpCon
 {
     [McpServerTool(Name = "get_athlete_profile", ReadOnly = true, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(AthleteProfileResponse))]
-    [Description("Read your saved body weight and when it was last synced.")]
+    [Description("Read saved AthleteProfile facts, Goal, and when they were last synced.")]
     public async Task<CallToolResult> GetAthleteProfile(CancellationToken cancellationToken)
     {
         var userId = context.HttpContext!.User.FindFirst("sub")!.Value;
@@ -21,14 +21,20 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpCon
 
     [McpServerTool(Name = "update_athlete_profile", ReadOnly = false, Destructive = false, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(AthleteProfileResponse))]
-    [Description("Save your body weight in kilograms and return the saved value.")]
+    [Description("Save supplied AthleteProfile facts and return the saved values.")]
     public async Task<CallToolResult> UpdateAthleteProfile(
-        [Description("Positive body weight in kilograms, with at most one decimal place.")] decimal bodyWeightKg,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [Description("Positive kilograms, at most one decimal place.")] decimal? bodyWeightKg = null,
+        [Description("Available equipment as a free-text list; an empty list clears it.")] IReadOnlyList<string?>? availableEquipment = null,
+        [Description("Intended training frequency, 1 to 21 times per week.")] int? intendedTrainingFrequencyPerWeek = null,
+        [Description("Intended training duration, 1 to 1440 minutes.")] int? intendedTrainingDurationMinutes = null,
+        [Description("Lasting limitations as a free-text list; an empty list clears it.")] IReadOnlyList<string?>? lastingLimitations = null,
+        [Description("Goal description and targetDate in YYYY-MM-DD, today or later (UTC).")] GoalChange? goal = null)
     {
         try
         {
-            return Result(await profiles.UpdateAsync(bodyWeightKg, cancellationToken));
+            return Result(await profiles.UpdateAsync(new AthleteProfileChange(bodyWeightKg, availableEquipment,
+                intendedTrainingFrequencyPerWeek, intendedTrainingDurationMinutes, lastingLimitations, goal), cancellationToken));
         }
         catch (ArgumentException error)
         {

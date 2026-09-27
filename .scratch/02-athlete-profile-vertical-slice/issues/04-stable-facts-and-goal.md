@@ -7,28 +7,39 @@ from the saved response and retrieved in a later conversation.
 
 **Blocked by:** 01: Read and update body weight through MCP.
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Source:** [AthleteProfile vertical slice](../../02-athlete-profile-vertical-slice.md).
 
-- [ ] The two existing tools accept and return equipment, training frequency and
+- [x] The two existing tools accept and return equipment, training frequency and
   duration, lasting limitations, and Goal with target date, alongside body weight.
   No Program, Phase, prescription, Garmin integration, or additional tool is added.
-- [ ] Updates persist through authenticated ingest and can create an
+- [x] Updates persist through authenticated ingest and can create an
   AthleteProfile when one is absent. Updating one supplied fact preserves
   unrelated facts; omitted fields do not silently erase stored values.
-- [ ] The contract states units and validates supported values and Goal dates.
+- [x] The contract states units and validates supported values and Goal dates.
   Invalid changes produce clear structured feedback without persisting rejected
   values or disturbing unrelated facts.
-- [ ] The saved response contains enough information for the agent to confirm
+- [x] The saved response contains enough information for the agent to confirm
   the change accurately. Reads and updates carry freshness and structuredContent
   only; read-only annotation and stateless transport remain intact.
-- [ ] Lasting limitations remain stable AthleteProfile facts, distinct from the
+- [x] Lasting limitations remain stable AthleteProfile facts, distinct from the
   expiring Constraints introduced by ticket 05.
-- [ ] Real SQL Server boundary tests seed through ingest and verify MCP argument
+- [x] Real SQL Server boundary tests seed through ingest and verify MCP argument
   binding, creation, each supported fact, partial-update preservation, validation,
   persistence, freshness, and isolation between UserIds.
-- [ ] Domain vocabulary and dependency rules remain enforced; all added files
+- [x] Domain vocabulary and dependency rules remain enforced; all added files
   appear in the solution. This ticket is independently demonstrable through the
   local MCP boundary and does not wait for infrastructure or client setup.
 
+## Outcome
+
+Both MCP tools expose the saved stable facts and Goal with a UTC target date.
+Version 1 ingest accepts partial changes, validates the full batch, and saves
+the result in one SQL Server transaction. The migration keeps existing body
+weights. The root README states the field names, units, bounds, and clearing
+behavior. Boundary tests confirm creation, every fact, preservation, rejection,
+freshness, UserId isolation, and persistence after host recreation. The
+build-order step 2 desktop and phone criterion was demonstrated for the
+body-weight slice in ticket 03; this ticket's additional facts were verified
+locally at the MCP boundary.

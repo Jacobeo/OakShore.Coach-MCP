@@ -1,13 +1,13 @@
 namespace OakShore.Coach.Domain;
 
-public sealed class AthleteProfileService(IAthleteProfileRepository repository, IAthleteProfileIngestGateway ingest)
+public sealed class AthleteProfileService(IAthleteProfileRepository repository, IAthleteProfileIngestGateway ingest, TimeProvider clock)
 {
     public Task<AthleteProfileResponse> GetAsync(string userId, CancellationToken cancellationToken) =>
         repository.GetAsync(userId, cancellationToken);
 
-    public Task<AthleteProfileResponse> UpdateAsync(decimal bodyWeightKg, CancellationToken cancellationToken)
+    public Task<AthleteProfileResponse> UpdateAsync(AthleteProfileChange change, CancellationToken cancellationToken)
     {
-        AthleteProfile.ValidateBodyWeight(bodyWeightKg);
-        return ingest.SendAsync(new AthleteProfileBatch(1, [new AthleteProfileChange(bodyWeightKg)]), cancellationToken);
+        AthleteProfileChange.Validate(change, clock.GetUtcNow());
+        return ingest.SendAsync(new AthleteProfileBatch(1, [change]), cancellationToken);
     }
 }
