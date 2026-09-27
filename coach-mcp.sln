@@ -135,6 +135,22 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "issues", "issues", "{5EB98E
 		.scratch\02-athlete-profile-vertical-slice\issues\05-temporary-constraints.md = .scratch\02-athlete-profile-vertical-slice\issues\05-temporary-constraints.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "03-garmin-sync", "03-garmin-sync", "{A1E4C0D2-7B36-4F58-9C21-5D8E3F6A2B14}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "issues", "issues", "{C7F2B9A4-1D68-4E03-8A5F-6B4C9E1D720A}"
+	ProjectSection(SolutionItems) = preProject
+		.scratch\03-garmin-sync\issues\01-activities-into-the-store.md = .scratch\03-garmin-sync\issues\01-activities-into-the-store.md
+		.scratch\03-garmin-sync\issues\02-watermark-bounded-resumable-runs.md = .scratch\03-garmin-sync\issues\02-watermark-bounded-resumable-runs.md
+		.scratch\03-garmin-sync\issues\03-strength-exerciseset-detail.md = .scratch\03-garmin-sync\issues\03-strength-exerciseset-detail.md
+		.scratch\03-garmin-sync\issues\04-cardio-time-in-zones.md = .scratch\03-garmin-sync\issues\04-cardio-time-in-zones.md
+		.scratch\03-garmin-sync\issues\05-daily-wellness.md = .scratch\03-garmin-sync\issues\05-daily-wellness.md
+		.scratch\03-garmin-sync\issues\06-daily-form.md = .scratch\03-garmin-sync\issues\06-daily-form.md
+		.scratch\03-garmin-sync\issues\07-failure-and-reauthentication-notifications.md = .scratch\03-garmin-sync\issues\07-failure-and-reauthentication-notifications.md
+		.scratch\03-garmin-sync\issues\08-scheduled-and-manual-runs.md = .scratch\03-garmin-sync\issues\08-scheduled-and-manual-runs.md
+		.scratch\03-garmin-sync\issues\09-export-archive-backfill.md = .scratch\03-garmin-sync\issues\09-export-archive-backfill.md
+		.scratch\03-garmin-sync\issues\10-export-fit-per-set-detail.md = .scratch\03-garmin-sync\issues\10-export-fit-per-set-detail.md
+	EndProjectSection
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Migrations", "Migrations", "{ABF7D3CB-0931-45E8-AE47-832D9411A212}"
 	ProjectSection(SolutionItems) = preProject
 		src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql = src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql
@@ -235,6 +251,8 @@ Global
 		{D53C39C2-5F3F-4DF6-8DD5-13E6C1693081} = {3EB856F6-99B3-45EF-B0D7-92E9D3D4FC34}
 		{678D4C08-D024-4B47-AAD7-F7A35D098328} = {297033D4-477B-4DB0-ABEE-930136AC31EC}
 		{5EB98E31-58D8-4168-BE79-37D0F1A20F83} = {678D4C08-D024-4B47-AAD7-F7A35D098328}
+		{A1E4C0D2-7B36-4F58-9C21-5D8E3F6A2B14} = {297033D4-477B-4DB0-ABEE-930136AC31EC}
+		{C7F2B9A4-1D68-4E03-8A5F-6B4C9E1D720A} = {A1E4C0D2-7B36-4F58-9C21-5D8E3F6A2B14}
 		{89D300BE-D87A-43D6-B618-F0C071CAA92D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{964BCB3B-A2FD-4FD1-A774-78123BE72130} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{8DF631A1-F9B9-4246-9D14-BDD45E5ADF0C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
