@@ -81,24 +81,35 @@ _Avoid_: calendar item, planned session, booking
 **TrainingPlan**:
 An ordered series of ScheduledWorkouts covering a period of weeks. Garmin's unit
 of structured coaching; detailed down to individual steps.
-_Avoid_: program, schedule, training block
+_Avoid_: macrocycle, program, schedule, training block
 
 ### Planning
 
-**Program**:
-The multi-month structure of an athlete's training: a goal, a date range, and an
-ordered series of Phases. Describes intent and proportion rather than individual
-sessions, and has no Garmin equivalent.
-_Avoid_: plan, training plan, periodization, macrocycle
+**Macrocycle**:
+The long-range training structure serving an ordered snapshot of Goals, highest
+priority first: a date range and an ordered series of Mesocycles. Its length
+follows their shared deadline rather than a calendar year.
+_Avoid_: program, plan, training plan, season
 
-**Phase**:
-One named stage of a Program, covering a date range, with a stated focus and an
-allocation of training across modalities per week.
-_Avoid_: block, mesocycle, month, cycle
+**Mesocycle**:
+A focused training period within a Macrocycle, with a date range, intended
+adaptation, and ordered WeekOutlines that shape progression and recovery.
+_Avoid_: phase, block, month, cycle
+
+**WeekOutline**:
+One dated week's intended modality allocation and progression or recovery focus
+within a Mesocycle, before its ScheduledWorkouts are prescribed.
+_Avoid_: microcycle, weekly schedule
+
+**Microcycle**:
+One prescribed training week shaped by a WeekOutline, consisting of its
+ScheduledWorkouts and recovery days. It can be revised as the athlete's form or
+Constraints change.
+_Avoid_: weekly plan, schedule, training week
 
 **Goal**:
-An outcome the athlete is training towards, with a target date. A Program exists
-to serve a Goal.
+An outcome the athlete is training towards. The AthleteProfile orders current
+Goals by priority; a Macrocycle captures that order for its own training period.
 _Avoid_: objective, target, race
 
 **Constraint**:
@@ -109,8 +120,8 @@ _Avoid_: note, restriction, injury, availability
 
 **AthleteProfile**:
 The facts about an athlete that a prescription depends on but that training data
-does not reveal: body weight, available equipment, time available to train, and
-injuries or limitations.
+does not reveal: ordered Goals with one shared target date, body weight,
+available equipment, time available to train, and lasting limitations.
 _Avoid_: user, settings, preferences, context
 
 ### Form and load
@@ -128,5 +139,5 @@ _Avoid_: recovery score, freshness, form
 **Adherence**:
 The degree to which the Activities in a date range match what was prescribed for
 that range: measured against ScheduledWorkouts where they exist, and against the
-Phase's weekly allocation where they do not.
+WeekOutline's modality allocation where they do not.
 _Avoid_: compliance, plan vs actual, completion

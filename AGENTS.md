@@ -6,10 +6,9 @@ are pointers to it and hold no content of their own.
 
 ## Status
 
-The local AthleteProfile body-weight slice lives in `src/`, with MCP boundary tests
-and architecture checks in `tests/`. See [README.md](README.md) for configuration
-and test commands. Hosting and hosted identity setup remain separate tickets in
-spec 02. `coach-mcp.sln` includes the projects and repository files.
+The AthleteProfile tools live in `src/`, with MCP boundary tests and architecture
+checks in `tests/`. See [README.md](README.md) for configuration, test commands,
+and hosted status. `coach-mcp.sln` includes the projects and repository files.
 
 ## No guesswork — ask
 
@@ -34,7 +33,7 @@ Do not read these up front. Read the matching file when the task touches that ar
 
 [CONTEXT.md](CONTEXT.md) defines the domain terms and, for each, the words to avoid. Those
 names carry into code unchanged: type names, table names, tool names, parameters, test
-names. An `Activity` is never a `Session`; a `Program` is never a `TrainingPlan`. When a
+names. An `Activity` is never a `Session`; a `Macrocycle` is never a `TrainingPlan`. When a
 concept has no term yet, add it to CONTEXT.md in the same change that introduces it.
 
 ## Architecture — dependency rules
@@ -136,6 +135,8 @@ a nearby comment stale, fix or remove it.
 
 - **Propose before non-trivial edits.** Explain the trade-off, not just the change.
 - **Commit only when asked.** Never push unprompted.
+- **A ticket is done only after its work is committed.** Verified but uncommitted
+  work has status `ready-to-commit`.
 - **Push back** on a risky or wrong approach rather than implementing it quietly.
 - A step is not finished until its **done when** in [docs/build-order.md](docs/build-order.md)
   is demonstrably true. Say which one you demonstrated and how.

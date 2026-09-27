@@ -28,7 +28,7 @@ preserving the historical records.
   freshness describes stored data rather than becoming the current time merely
   because a Constraint stopped applying.
 - [ ] Tests seed through authenticated ingest and exercise the actual MCP tools,
-  without repository mocks or a new test seam. No additional tool, Program,
+  without repository mocks or a new test seam. No additional tool, Macrocycle,
   prescription, or Garmin behaviour is introduced.
 - [ ] Domain vocabulary and dependency rules remain enforced; all added files
   appear in the solution. The behaviour is independently demonstrable after

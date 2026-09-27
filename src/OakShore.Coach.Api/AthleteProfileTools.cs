@@ -11,7 +11,7 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpCon
 {
     [McpServerTool(Name = "get_athlete_profile", ReadOnly = true, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(AthleteProfileResponse))]
-    [Description("Read saved AthleteProfile facts, Goal, and when they were last synced.")]
+    [Description("Read saved AthleteProfile facts, prioritized Goals, and when they were last synced.")]
     public async Task<CallToolResult> GetAthleteProfile(CancellationToken cancellationToken)
     {
         var userId = context.HttpContext!.User.FindFirst("sub")!.Value;
@@ -29,12 +29,14 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpCon
         [Description("Intended training frequency, 1 to 21 times per week.")] int? intendedTrainingFrequencyPerWeek = null,
         [Description("Intended training duration, 1 to 1440 minutes.")] int? intendedTrainingDurationMinutes = null,
         [Description("Lasting limitations as a free-text list; an empty list clears it.")] IReadOnlyList<string?>? lastingLimitations = null,
-        [Description("Goal description and targetDate in YYYY-MM-DD, today or later (UTC).")] GoalChange? goal = null)
+        [Description("Goals in priority order, highest first; an empty list clears them.")] IReadOnlyList<GoalInput?>? goals = null,
+        [Description("One shared target date for the Goals in YYYY-MM-DD, today or later (UTC).")] string? goalsTargetDate = null)
     {
         try
         {
             return Result(await profiles.UpdateAsync(new AthleteProfileChange(bodyWeightKg, availableEquipment,
-                intendedTrainingFrequencyPerWeek, intendedTrainingDurationMinutes, lastingLimitations, goal), cancellationToken));
+                intendedTrainingFrequencyPerWeek, intendedTrainingDurationMinutes, lastingLimitations,
+                goals, goalsTargetDate), cancellationToken));
         }
         catch (ArgumentException error)
         {

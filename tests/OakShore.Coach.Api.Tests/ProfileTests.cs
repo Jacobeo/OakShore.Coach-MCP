@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Data.SqlClient;
+using OakShore.Coach.Infrastructure;
 using Xunit;
 
 namespace OakShore.Coach.Api.Tests;
@@ -125,6 +127,9 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     [InlineData("{\"version\":1,\"athleteProfiles\":[{\"bodyWeightKg\":65.12}]}")]
     [InlineData("{\"version\":1,\"athleteProfiles\":[{\"bodyWeightKg\":100000000000000000}]}")]
     [InlineData("{\"version\":1,\"athleteProfiles\":[{\"bodyWeightKg\":\"bad\"}]}")]
+    [InlineData("{\"version\":1,\"athleteProfiles\":[{\"goals\":[{\"description\":\"Football\"},{\"description\":\"football\"}]}]}")]
+    [InlineData("{\"version\":1,\"athleteProfiles\":[{\"goals\":[],\"goalsTargetDate\":\"2099-04-01\"}]}")]
+    [InlineData("{\"version\":1,\"athleteProfiles\":[{\"goal\":{\"description\":\"Football\",\"targetDate\":\"2099-04-01\"},\"goals\":[{\"description\":\"VO2max\"}]}]}")]
     [InlineData("{\"version\":1,\"userId\":\"another-athlete\",\"athleteProfiles\":[{\"bodyWeightKg\":65}]}")]
     [InlineData("null")]
     [InlineData("{broken")]
@@ -161,6 +166,10 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.False(update.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean());
         Assert.Contains(update.GetProperty("inputSchema").GetProperty("properties").GetProperty("bodyWeightKg").GetProperty("type").EnumerateArray(),
             item => item.GetString() == "number");
+        var properties = update.GetProperty("inputSchema").GetProperty("properties");
+        Assert.True(properties.TryGetProperty("goals", out _));
+        Assert.True(properties.TryGetProperty("goalsTargetDate", out _));
+        Assert.False(properties.TryGetProperty("goal", out _));
         Assert.False(update.GetProperty("inputSchema").TryGetProperty("required", out _));
         Assert.False(update.GetProperty("inputSchema").GetProperty("properties").TryGetProperty("userId", out _));
         await CallTool(client, "get_athlete_profile");
@@ -238,7 +247,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     }
 
     [Fact]
-    public async Task Stable_facts_and_goal_are_saved_through_ingest_and_read_through_mcp()
+    public async Task Stable_facts_and_legacy_goal_are_saved_through_ingest_and_read_through_mcp()
     {
         var userId = Guid.NewGuid().ToString();
         await using var host = new CoachHost(database);
@@ -267,9 +276,114 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(3, profile.GetProperty("intendedTrainingFrequencyPerWeek").GetInt32());
         Assert.Equal(60, profile.GetProperty("intendedTrainingDurationMinutes").GetInt32());
         Assert.Equal("Weak ankles and feet", profile.GetProperty("lastingLimitations")[0].GetString());
-        Assert.Equal("Play 7-a-side football", profile.GetProperty("goal").GetProperty("description").GetString());
-        Assert.Equal("2099-04-01", profile.GetProperty("goal").GetProperty("targetDate").GetString());
+        Assert.Equal("Play 7-a-side football", profile.GetProperty("goals")[0].GetProperty("description").GetString());
+        Assert.Equal("2099-04-01", profile.GetProperty("goalsTargetDate").GetString());
         Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), read.GetProperty("lastSyncedAt").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task Goals_are_saved_and_read_in_priority_order()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        using var seed = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new[] { new { bodyWeightKg = 80m } }
+        });
+        seed.EnsureSuccessStatusCode();
+        var saved = await CallTool(client, "update_athlete_profile", new
+        {
+            goals = new[]
+            {
+                new { description = "Play 7-a-side football" },
+                new { description = "Improve VO2max" }
+            }
+        });
+        var goals = saved.GetProperty("profile").GetProperty("goals").EnumerateArray()
+            .Select(goal => goal.GetProperty("description").GetString()).ToArray();
+        Assert.Equal(new[] { "Play 7-a-side football", "Improve VO2max" }, goals);
+        var read = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(saved.GetProperty("profile").ToString(), read.GetProperty("profile").ToString());
+        Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), read.GetProperty("lastSyncedAt").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task Reordering_goals_preserves_the_shared_date_and_clearing_goals_clears_the_date()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        using var seed = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new[]
+            {
+                new
+                {
+                    goals = new[] { new { description = "Football" }, new { description = "VO2max" } },
+                    goalsTargetDate = "2099-04-01",
+                    bodyWeightKg = 80m
+                }
+            }
+        });
+        seed.EnsureSuccessStatusCode();
+        var reordered = await CallTool(client, "update_athlete_profile", new
+        {
+            goals = new[] { new { description = "VO2max" }, new { description = "Football" } }
+        });
+        var profile = reordered.GetProperty("profile");
+        Assert.Equal("VO2max", profile.GetProperty("goals")[0].GetProperty("description").GetString());
+        Assert.Equal("Football", profile.GetProperty("goals")[1].GetProperty("description").GetString());
+        Assert.Equal("2099-04-01", profile.GetProperty("goalsTargetDate").GetString());
+        Assert.Equal(80m, profile.GetProperty("bodyWeightKg").GetDecimal());
+        var newDate = await CallTool(client, "update_athlete_profile", new { goalsTargetDate = "2099-05-01" });
+        Assert.Equal("VO2max", newDate.GetProperty("profile").GetProperty("goals")[0].GetProperty("description").GetString());
+        Assert.Equal("2099-05-01", newDate.GetProperty("profile").GetProperty("goalsTargetDate").GetString());
+        var cleared = await CallTool(client, "update_athlete_profile", new { goals = Array.Empty<object>() });
+        Assert.Empty(cleared.GetProperty("profile").GetProperty("goals").EnumerateArray());
+        Assert.Equal(JsonValueKind.Null, cleared.GetProperty("profile").GetProperty("goalsTargetDate").ValueKind);
+        var read = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(cleared.GetProperty("profile").ToString(), read.GetProperty("profile").ToString());
+    }
+
+    [Fact]
+    public async Task Existing_single_goal_survives_the_prioritized_goals_migration()
+    {
+        var legacy = new DatabaseFixture();
+        await legacy.InitializeAsync();
+        try
+        {
+            // A pre-upgrade schema cannot be seeded through ingest because the host migrates before serving requests.
+            await using (var connection = new SqlConnection(legacy.ConnectionString))
+            {
+                await connection.OpenAsync();
+                foreach (var resource in new[]
+                {
+                    "OakShore.Coach.Infrastructure.Migrations.0001_InitialAthleteProfile.sql",
+                    "OakShore.Coach.Infrastructure.Migrations.0002_StableFactsAndGoal.sql"
+                })
+                {
+                    await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)!;
+                    using var reader = new StreamReader(stream);
+                    await using var command = new SqlCommand(await reader.ReadToEndAsync(), connection);
+                    await command.ExecuteNonQueryAsync();
+                }
+                await using var seed = new SqlCommand("INSERT dbo.AthleteProfiles (UserId, BodyWeightKg, LastSyncedAt, GoalDescription, GoalTargetDate) VALUES (@userId, 80, SYSDATETIMEOFFSET(), N'Football', '2099-04-01')", connection);
+                var userId = Guid.NewGuid().ToString();
+                seed.Parameters.AddWithValue("@userId", userId);
+                await seed.ExecuteNonQueryAsync();
+                await using var host = new CoachHost(legacy);
+                using var client = AthleteClient(host, userId);
+                var read = await CallTool(client, "get_athlete_profile");
+                Assert.Equal("Football", read.GetProperty("profile").GetProperty("goals")[0].GetProperty("description").GetString());
+                Assert.Equal("2099-04-01", read.GetProperty("profile").GetProperty("goalsTargetDate").GetString());
+                Assert.Equal(80m, read.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
+            }
+        }
+        finally
+        {
+            await legacy.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -290,8 +404,11 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(3, duration.GetProperty("profile").GetProperty("intendedTrainingFrequencyPerWeek").GetInt32());
         var limitations = await CallTool(client, "update_athlete_profile", new { lastingLimitations = new[] { "Weak ankles" } });
         Assert.Equal("Weak ankles", limitations.GetProperty("profile").GetProperty("lastingLimitations")[0].GetString());
-        var goal = await CallTool(client, "update_athlete_profile", new { goal = new { description = "Football season", targetDate = "2099-04-01" } });
-        Assert.Equal("Football season", goal.GetProperty("profile").GetProperty("goal").GetProperty("description").GetString());
+        var goals = await CallTool(client, "update_athlete_profile", new
+        {
+            goals = new[] { new { description = "Football season" } }, goalsTargetDate = "2099-04-01"
+        });
+        Assert.Equal("Football season", goals.GetProperty("profile").GetProperty("goals")[0].GetProperty("description").GetString());
         var equipment = await CallTool(client, "update_athlete_profile", new { availableEquipment = new[] { "Bike" } });
         Assert.Equal("Bike", equipment.GetProperty("profile").GetProperty("availableEquipment")[0].GetString());
         var cleared = await CallTool(client, "update_athlete_profile", new { lastingLimitations = Array.Empty<string>() });
@@ -300,7 +417,8 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(80m, read.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
         Assert.Equal(3, read.GetProperty("profile").GetProperty("intendedTrainingFrequencyPerWeek").GetInt32());
         Assert.Equal(60, read.GetProperty("profile").GetProperty("intendedTrainingDurationMinutes").GetInt32());
-        Assert.Equal("Football season", read.GetProperty("profile").GetProperty("goal").GetProperty("description").GetString());
+        Assert.Equal("Football season", read.GetProperty("profile").GetProperty("goals")[0].GetProperty("description").GetString());
+        Assert.Equal("2099-04-01", read.GetProperty("profile").GetProperty("goalsTargetDate").GetString());
         Assert.Equal(cleared.GetProperty("lastSyncedAt").GetDateTimeOffset(), read.GetProperty("lastSyncedAt").GetDateTimeOffset());
     }
 
@@ -309,9 +427,11 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     [InlineData("{\"intendedTrainingDurationMinutes\":1441}", "duration")]
     [InlineData("{\"availableEquipment\":[\"  \"]}", "equipment")]
     [InlineData("{\"lastingLimitations\":[null]}", "limitations")]
-    [InlineData("{\"goal\":{\"description\":\"Football\",\"targetDate\":\"2020-01-01\"}}", "date")]
-    [InlineData("{\"goal\":{\"description\":\"Football\",\"targetDate\":\"2099-02-30\"}}", "date")]
-    [InlineData("{\"goal\":{\"description\":\" \",\"targetDate\":\"2099-04-01\"}}", "description")]
+    [InlineData("{\"goalsTargetDate\":\"2020-01-01\"}", "date")]
+    [InlineData("{\"goalsTargetDate\":\"2099-02-30\"}", "date")]
+    [InlineData("{\"goals\":[{\"description\":\" \"}]}", "description")]
+    [InlineData("{\"goals\":[{\"description\":\"Football\"},{\"description\":\"football\"}]}", "distinct")]
+    [InlineData("{\"goals\":[null]}", "description")]
     public async Task Invalid_stable_fact_tool_update_reports_error_and_preserves_profile(string arguments, string field)
     {
         await using var host = new CoachHost(database);
@@ -365,7 +485,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         var result = await Rpc(client, "tools/call", new
         {
             name = "update_athlete_profile",
-            arguments = new { goal = new { description = "Football", targetDate = "2099-01-01" } }
+            arguments = new { goalsTargetDate = "2099-01-01" }
         });
         var error = result.GetProperty("result");
         Assert.True(error.GetProperty("isError").GetBoolean());
@@ -389,7 +509,8 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         using var second = AthleteClient(host);
         var saved = await CallTool(first, "update_athlete_profile", new
         {
-            availableEquipment = new[] { "Full gym" }, goal = new { description = "Football", targetDate = "2099-04-01" }
+            availableEquipment = new[] { "Full gym" },
+            goals = new[] { new { description = "Football" } }, goalsTargetDate = "2099-04-01"
         });
         Assert.Equal("Full gym", saved.GetProperty("profile").GetProperty("availableEquipment")[0].GetString());
         var empty = await CallTool(second, "get_athlete_profile");
@@ -397,6 +518,8 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         await CallTool(second, "update_athlete_profile", new { lastingLimitations = new[] { "Weak ankles" } });
         var firstRead = await CallTool(first, "get_athlete_profile");
         Assert.Empty(firstRead.GetProperty("profile").GetProperty("lastingLimitations").EnumerateArray());
+        var secondRead = await CallTool(second, "get_athlete_profile");
+        Assert.Empty(secondRead.GetProperty("profile").GetProperty("goals").EnumerateArray());
     }
 
     [Fact]
@@ -413,7 +536,8 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
                 intendedTrainingFrequencyPerWeek = 3,
                 intendedTrainingDurationMinutes = 60,
                 lastingLimitations = new[] { "Weak ankles" },
-                goal = new { description = "Football", targetDate = "2099-04-01" }
+                goals = new[] { new { description = "Football" }, new { description = "Improve VO2max" } },
+                goalsTargetDate = "2099-04-01"
             });
         }
         await using var recreated = new CoachHost(database);

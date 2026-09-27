@@ -3,6 +3,7 @@ using System.Globalization;
 namespace OakShore.Coach.Domain;
 
 public sealed record GoalChange(string? Description, string? TargetDate);
+public sealed record GoalInput(string? Description);
 
 public sealed record AthleteProfileChange(
     decimal? BodyWeightKg = null,
@@ -10,13 +11,15 @@ public sealed record AthleteProfileChange(
     int? IntendedTrainingFrequencyPerWeek = null,
     int? IntendedTrainingDurationMinutes = null,
     IReadOnlyList<string?>? LastingLimitations = null,
+    IReadOnlyList<GoalInput?>? Goals = null,
+    string? GoalsTargetDate = null,
     GoalChange? Goal = null)
 {
     public static void Validate(AthleteProfileChange? change, DateTimeOffset now)
     {
         if (change is null || change is { BodyWeightKg: null, AvailableEquipment: null,
             IntendedTrainingFrequencyPerWeek: null, IntendedTrainingDurationMinutes: null,
-            LastingLimitations: null, Goal: null })
+            LastingLimitations: null, Goals: null, GoalsTargetDate: null, Goal: null })
             throw new ArgumentException("Supply at least one AthleteProfile fact.");
         if (change.BodyWeightKg is not null)
             AthleteProfile.ValidateBodyWeight(change.BodyWeightKg);
@@ -26,15 +29,34 @@ public sealed record AthleteProfileChange(
             throw new ArgumentException("Intended training frequency must be 1 to 21 times per week.");
         if (change.IntendedTrainingDurationMinutes is < 1 or > 1440)
             throw new ArgumentException("Intended training duration must be 1 to 1440 minutes.");
+        if (change.Goal is not null && (change.Goals is not null || change.GoalsTargetDate is not null))
+            throw new ArgumentException("Supply either goal or goals and goalsTargetDate, not both.");
+        if (change.Goals is not null)
+        {
+            if (change.Goals.Count > 20 || change.Goals.Any(goal => !ValidDescription(goal?.Description))
+                || change.Goals.Select(goal => goal!.Description).Distinct(StringComparer.OrdinalIgnoreCase).Count() != change.Goals.Count)
+                throw new ArgumentException("Goals must contain at most 20 distinct descriptions of 1 to 500 nonblank characters, ordered highest priority first.");
+            if (change.Goals.Count == 0 && change.GoalsTargetDate is not null)
+                throw new ArgumentException("An empty goals list clears the shared date; do not supply goalsTargetDate with it.");
+        }
+        if (change.GoalsTargetDate is not null)
+            ValidateDate(change.GoalsTargetDate, now);
         if (change.Goal is not null)
         {
-            if (string.IsNullOrWhiteSpace(change.Goal.Description) || change.Goal.Description.Length > 500
-                || change.Goal.Description != change.Goal.Description.Trim())
+            if (!ValidDescription(change.Goal.Description))
                 throw new ArgumentException("Goal description must be 1 to 500 nonblank characters without surrounding whitespace.");
-            if (!DateOnly.TryParseExact(change.Goal.TargetDate, "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                    DateTimeStyles.None, out var targetDate) || targetDate < DateOnly.FromDateTime(now.UtcDateTime))
-                throw new ArgumentException("Goal target date must be today or later in YYYY-MM-DD format (UTC).");
+            ValidateDate(change.Goal.TargetDate, now);
         }
+    }
+
+    private static bool ValidDescription(string? description) =>
+        !string.IsNullOrWhiteSpace(description) && description.Length <= 500 && description == description.Trim();
+
+    private static void ValidateDate(string? value, DateTimeOffset now)
+    {
+        if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var targetDate) || targetDate < DateOnly.FromDateTime(now.UtcDateTime))
+            throw new ArgumentException("Shared Goals target date must be today or later in YYYY-MM-DD format (UTC).");
     }
 
     private static void ValidateList(IReadOnlyList<string?>? values, string name)

@@ -168,7 +168,7 @@ Python seam is new and is established here.
 
 ## Out of Scope
 
-Any write to Garmin. The Program, Phases, prescription and Adherence. Per-second
+Any write to Garmin. The Macrocycle, Mesocycles, prescription and Adherence. Per-second
 metric series beyond what zone analysis requires. Real-time or intraday sync.
 Supporting more than one athlete's sync on one machine. Automating the bulk
 export request, which Garmin provides only through its account pages.

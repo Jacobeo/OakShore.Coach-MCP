@@ -21,8 +21,7 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         // OAuth subject identifiers are case-sensitive.
         profile.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
         profile.Property(row => row.BodyWeightKg).HasPrecision(18, 1);
-        profile.Property(row => row.GoalDescription).HasMaxLength(500);
-        profile.Property(row => row.GoalTargetDate).HasColumnType("date");
+        profile.Property(row => row.GoalsTargetDate).HasColumnType("date");
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
@@ -30,7 +29,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         foreach (var resource in new[]
         {
             "OakShore.Coach.Infrastructure.Migrations.0001_InitialAthleteProfile.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0002_StableFactsAndGoal.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0002_StableFactsAndGoal.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0003_PrioritizedGoals.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -50,8 +50,8 @@ internal sealed class AthleteProfileRow
     public int? IntendedTrainingFrequencyPerWeek { get; set; }
     public int? IntendedTrainingDurationMinutes { get; set; }
     public string LastingLimitations { get; set; } = "[]";
-    public string? GoalDescription { get; set; }
-    public DateOnly? GoalTargetDate { get; set; }
+    public string GoalsJson { get; set; } = "[]";
+    public DateOnly? GoalsTargetDate { get; set; }
     public DateTimeOffset LastSyncedAt { get; set; }
 }
 
@@ -80,8 +80,8 @@ public sealed class AthleteProfileRepository(AthleteProfileStore store) : IAthle
         row.IntendedTrainingFrequencyPerWeek = profile.IntendedTrainingFrequencyPerWeek;
         row.IntendedTrainingDurationMinutes = profile.IntendedTrainingDurationMinutes;
         row.LastingLimitations = JsonSerializer.Serialize(profile.LastingLimitations);
-        row.GoalDescription = profile.Goal?.Description;
-        row.GoalTargetDate = profile.Goal?.TargetDate;
+        row.GoalsJson = JsonSerializer.Serialize(profile.Goals);
+        row.GoalsTargetDate = profile.GoalsTargetDate;
         row.LastSyncedAt = lastSyncedAt;
         await store.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -95,5 +95,6 @@ public sealed class AthleteProfileRepository(AthleteProfileStore store) : IAthle
         row.IntendedTrainingFrequencyPerWeek,
         row.IntendedTrainingDurationMinutes,
         JsonSerializer.Deserialize<string[]>(row.LastingLimitations) ?? [],
-        row.GoalDescription is null || row.GoalTargetDate is null ? null : new Goal(row.GoalDescription, row.GoalTargetDate.Value));
+        JsonSerializer.Deserialize<Goal[]>(row.GoalsJson) ?? [],
+        row.GoalsTargetDate);
 }

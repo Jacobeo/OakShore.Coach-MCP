@@ -4,5 +4,6 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.20" />
     <EmbeddedResource Include="Migrations/0001_InitialAthleteProfile.sql" />
     <EmbeddedResource Include="Migrations/0002_StableFactsAndGoal.sql" />
+    <EmbeddedResource Include="Migrations/0003_PrioritizedGoals.sql" />
   </ItemGroup>
 </Project>

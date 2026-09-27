@@ -10,7 +10,7 @@ sync runs nightly at home, pulls Activities, ExerciseSets, sleep and load metric
 from Garmin Connect, and POSTs them to an authenticated ingest endpoint on a
 stateless .NET MCP server hosted on Azure Container Apps. The server exposes
 around eight curated tools to ChatGPT and Claude behind OAuth. The headline tool
-takes recent history, the athlete's Program and current form, and prescribes the
+takes recent history, the athlete's Macrocycle and current form, and prescribes the
 next block of training.
 
 ## Build order
@@ -20,7 +20,7 @@ next block of training.
 | 01 | [Strength data spike](01-strength-data-spike.md) | Validates the assumption the whole product rests on, for an hour's work |
 | 02 | [AthleteProfile vertical slice](02-athlete-profile-vertical-slice.md) | Proves hosting, auth and client reachability with no Garmin involved |
 | 03 | [Garmin sync](03-garmin-sync.md) | The fragile part, attempted only once the rest is known to work |
-| 04 | [Program and prescription](04-program-and-prescription.md) | The actual use case |
+| 04 | [Macrocycle and prescription](04-macrocycle-and-prescription.md) | The actual use case |
 | 05 | [Garmin write-back](05-garmin-writeback.md) | Closes the loop onto the watch |
 
 Specs 01 and 02 exist to attack the two largest unknowns first: whether the

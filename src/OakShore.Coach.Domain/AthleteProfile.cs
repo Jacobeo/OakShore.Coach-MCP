@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace OakShore.Coach.Domain;
 
-public sealed record Goal(string Description, DateOnly TargetDate);
+public sealed record Goal(string Description);
 
 public sealed record AthleteProfile(
     string UserId,
@@ -11,20 +11,33 @@ public sealed record AthleteProfile(
     int? IntendedTrainingFrequencyPerWeek,
     int? IntendedTrainingDurationMinutes,
     IReadOnlyList<string> LastingLimitations,
-    Goal? Goal)
+    IReadOnlyList<Goal> Goals,
+    DateOnly? GoalsTargetDate)
 {
-    public static AthleteProfile Empty(string userId) => new(userId, null, [], null, null, [], null);
+    public static AthleteProfile Empty(string userId) => new(userId, null, [], null, null, [], [], null);
 
-    public AthleteProfile Apply(AthleteProfileChange change) => this with
+    public AthleteProfile Apply(AthleteProfileChange change)
     {
-        BodyWeightKg = change.BodyWeightKg ?? BodyWeightKg,
-        AvailableEquipment = change.AvailableEquipment?.Select(value => value!).ToArray() ?? AvailableEquipment,
-        IntendedTrainingFrequencyPerWeek = change.IntendedTrainingFrequencyPerWeek ?? IntendedTrainingFrequencyPerWeek,
-        IntendedTrainingDurationMinutes = change.IntendedTrainingDurationMinutes ?? IntendedTrainingDurationMinutes,
-        LastingLimitations = change.LastingLimitations?.Select(value => value!).ToArray() ?? LastingLimitations,
-        Goal = change.Goal is null ? Goal : new Goal(change.Goal.Description!,
-            DateOnly.ParseExact(change.Goal.TargetDate!, "yyyy-MM-dd", CultureInfo.InvariantCulture))
-    };
+        var goals = change.Goals is not null
+            ? change.Goals.Select(goal => new Goal(goal!.Description!)).ToArray()
+            : change.Goal is not null ? [new Goal(change.Goal.Description!)] : Goals;
+        var targetDate = change.Goal is not null
+            ? DateOnly.ParseExact(change.Goal.TargetDate!, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : change.Goals is { Count: 0 } ? null
+            : change.GoalsTargetDate is not null
+                ? DateOnly.ParseExact(change.GoalsTargetDate, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : GoalsTargetDate;
+        return this with
+        {
+            BodyWeightKg = change.BodyWeightKg ?? BodyWeightKg,
+            AvailableEquipment = change.AvailableEquipment?.Select(value => value!).ToArray() ?? AvailableEquipment,
+            IntendedTrainingFrequencyPerWeek = change.IntendedTrainingFrequencyPerWeek ?? IntendedTrainingFrequencyPerWeek,
+            IntendedTrainingDurationMinutes = change.IntendedTrainingDurationMinutes ?? IntendedTrainingDurationMinutes,
+            LastingLimitations = change.LastingLimitations?.Select(value => value!).ToArray() ?? LastingLimitations,
+            Goals = goals,
+            GoalsTargetDate = targetDate
+        };
+    }
 
     public static void ValidateBodyWeight(decimal? bodyWeightKg)
     {

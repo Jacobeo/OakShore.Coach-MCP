@@ -1,8 +1,8 @@
-# 04: Maintain stable AthleteProfile facts and Goal
+# 04: Maintain stable AthleteProfile facts and prioritized Goals
 
 **What to build:** The athlete can maintain available equipment, intended weekly
-training frequency and duration, lasting limitations, and a Goal with its target
-date through the existing AthleteProfile tools. Each change can be confirmed
+training frequency and duration, lasting limitations, and ordered Goals with a
+shared target date through the existing AthleteProfile tools. Each change can be confirmed
 from the saved response and retrieved in a later conversation.
 
 **Blocked by:** 01: Read and update body weight through MCP.
@@ -12,12 +12,13 @@ from the saved response and retrieved in a later conversation.
 **Source:** [AthleteProfile vertical slice](../../02-athlete-profile-vertical-slice.md).
 
 - [x] The two existing tools accept and return equipment, training frequency and
-  duration, lasting limitations, and Goal with target date, alongside body weight.
-  No Program, Phase, prescription, Garmin integration, or additional tool is added.
+  duration, lasting limitations, and prioritized Goals with one shared target
+  date, alongside body weight. No Macrocycle, Mesocycle, prescription, Garmin
+  integration, or additional tool is added.
 - [x] Updates persist through authenticated ingest and can create an
   AthleteProfile when one is absent. Updating one supplied fact preserves
   unrelated facts; omitted fields do not silently erase stored values.
-- [x] The contract states units and validates supported values and Goal dates.
+- [x] The contract states units and validates supported values and the shared date.
   Invalid changes produce clear structured feedback without persisting rejected
   values or disturbing unrelated facts.
 - [x] The saved response contains enough information for the agent to confirm
@@ -34,10 +35,11 @@ from the saved response and retrieved in a later conversation.
 
 ## Outcome
 
-Both MCP tools expose the saved stable facts and Goal with a UTC target date.
-Version 1 ingest accepts partial changes, validates the full batch, and saves
-the result in one SQL Server transaction. The migration keeps existing body
-weights. The root README states the field names, units, bounds, and clearing
+Both MCP tools expose the saved stable facts and ordered Goals with one UTC
+target date. Version 1 ingest accepts partial changes, validates the full
+batch, and saves the result in one SQL Server transaction. The migration keeps
+existing body weights and moves an existing single Goal into the prioritized
+list. The root README states the field names, units, bounds, and clearing
 behavior. Boundary tests confirm creation, every fact, preservation, rejection,
 freshness, UserId isolation, and persistence after host recreation. The
 build-order step 2 desktop and phone criterion was demonstrated for the

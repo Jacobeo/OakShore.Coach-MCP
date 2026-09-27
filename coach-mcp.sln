@@ -94,7 +94,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Specs", "Specs", "{297033D4
 		.scratch\01-strength-data-spike.md = .scratch\01-strength-data-spike.md
 		.scratch\02-athlete-profile-vertical-slice.md = .scratch\02-athlete-profile-vertical-slice.md
 		.scratch\03-garmin-sync.md = .scratch\03-garmin-sync.md
-		.scratch\04-program-and-prescription.md = .scratch\04-program-and-prescription.md
+		.scratch\04-macrocycle-and-prescription.md = .scratch\04-macrocycle-and-prescription.md
 		.scratch\05-garmin-writeback.md = .scratch\05-garmin-writeback.md
 	EndProjectSection
 EndProject

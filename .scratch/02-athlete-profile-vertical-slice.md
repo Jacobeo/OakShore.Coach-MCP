@@ -49,7 +49,7 @@ editing of it is what stops it going stale.
 5. As the athlete, I want to add the same server to Claude as well, so that I am not locked to one model vendor.
 6. As the athlete, I want to ask what my profile contains and get a readable answer, so that I can confirm the system knows what it should.
 7. As the athlete, I want to tell the agent my current body weight in conversation and have it persist, so that I never maintain a config file by hand.
-8. As the athlete, I want to state my Goal and its target date conversationally, so that later prescriptions have something to aim at.
+8. As the athlete, I want to state my prioritized Goals and their shared date conversationally, so that later prescriptions know which outcomes matter most.
 9. As the athlete, I want to record which equipment I have access to, so that prescriptions only contain exercises I can actually perform.
 10. As the athlete, I want to record how many sessions per week I intend to train and for how long, so that prescriptions match my real availability.
 11. As the athlete, I want to record a long-standing limitation such as weak ankles, so that it shapes every future prescription.
@@ -175,7 +175,7 @@ third-party clients and are confirmed by use.
 
 ## Out of Scope
 
-Any Garmin code, credentials or data. The Program, Phases, prescription and
+Any Garmin code, credentials or data. The Macrocycle, Mesocycles, prescription and
 Adherence. Activities, ExerciseSets, sleep and load metrics. The scheduled sync.
 Push notifications. Any write to Garmin. Support for a second athlete beyond the
 schema carrying an identifier.

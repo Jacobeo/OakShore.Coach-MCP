@@ -90,16 +90,21 @@ thousands of calls.
 **Done when** your full history is queryable and activity counts reconcile
 against Garmin Connect.
 
-## Step 5 — Program and Phases
+## Step 5 — Macrocycle and Mesocycles
 
-- `set_program`: the model parses prose into structure and posts it. The server
+- `set_macrocycle`: the model parses prose into structure and posts it. The server
   never calls a model
-- `get_program`: Program, Phases, and which Phase today falls in
-- Structure only dates, modalities and sessions per week. Phase focus stays prose
+- `get_macrocycle`: Macrocycle, Mesocycles, and which Mesocycle today falls in
+- The Macrocycle captures the AthleteProfile Goals in priority order when it is
+  saved. Its end date is their shared date; later profile edits do not silently
+  retarget it
+- Structure Macrocycle and Mesocycle dates, plus dated WeekOutlines with modality
+  allocations. Keep adaptation, progression and recovery intent in prose;
+  Mesocycle lengths remain flexible
 - `Constraint` support on the profile, with expiry
 
-**Done when** your six-month plan is loaded by pasting it, and the agent can
-state which Phase you are in and what it asks for this week.
+**Done when** your six-month Macrocycle is loaded by pasting it, and the agent can
+state which Mesocycle and WeekOutline you are in, including any recovery intent.
 
 ## Step 6 — Looking back
 
@@ -115,13 +120,15 @@ and how does it compare to the plan" without you checking it by hand.
 
 The use case that started the project.
 
-- `prescribe(from, to, constraints?)`: writes ScheduledWorkouts into the store
+- `prescribe(from, to, constraints?)`: writes ScheduledWorkouts into the store;
+  a prescribed week is a Microcycle with work and recovery distributed to serve
+  its WeekOutline
 - `get_scheduled_workouts(from, to)`
 - Revision: a new Constraint re-prescribes the remaining days
 
 **Done when** a Sunday evening conversation produces next week's sessions, and
 "I took a knock and only have two evenings" produces a sensible rewrite that
-preserves the Phase's intent.
+preserves the Mesocycle's intent.
 
 ## Step 8 — Write back to Garmin
 
@@ -152,7 +159,7 @@ coach-mcp/
 ├── spikes/                  throwaway, committed for the record
 ├── src/
 │   ├── OakShore.Coach.Api/           MCP server, ingest endpoint
-│   ├── OakShore.Coach.Domain/        Program, Phase, Activity, ExerciseSet, Constraint
+│   ├── OakShore.Coach.Domain/        Macrocycle, Mesocycle, Activity, ExerciseSet, Constraint
 │   ├── OakShore.Coach.Infrastructure/ persistence, FIT parsing
 │   └── sync/                Python, runs at home
 └── tests/

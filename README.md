@@ -39,8 +39,8 @@ dotnet run --project src/OakShore.Coach.Api --urls http://127.0.0.1:5180
 
 The Infrastructure project applies its idempotent AthleteProfile migrations
 on startup. The database login needs schema-creation rights for this local
-slice. The database must already exist. The second migration preserves existing
-body weights while adding stable facts and Goal fields.
+slice. The database must already exist. The migrations preserve existing body
+weights and convert a saved single Goal into the first prioritized Goal.
 
 `/health` is anonymous and returns `{ "status": "ok" }` without calling MCP.
 `/.well-known/oauth-protected-resource` publishes the configured resource and
@@ -250,7 +250,7 @@ POST /ingest
 Authorization: Bearer <access-token>
 Content-Type: application/json
 
-{"version":1,"athleteProfiles":[{"bodyWeightKg":82.5,"availableEquipment":["Full gym","Stationary bike"],"intendedTrainingFrequencyPerWeek":3,"intendedTrainingDurationMinutes":60,"lastingLimitations":["Weak ankles"],"goal":{"description":"Play 7-a-side football","targetDate":"2099-04-01"}}]}
+{"version":1,"athleteProfiles":[{"bodyWeightKg":82.5,"availableEquipment":["Full gym","Stationary bike"],"intendedTrainingFrequencyPerWeek":3,"intendedTrainingDurationMinutes":60,"lastingLimitations":["Weak ankles"],"goals":[{"description":"Play 7-a-side football"},{"description":"Improve VO2max"}],"goalsTargetDate":"2099-04-01"}]}
 ```
 
 `sub` determines `UserId`; neither endpoint accepts a caller-selected athlete.
@@ -268,12 +268,18 @@ Contract rules:
   facts; temporary Constraints belong to ticket 05.
 - `intendedTrainingFrequencyPerWeek` is an integer from 1 to 21 times per week.
   `intendedTrainingDurationMinutes` is an integer from 1 to 1440 minutes.
-- `goal` has a description of 1–500 nonblank characters without surrounding
-  whitespace and a `targetDate` in ISO `YYYY-MM-DD` format. The date must be
-  today or later in UTC when saved.
+- `goals` is an ordered list, highest priority first, with at most 20 distinct
+  descriptions of 1–500 nonblank characters without surrounding whitespace.
+  Duplicate descriptions are rejected without regard to case. An empty list
+  clears all Goals and their shared date.
+- `goalsTargetDate` is one shared ISO `YYYY-MM-DD` date, today or later in UTC
+  when saved. It is the intended end date of the future Macrocycle; individual
+  Goals have no dates. Existing version 1 ingest payloads with a single `goal`
+  object remain accepted and become the first Goal plus the shared date. A
+  payload cannot supply both `goal` and `goals` or `goalsTargetDate`.
 - Every supplied fact replaces its saved value. Omitted facts remain unchanged.
   An initial update may create a profile without body weight. A null field
-  behaves like an omitted field; use an empty array to clear either list.
+  behaves like an omitted field; use an empty array to clear a list.
 - A batch has 1–100 changes for the authenticated athlete. All changes validate
   before writing. Changes apply in list order in one transaction. Unsupported
   versions and invalid batches leave all facts and freshness unchanged.

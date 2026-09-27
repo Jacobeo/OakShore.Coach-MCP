@@ -8,7 +8,7 @@ repetitive, and aggregate-shaped across months and years. That is the worst
 possible fit for a per-request unofficial API behind bot detection, and an agent
 exploring a training block would hit the same endpoints repeatedly.
 
-Decisively, the central domain object — the **Program** — does not exist in
+Decisively, the central domain object — the **Macrocycle** — does not exist in
 Garmin at all. Garmin has no concept of a multi-month periodized structure and
 no way to export one. Even a perfect Garmin client could not answer "am I on
 plan", so a store is required regardless of performance.
