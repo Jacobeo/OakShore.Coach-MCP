@@ -53,9 +53,12 @@ clients and protocol `2026-07-28` clients can use it without a session ID. The
 [C# SDK transport documentation](https://github.com/modelcontextprotocol/csharp-sdk/blob/main/docs/concepts/stateless/stateless.md)
 describes the two protocol paths.
 
-Hosted token issuance was exercised during deployment. Interactive ChatGPT and
-Claude connector registration belongs to ticket 03. The build-order step 2
-desktop/phone acceptance criterion therefore remains outstanding.
+Hosted token issuance was exercised during deployment. ChatGPT connected
+through WorkOS Staging on desktop and phone on 2026-09-27, and read a persisted
+body-weight update with freshness on both. The athlete reported no repeat
+sign-in or per-read approval prompt. A ChatGPT read from zero Azure replicas
+returned the saved value in about 42 seconds without either prompt. Claude
+acceptance remains separate from this ChatGPT pass.
 
 ## Set up sign-in
 
@@ -91,6 +94,57 @@ Production requires billing details, although AuthKit is free below its
 published monthly active user allowance. A custom WorkOS domain is a paid
 option and is unnecessary here. Verify these terms before switching to
 Production. Staging is for setup and testing, not permanent live use.
+
+## Connect ChatGPT
+
+Use the athlete's ChatGPT account on desktop. In **Settings → Security and login**,
+enable **Developer mode**. Open **ChatGPT Plugins**, add a connection named
+**Coach**, and enter
+`https://oakshore-coach-api.yellowpond-6d7fb869.northeurope.azurecontainerapps.io/mcp`
+as its server URL. ChatGPT's [MCP setup guide](https://developers.openai.com/plugins/build/app-quickstart)
+describes this flow. The connector should expose exactly
+`get_athlete_profile` and `update_athlete_profile`.
+
+The WorkOS Staging issuer advertises Client ID Metadata Document support,
+Dynamic Client Registration, and PKCE `S256`. Its OAuth metadata does not
+advertise issuer identification, so current
+[OpenAI authentication guidance](https://developers.openai.com/plugins/build/auth)
+calls for a callback-specific redirect URI. If a future connection setup asks
+for a redirect URI, use the one shown for that connection; do not substitute
+the stable callback URL from older instructions. If the connection uses
+Dynamic Client Registration, preserve its registered client and credentials
+in WorkOS across Coach redeployments. Deleting that registration breaks the
+existing ChatGPT connection.
+
+The athlete's ChatGPT management page shows OAuth but does not expose which
+registration method or callback it used. No callback URI was entered manually
+while connecting Coach on 2026-09-27. Record those details from ChatGPT or
+WorkOS if either later makes them available; do not infer them from a working
+sign-in.
+
+After linking through WorkOS, verify the connection in a desktop conversation:
+
+1. Ask "What body weight do you have saved, and when was it last synced?" The
+   answer should come from `get_athlete_profile` and include `lastSyncedAt`.
+   Reading should not require per-call approval.
+2. Tell ChatGPT a body weight that the athlete actually wants saved. Check that
+   it calls `update_athlete_profile`, confirms the saved value in words, and
+   returns a freshness timestamp. Read again in a later turn.
+3. Start a new conversation and read again. Confirm that WorkOS does not ask for
+   another sign-in. Open ChatGPT on the athlete's phone, select the same
+   connection, and repeat the read there. Record the date, client surface,
+   observed value and freshness, and any sign-in or approval prompt in
+   [ticket 03](.scratch/02-athlete-profile-vertical-slice/issues/03-connect-chatgpt-and-claude.md).
+
+The app scales to zero, so the first request after an idle period may take over
+a minute. If the first attempt times out, retry after the revision is healthy
+and record both attempts; a successful retry alone does not prove ChatGPT's
+cold-start behavior is acceptable. Refresh the ChatGPT connection after any
+change to its tools or metadata.
+
+If Coach is selectable in ChatGPT but its details say no tools are available,
+open Coach's connected account and choose **Reconnect**. Check that both
+profile tools appear before testing a conversation.
 
 ## Deploy the body-weight slice
 
