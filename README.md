@@ -2,8 +2,9 @@
 
 The local AthleteProfile slice exposes `get_athlete_profile` and
 `update_athlete_profile` at `/mcp`, with authenticated writes through `/ingest`.
-It implements [ticket 01](.scratch/02-athlete-profile-vertical-slice/issues/01-body-weight-through-mcp.md)
-and [ticket 04](.scratch/02-athlete-profile-vertical-slice/issues/04-stable-facts-and-goal.md).
+It implements [ticket 01](.scratch/02-athlete-profile-vertical-slice/issues/01-body-weight-through-mcp.md),
+[ticket 04](.scratch/02-athlete-profile-vertical-slice/issues/04-stable-facts-and-goal.md),
+and [ticket 05](.scratch/02-athlete-profile-vertical-slice/issues/05-temporary-constraints.md).
 
 ## Verify locally
 
@@ -265,7 +266,7 @@ Contract rules:
 - `availableEquipment` and `lastingLimitations` are free-text lists with at most
   50 entries. Each entry has 1–200 nonblank characters and no surrounding
   whitespace. An empty list clears that list. Lasting limitations are stable
-  facts; temporary Constraints belong to ticket 05.
+  facts; temporary Constraints are separate.
 - `intendedTrainingFrequencyPerWeek` is an integer from 1 to 21 times per week.
   `intendedTrainingDurationMinutes` is an integer from 1 to 1440 minutes.
 - `goals` is an ordered list, highest priority first, with at most 20 distinct
@@ -277,15 +278,26 @@ Contract rules:
   Goals have no dates. Existing version 1 ingest payloads with a single `goal`
   object remain accepted and become the first Goal plus the shared date. A
   payload cannot supply both `goal` and `goals` or `goalsTargetDate`.
-- Every supplied fact replaces its saved value. Omitted facts remain unchanged.
+- `constraint` appends one temporary Constraint per change. Its `description`
+  has 1–500 nonblank characters without surrounding whitespace. `validFrom`
+  and `validUntil` are UTC timestamps ending in `Z`, such as
+  `2030-04-10T00:00:00Z`. Fractional seconds up to seven digits are accepted.
+  The period is `[validFrom, validUntil)`: the start applies, the end does not.
+  Both timestamps are required and the start must precede the end. Past and
+  future periods can be saved. Profile reads include only Constraints active
+  at the server's current UTC time; stored Constraints are not deleted at expiry.
+- Every supplied stable fact replaces its saved value. Constraints append.
+  Omitted facts and existing Constraints remain unchanged.
   An initial update may create a profile without body weight. A null field
   behaves like an omitted field; use an empty array to clear a list.
 - A batch has 1–100 changes for the authenticated athlete. All changes validate
   before writing. Changes apply in list order in one transaction. Unsupported
   versions and invalid batches leave all facts and freshness unchanged.
 - `lastSyncedAt` is the server's UTC acceptance time for the saved batch.
-  An empty store returns `{"profile":null,"lastSyncedAt":null}`. A saved result
-  carries all profile facts and `lastSyncedAt`.
+  An empty store returns a null `profile` and `lastSyncedAt`. Profile reads
+  carry active Constraints and keep the stored freshness even as time changes.
+  An update response also includes `savedConstraints`, including future ones,
+  so the agent can confirm what was stored immediately.
 - MCP success responses have `structuredContent` and an empty `content` array.
   Update returns the saved facts. Validation errors report no data freshness;
   protocol/binding errors use the SDK's error format.

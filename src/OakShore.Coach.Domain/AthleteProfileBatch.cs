@@ -4,6 +4,31 @@ namespace OakShore.Coach.Domain;
 
 public sealed record GoalChange(string? Description, string? TargetDate);
 public sealed record GoalInput(string? Description);
+public sealed record ConstraintInput(string? Description, string? ValidFrom, string? ValidUntil)
+{
+    private static readonly string[] UtcFormats = ["yyyy-MM-dd'T'HH:mm:ss'Z'", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFF'Z'"];
+
+    public Constraint ToConstraint()
+    {
+        if (string.IsNullOrWhiteSpace(Description) || Description.Length > 500 || Description != Description.Trim())
+            throw new ArgumentException("Constraint description must be 1 to 500 nonblank characters without surrounding whitespace.");
+        if (!TryUtc(ValidFrom, out var from) || !TryUtc(ValidUntil, out var until) || from >= until)
+            throw new ArgumentException("Constraint validity requires UTC timestamps with Z in YYYY-MM-DDTHH:MM:SSZ format and validFrom earlier than validUntil; validFrom is inclusive and validUntil is exclusive.");
+        return new Constraint(Description, from, until);
+    }
+
+    private static bool TryUtc(string? value, out DateTimeOffset instant)
+    {
+        if (DateTime.TryParseExact(value, UtcFormats, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
+        {
+            instant = new DateTimeOffset(parsed);
+            return true;
+        }
+        instant = default;
+        return false;
+    }
+}
 
 public sealed record AthleteProfileChange(
     decimal? BodyWeightKg = null,
@@ -13,13 +38,14 @@ public sealed record AthleteProfileChange(
     IReadOnlyList<string?>? LastingLimitations = null,
     IReadOnlyList<GoalInput?>? Goals = null,
     string? GoalsTargetDate = null,
-    GoalChange? Goal = null)
+    GoalChange? Goal = null,
+    ConstraintInput? Constraint = null)
 {
     public static void Validate(AthleteProfileChange? change, DateTimeOffset now)
     {
         if (change is null || change is { BodyWeightKg: null, AvailableEquipment: null,
             IntendedTrainingFrequencyPerWeek: null, IntendedTrainingDurationMinutes: null,
-            LastingLimitations: null, Goals: null, GoalsTargetDate: null, Goal: null })
+            LastingLimitations: null, Goals: null, GoalsTargetDate: null, Goal: null, Constraint: null })
             throw new ArgumentException("Supply at least one AthleteProfile fact.");
         if (change.BodyWeightKg is not null)
             AthleteProfile.ValidateBodyWeight(change.BodyWeightKg);
@@ -47,6 +73,7 @@ public sealed record AthleteProfileChange(
                 throw new ArgumentException("Goal description must be 1 to 500 nonblank characters without surrounding whitespace.");
             ValidateDate(change.Goal.TargetDate, now);
         }
+        change.Constraint?.ToConstraint();
     }
 
     private static bool ValidDescription(string? description) =>

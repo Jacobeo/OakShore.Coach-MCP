@@ -547,6 +547,195 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), persisted.GetProperty("lastSyncedAt").GetDateTimeOffset());
     }
 
+    [Fact]
+    public async Task Constraint_update_appends_to_profile_without_erasing_existing_facts()
+    {
+        var now = new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero);
+        await using var host = new CoachHost(database) { Clock = new FixedClock(now) };
+        using var client = AthleteClient(host);
+        using var seed = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new[] { new { bodyWeightKg = 80m, availableEquipment = new[] { "Bike" } } }
+        });
+        seed.EnsureSuccessStatusCode();
+
+        var saved = await CallTool(client, "update_athlete_profile", new
+        {
+            constraint = new
+            {
+                description = "Avoid running while ankle heals",
+                validFrom = "2030-04-10T00:00:00Z",
+                validUntil = "2030-04-24T00:00:00Z"
+            }
+        });
+        var profile = saved.GetProperty("profile");
+        Assert.Equal(80m, profile.GetProperty("bodyWeightKg").GetDecimal());
+        Assert.Equal("Bike", profile.GetProperty("availableEquipment")[0].GetString());
+        var constraint = Assert.Single(profile.GetProperty("constraints").EnumerateArray());
+        Assert.Equal("Avoid running while ankle heals", constraint.GetProperty("description").GetString());
+        Assert.Equal("2030-04-10T00:00:00+00:00", constraint.GetProperty("validFrom").GetString());
+        Assert.Equal("2030-04-24T00:00:00+00:00", constraint.GetProperty("validUntil").GetString());
+
+        var read = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(profile.ToString(), read.GetProperty("profile").ToString());
+        Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), read.GetProperty("lastSyncedAt").GetDateTimeOffset());
+
+        var second = await CallTool(client, "update_athlete_profile", new
+        {
+            constraint = new { description = "Short sessions this week", validFrom = "2030-04-10T00:00:00Z", validUntil = "2030-04-17T00:00:00Z" }
+        });
+        Assert.Equal(new[] { "Avoid running while ankle heals", "Short sessions this week" }, ConstraintDescriptions(second));
+        Assert.Equal(80m, second.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
+    }
+
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    [Fact]
+    public async Task Constraint_reads_filter_by_current_time_without_deleting_history_or_changing_freshness()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 0, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        using var seed = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new object[]
+            {
+                new { bodyWeightKg = 80m },
+                new { constraint = new { description = "Expired", validFrom = "2030-04-08T00:00:00Z", validUntil = "2030-04-10T00:00:00Z" } },
+                new { constraint = new { description = "Active", validFrom = "2030-04-10T00:00:00Z", validUntil = "2030-04-11T00:00:00Z" } },
+                new { constraint = new { description = "Future", validFrom = "2030-04-11T00:00:00Z", validUntil = "2030-04-12T00:00:00Z" } }
+            }
+        });
+        seed.EnsureSuccessStatusCode();
+        var atStart = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(new[] { "Active" }, ConstraintDescriptions(atStart));
+        var freshness = atStart.GetProperty("lastSyncedAt").GetDateTimeOffset();
+
+        clock.Set(new DateTimeOffset(2030, 4, 11, 0, 0, 0, TimeSpan.Zero));
+        var atEnd = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(new[] { "Future" }, ConstraintDescriptions(atEnd));
+        Assert.Equal(80m, atEnd.GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
+        Assert.Equal(freshness, atEnd.GetProperty("lastSyncedAt").GetDateTimeOffset());
+
+        clock.Set(new DateTimeOffset(2030, 4, 12, 0, 0, 0, TimeSpan.Zero));
+        var allExpired = await CallTool(client, "get_athlete_profile");
+        Assert.Empty(ConstraintDescriptions(allExpired));
+        Assert.Equal(freshness, allExpired.GetProperty("lastSyncedAt").GetDateTimeOffset());
+
+        clock.Set(new DateTimeOffset(2030, 4, 9, 12, 0, 0, TimeSpan.Zero));
+        var historical = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(new[] { "Expired" }, ConstraintDescriptions(historical));
+        Assert.Equal(freshness, historical.GetProperty("lastSyncedAt").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task Future_constraint_is_confirmed_by_update_but_not_read_before_its_start()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var saved = await CallTool(client, "update_athlete_profile", new
+        {
+            constraint = new { description = "Travel week", validFrom = "2030-04-11T00:00:00Z", validUntil = "2030-04-18T00:00:00Z" }
+        });
+        Assert.Empty(ConstraintDescriptions(saved));
+        var confirmed = Assert.Single(saved.GetProperty("savedConstraints").EnumerateArray());
+        Assert.Equal("Travel week", confirmed.GetProperty("description").GetString());
+        Assert.Equal("2030-04-11T00:00:00+00:00", confirmed.GetProperty("validFrom").GetString());
+        Assert.Equal("2030-04-18T00:00:00+00:00", confirmed.GetProperty("validUntil").GetString());
+
+        var before = await CallTool(client, "get_athlete_profile");
+        Assert.Empty(ConstraintDescriptions(before));
+        clock.Set(new DateTimeOffset(2030, 4, 11, 0, 0, 0, TimeSpan.Zero));
+        var atStart = await CallTool(client, "get_athlete_profile");
+        Assert.Equal(new[] { "Travel week" }, ConstraintDescriptions(atStart));
+        Assert.Equal(saved.GetProperty("lastSyncedAt").GetDateTimeOffset(), atStart.GetProperty("lastSyncedAt").GetDateTimeOffset());
+    }
+
+    [Theory]
+    [InlineData("{\"description\":\"Running\",\"validFrom\":\"2030-04-10T00:00:00Z\",\"validUntil\":\"2030-04-10T00:00:00Z\"}")]
+    [InlineData("{\"description\":\"Running\",\"validFrom\":\"2030-04-11T00:00:00Z\",\"validUntil\":\"2030-04-10T00:00:00Z\"}")]
+    [InlineData("{\"description\":\"Running\",\"validFrom\":\"2030-04-10T00:00:00+02:00\",\"validUntil\":\"2030-04-11T00:00:00Z\"}")]
+    [InlineData("{\"description\":\"Running\",\"validFrom\":\"2030-04-10\",\"validUntil\":\"2030-04-11T00:00:00Z\"}")]
+    [InlineData("{\"description\":\" \",\"validFrom\":\"2030-04-10T00:00:00Z\",\"validUntil\":\"2030-04-11T00:00:00Z\"}")]
+    public async Task Invalid_constraint_period_or_description_is_rejected_without_saving(string constraintJson)
+    {
+        await using var host = new CoachHost(database) { Clock = new FixedClock(new DateTimeOffset(2030, 4, 10, 0, 0, 0, TimeSpan.Zero)) };
+        using var client = AthleteClient(host);
+        using var seed = await client.PostAsJsonAsync("/ingest", new { version = 1, athleteProfiles = new[] { new { bodyWeightKg = 80m } } });
+        seed.EnsureSuccessStatusCode();
+        var before = await CallTool(client, "get_athlete_profile");
+        var constraint = JsonDocument.Parse(constraintJson).RootElement;
+        var result = await Rpc(client, "tools/call", new { name = "update_athlete_profile", arguments = new { constraint } });
+        Assert.True(result.GetProperty("result").GetProperty("isError").GetBoolean());
+        Assert.Empty(result.GetProperty("result").GetProperty("content").EnumerateArray());
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_athlete_profile")).ToString());
+
+        using var rejected = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new object[] { new { bodyWeightKg = 81m }, new { constraint } }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_athlete_profile")).ToString());
+    }
+
+    [Fact]
+    public async Task Constraints_are_scoped_to_authenticated_user_id()
+    {
+        await using var host = new CoachHost(database) { Clock = new FixedClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero)) };
+        var firstId = $"Athlete-{Guid.NewGuid()}";
+        using var first = AthleteClient(host, firstId);
+        using var second = AthleteClient(host, firstId.ToLowerInvariant());
+        var saved = await CallTool(first, "update_athlete_profile", new
+        {
+            constraint = new { description = "First athlete", validFrom = "2030-04-10T00:00:00Z", validUntil = "2030-04-11T00:00:00Z" }
+        });
+        Assert.Equal(new[] { "First athlete" }, ConstraintDescriptions(saved));
+        Assert.Equal(JsonValueKind.Null, (await CallTool(second, "get_athlete_profile", new { userId = firstId })).GetProperty("profile").ValueKind);
+
+        var own = await CallTool(second, "update_athlete_profile", new
+        {
+            userId = firstId,
+            constraint = new { description = "Second athlete", validFrom = "2030-04-10T00:00:00Z", validUntil = "2030-04-11T00:00:00Z" }
+        });
+        Assert.Equal(new[] { "Second athlete" }, ConstraintDescriptions(own));
+        Assert.Equal(new[] { "First athlete" }, ConstraintDescriptions(await CallTool(first, "get_athlete_profile")));
+        using var forged = await second.PostAsJsonAsync("/ingest", new
+        {
+            version = 1,
+            athleteProfiles = new[] { new { userId = firstId, constraint = new { description = "Forged", validFrom = "2030-04-10T00:00:00Z", validUntil = "2030-04-11T00:00:00Z" } } }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, forged.StatusCode);
+        Assert.Equal(new[] { "First athlete" }, ConstraintDescriptions(await CallTool(first, "get_athlete_profile")));
+    }
+
+    private static string?[] ConstraintDescriptions(JsonElement response) =>
+        response.GetProperty("profile").GetProperty("constraints").EnumerateArray()
+            .Select(item => item.GetProperty("description").GetString()).ToArray();
+
+    private sealed class MutableClock(DateTimeOffset now) : TimeProvider
+    {
+        private readonly object gate = new();
+        private DateTimeOffset current = now;
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (gate)
+                return current;
+        }
+
+        public void Set(DateTimeOffset value)
+        {
+            lock (gate)
+                current = value;
+        }
+    }
+
     private static HttpClient AthleteClient(CoachHost host, string? userId = null)
     {
         var client = host.CreateClient();

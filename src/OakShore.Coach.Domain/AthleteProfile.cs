@@ -3,6 +3,7 @@ using System.Globalization;
 namespace OakShore.Coach.Domain;
 
 public sealed record Goal(string Description);
+public sealed record Constraint(string Description, DateTimeOffset ValidFrom, DateTimeOffset ValidUntil);
 
 public sealed record AthleteProfile(
     string UserId,
@@ -12,9 +13,10 @@ public sealed record AthleteProfile(
     int? IntendedTrainingDurationMinutes,
     IReadOnlyList<string> LastingLimitations,
     IReadOnlyList<Goal> Goals,
-    DateOnly? GoalsTargetDate)
+    DateOnly? GoalsTargetDate,
+    IReadOnlyList<Constraint> Constraints)
 {
-    public static AthleteProfile Empty(string userId) => new(userId, null, [], null, null, [], [], null);
+    public static AthleteProfile Empty(string userId) => new(userId, null, [], null, null, [], [], null, []);
 
     public AthleteProfile Apply(AthleteProfileChange change)
     {
@@ -46,4 +48,5 @@ public sealed record AthleteProfile(
     }
 }
 
-public sealed record AthleteProfileResponse(AthleteProfile? Profile, DateTimeOffset? LastSyncedAt);
+public sealed record AthleteProfileResponse(
+    AthleteProfile? Profile, DateTimeOffset? LastSyncedAt, IReadOnlyList<Constraint>? SavedConstraints = null);

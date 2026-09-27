@@ -135,6 +135,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "issues", "issues", "{5EB98E
 		.scratch\02-athlete-profile-vertical-slice\issues\05-temporary-constraints.md = .scratch\02-athlete-profile-vertical-slice\issues\05-temporary-constraints.md
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Migrations", "Migrations", "{ABF7D3CB-0931-45E8-AE47-832D9411A212}"
+	ProjectSection(SolutionItems) = preProject
+		src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql = src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql
+	EndProjectSection
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OakShore.Coach.Domain", "src\OakShore.Coach.Domain\OakShore.Coach.Domain.csproj", "{89D300BE-D87A-43D6-B618-F0C071CAA92D}"
@@ -235,5 +240,6 @@ Global
 		{8DF631A1-F9B9-4246-9D14-BDD45E5ADF0C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{AC027FAC-0924-4CDD-AFAA-9BD417F518A4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{2E48B232-0D9B-4E29-89DF-F50862E612AD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{ABF7D3CB-0931-45E8-AE47-832D9411A212} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

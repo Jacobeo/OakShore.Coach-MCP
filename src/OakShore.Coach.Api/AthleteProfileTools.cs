@@ -11,7 +11,7 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpCon
 {
     [McpServerTool(Name = "get_athlete_profile", ReadOnly = true, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(AthleteProfileResponse))]
-    [Description("Read saved AthleteProfile facts, prioritized Goals, and when they were last synced.")]
+    [Description("Read saved AthleteProfile facts, prioritized Goals, active Constraints, and when they were last synced.")]
     public async Task<CallToolResult> GetAthleteProfile(CancellationToken cancellationToken)
     {
         var userId = context.HttpContext!.User.FindFirst("sub")!.Value;
@@ -21,7 +21,7 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpCon
 
     [McpServerTool(Name = "update_athlete_profile", ReadOnly = false, Destructive = false, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(AthleteProfileResponse))]
-    [Description("Save supplied AthleteProfile facts and return the saved values.")]
+    [Description("Save supplied AthleteProfile facts or add a temporary Constraint; return saved values and added Constraints.")]
     public async Task<CallToolResult> UpdateAthleteProfile(
         CancellationToken cancellationToken,
         [Description("Positive kilograms, at most one decimal place.")] decimal? bodyWeightKg = null,
@@ -30,13 +30,14 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpCon
         [Description("Intended training duration, 1 to 1440 minutes.")] int? intendedTrainingDurationMinutes = null,
         [Description("Lasting limitations as a free-text list; an empty list clears it.")] IReadOnlyList<string?>? lastingLimitations = null,
         [Description("Goals in priority order, highest first; an empty list clears them.")] IReadOnlyList<GoalInput?>? goals = null,
-        [Description("One shared target date for the Goals in YYYY-MM-DD, today or later (UTC).")] string? goalsTargetDate = null)
+        [Description("One shared target date for the Goals in YYYY-MM-DD, today or later (UTC).")] string? goalsTargetDate = null,
+        [Description("Add a Constraint with description, validFrom and validUntil as UTC timestamps ending in Z. Start is inclusive; end is exclusive.")] ConstraintInput? constraint = null)
     {
         try
         {
             return Result(await profiles.UpdateAsync(new AthleteProfileChange(bodyWeightKg, availableEquipment,
                 intendedTrainingFrequencyPerWeek, intendedTrainingDurationMinutes, lastingLimitations,
-                goals, goalsTargetDate), cancellationToken));
+                goals, goalsTargetDate, Constraint: constraint), cancellationToken));
         }
         catch (ArgumentException error)
         {
