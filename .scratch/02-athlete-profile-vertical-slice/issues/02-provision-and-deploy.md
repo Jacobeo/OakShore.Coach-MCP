@@ -7,7 +7,7 @@ creation, schema deployment, image publication, and configuration are repeatable
 
 **Blocked by:** 01: Read and update body weight through MCP.
 
-**Status:** needs-info
+**Status:** done
 
 **Source:** [AthleteProfile vertical slice](../../02-athlete-profile-vertical-slice.md).
 
