@@ -7,8 +7,22 @@ using ModelContextProtocol.Server;
 namespace OakShore.Coach.Api;
 
 [McpServerToolType]
-public sealed class AthleteProfileTools(AthleteProfileService profiles, IHttpContextAccessor context)
+public sealed class AthleteProfileTools(AthleteProfileService profiles, SyncStatusService syncStatus, IHttpContextAccessor context)
 {
+    [McpServerTool(Name = "get_sync_status", ReadOnly = true, OpenWorld = false,
+        UseStructuredContent = true, OutputSchemaType = typeof(SyncStatusResponse))]
+    [Description("Read stored record counts, last sync times, and the most recent Activity summary.")]
+    public async Task<CallToolResult> GetSyncStatus(CancellationToken cancellationToken)
+    {
+        var userId = context.HttpContext!.User.FindFirst("sub")!.Value;
+        var response = await syncStatus.GetAsync(userId, cancellationToken);
+        return new CallToolResult
+        {
+            Content = [],
+            StructuredContent = JsonSerializer.SerializeToElement(response, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+        };
+    }
+
     [McpServerTool(Name = "get_athlete_profile", ReadOnly = true, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(AthleteProfileResponse))]
     [Description("Read saved AthleteProfile facts, prioritized Goals, active Constraints, and when they were last synced.")]

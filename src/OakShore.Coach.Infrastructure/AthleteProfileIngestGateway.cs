@@ -6,7 +6,7 @@ namespace OakShore.Coach.Infrastructure;
 
 public sealed class AthleteProfileIngestGateway(HttpClient client) : IAthleteProfileIngestGateway
 {
-    public async Task<AthleteProfileResponse> SendAsync(AthleteProfileBatch batch, CancellationToken cancellationToken)
+    public async Task<AthleteProfileResponse> SendAsync(IngestBatch batch, CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync("/ingest", batch, cancellationToken);
         if (response.StatusCode == HttpStatusCode.BadRequest)

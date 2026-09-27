@@ -9,6 +9,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
 {
     internal DbSet<AthleteProfileRow> AthleteProfiles => Set<AthleteProfileRow>();
     internal DbSet<ConstraintRow> Constraints => Set<ConstraintRow>();
+    internal DbSet<ActivityRow> Activities => Set<ActivityRow>();
+    internal DbSet<IngestBatchRow> IngestBatches => Set<IngestBatchRow>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options) =>
         options.UseSqlServer(configuration["Persistence:ConnectionString"]
@@ -31,6 +33,20 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         constraint.Property(row => row.ConstraintId).ValueGeneratedOnAdd();
         constraint.Property(row => row.Description).HasMaxLength(500);
         constraint.HasOne<AthleteProfileRow>().WithMany().HasForeignKey(row => row.UserId);
+
+        var activity = modelBuilder.Entity<ActivityRow>();
+        activity.ToTable("Activities");
+        activity.HasKey(row => new { row.UserId, row.ActivityId });
+        activity.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        activity.Property(row => row.TypeKey).HasMaxLength(100);
+
+        var batch = modelBuilder.Entity<IngestBatchRow>();
+        batch.ToTable("IngestBatches");
+        batch.HasKey(row => new { row.UserId, row.BatchHash });
+        batch.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        batch.Property(row => row.BatchHash).HasMaxLength(64).IsUnicode(false);
+        batch.Property(row => row.FromDate).HasColumnType("date");
+        batch.Property(row => row.ToDate).HasColumnType("date");
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
@@ -40,7 +56,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
             "OakShore.Coach.Infrastructure.Migrations.0001_InitialAthleteProfile.sql",
             "OakShore.Coach.Infrastructure.Migrations.0002_StableFactsAndGoal.sql",
             "OakShore.Coach.Infrastructure.Migrations.0003_PrioritizedGoals.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0004_TemporaryConstraints.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0004_TemporaryConstraints.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0005_Activities.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -74,6 +91,28 @@ internal sealed class ConstraintRow
     public DateTimeOffset ValidUntil { get; set; }
 }
 
+internal sealed class ActivityRow
+{
+    public string UserId { get; set; } = "";
+    public long ActivityId { get; set; }
+    public DateTimeOffset StartTimeUtc { get; set; }
+    public string TypeKey { get; set; } = "";
+    public double DurationSeconds { get; set; }
+    public double? DistanceMeters { get; set; }
+    public int? TotalSets { get; set; }
+    public int? ActiveSets { get; set; }
+    public int? TotalReps { get; set; }
+}
+
+internal sealed class IngestBatchRow
+{
+    public string UserId { get; set; } = "";
+    public string BatchHash { get; set; } = "";
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public DateTimeOffset LastSyncedAt { get; set; }
+}
+
 public sealed class AthleteProfileRepository(AthleteProfileStore store, TimeProvider clock) : IAthleteProfileRepository
 {
     public async Task<AthleteProfileResponse> GetAsync(string userId, CancellationToken cancellationToken)
@@ -93,6 +132,16 @@ public sealed class AthleteProfileRepository(AthleteProfileStore store, TimeProv
     public async Task<AthleteProfileResponse> SaveAsync(string userId, IReadOnlyList<AthleteProfileChange> changes, DateTimeOffset lastSyncedAt, CancellationToken cancellationToken)
     {
         await using var transaction = await store.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
+        var savedConstraints = await ApplyChangesAsync(userId, changes, lastSyncedAt, cancellationToken);
+        await store.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        var response = await GetAsync(userId, cancellationToken);
+        return response with { SavedConstraints = savedConstraints };
+    }
+
+    internal async Task<Constraint[]> ApplyChangesAsync(string userId, IReadOnlyList<AthleteProfileChange> changes,
+        DateTimeOffset lastSyncedAt, CancellationToken cancellationToken)
+    {
         var row = await store.AthleteProfiles.SingleOrDefaultAsync(row => row.UserId == userId, cancellationToken);
         if (row is null)
         {
@@ -118,10 +167,7 @@ public sealed class AthleteProfileRepository(AthleteProfileStore store, TimeProv
                 ValidFrom = constraint.ValidFrom,
                 ValidUntil = constraint.ValidUntil
             });
-        await store.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        var response = await GetAsync(userId, cancellationToken);
-        return response with { SavedConstraints = savedConstraints };
+        return savedConstraints;
     }
 
     private static AthleteProfile ToProfile(AthleteProfileRow row) => new(

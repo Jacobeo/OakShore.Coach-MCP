@@ -115,7 +115,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     }
 
     [Theory]
-    [InlineData("{\"version\":2,\"athleteProfiles\":[{\"bodyWeightKg\":65}]}")]
+    [InlineData("{\"version\":3,\"athleteProfiles\":[{\"bodyWeightKg\":65}]}")]
     [InlineData("{\"athleteProfiles\":[{\"bodyWeightKg\":65}]}")]
     [InlineData("{\"version\":1,\"athleteProfiles\":[]}")]
     [InlineData("{\"version\":1,\"athleteProfiles\":null}")]
@@ -148,7 +148,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     }
 
     [Fact]
-    public async Task Exactly_two_tools_are_discoverable_after_initialization_without_a_session()
+    public async Task Read_tools_are_discoverable_after_initialization_without_a_session()
     {
         await using var host = new CoachHost(database);
         using var client = AthleteClient(host);
@@ -159,10 +159,12 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal("2025-11-25", initialized.GetProperty("result").GetProperty("protocolVersion").GetString());
         var discovery = await Rpc(client, "tools/list", new { });
         var tools = discovery.GetProperty("result").GetProperty("tools").EnumerateArray().ToArray();
-        Assert.Equal(2, tools.Length);
+        Assert.Equal(3, tools.Length);
         var read = Assert.Single(tools, tool => tool.GetProperty("name").GetString() == "get_athlete_profile");
         var update = Assert.Single(tools, tool => tool.GetProperty("name").GetString() == "update_athlete_profile");
+        var syncStatus = Assert.Single(tools, tool => tool.GetProperty("name").GetString() == "get_sync_status");
         Assert.True(read.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean());
+        Assert.True(syncStatus.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean());
         Assert.False(update.GetProperty("annotations").GetProperty("readOnlyHint").GetBoolean());
         Assert.Contains(update.GetProperty("inputSchema").GetProperty("properties").GetProperty("bodyWeightKg").GetProperty("type").EnumerateArray(),
             item => item.GetString() == "number");
@@ -718,6 +720,165 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     private static string?[] ConstraintDescriptions(JsonElement response) =>
         response.GetProperty("profile").GetProperty("constraints").EnumerateArray()
             .Select(item => item.GetProperty("description").GetString()).ToArray();
+
+    [Fact]
+    public async Task Version_two_ingests_fixture_activities_and_reports_collection_freshness()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        Assert.Equal(0, Collection(before, "Activity").GetProperty("count").GetInt32());
+        Assert.Equal(JsonValueKind.Null, Collection(before, "Activity").GetProperty("lastSyncedAt").ValueKind);
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("latestActivity").ValueKind);
+        Assert.Equal(0, Collection(before, "AthleteProfile").GetProperty("count").GetInt32());
+
+        using var fixture = JsonDocument.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../../fixtures/garmin/activitylist-service--search-activities__page-00.json"))));
+        var activities = fixture.RootElement.EnumerateArray().Select(activity => new
+        {
+            activityId = activity.GetProperty("activityId").GetInt64(),
+            startTimeUtc = activity.GetProperty("startTimeGMT").GetString()!.Replace(' ', 'T') + "Z",
+            typeKey = activity.GetProperty("activityType").GetProperty("typeKey").GetString(),
+            durationSeconds = activity.GetProperty("duration").GetDecimal(),
+            distanceMeters = activity.GetProperty("distance").GetDecimal(),
+            totalSets = activity.TryGetProperty("totalSets", out var sets) ? sets.GetInt32() : (int?)null,
+            activeSets = activity.TryGetProperty("activeSets", out var active) ? active.GetInt32() : (int?)null,
+            totalReps = activity.TryGetProperty("totalReps", out var reps) ? reps.GetInt32() : (int?)null
+        }).ToArray();
+        var batch = new
+        {
+            version = 2,
+            athleteProfiles = new[] { new { bodyWeightKg = 82.5m } },
+            activityRange = new { fromDate = "2026-08-05", toDate = "2026-09-22" },
+            activities
+        };
+        using var posted = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+        var accepted = await posted.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(clock.GetUtcNow(), accepted.GetProperty("lastSyncedAt").GetDateTimeOffset());
+        var saved = await CallTool(client, "get_sync_status");
+        Assert.Equal(15, Collection(saved, "Activity").GetProperty("count").GetInt32());
+        Assert.Equal(clock.GetUtcNow(), Collection(saved, "Activity").GetProperty("lastSyncedAt").GetDateTimeOffset());
+        Assert.Equal(1, Collection(saved, "AthleteProfile").GetProperty("count").GetInt32());
+        Assert.Equal(24444892080L, saved.GetProperty("latestActivity").GetProperty("activityId").GetInt64());
+        Assert.Equal(2820.37890625, saved.GetProperty("latestActivity").GetProperty("durationSeconds").GetDouble());
+        Assert.Equal(14, saved.GetProperty("latestActivity").GetProperty("totalSets").GetInt32());
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var reposted = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, reposted.StatusCode);
+        Assert.Equal(saved.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+        Assert.Equal(82.5m, (await CallTool(client, "get_athlete_profile")).GetProperty("profile").GetProperty("bodyWeightKg").GetDecimal());
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var corrected = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2,
+            activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-22" },
+            activities = new[] { new { activityId = 24444892080L, startTimeUtc = "2026-09-21T14:34:01Z",
+                typeKey = "strength_training", durationSeconds = 3000.0, distanceMeters = 0.0,
+                totalSets = 14, activeSets = 14, totalReps = 82 } }
+        });
+        Assert.Equal(HttpStatusCode.OK, corrected.StatusCode);
+        var updated = await CallTool(client, "get_sync_status");
+        Assert.Equal(15, Collection(updated, "Activity").GetProperty("count").GetInt32());
+        Assert.Equal(3000.0, updated.GetProperty("latestActivity").GetProperty("durationSeconds").GetDouble());
+        Assert.Equal(clock.GetUtcNow(), Collection(updated, "Activity").GetProperty("lastSyncedAt").GetDateTimeOffset());
+        Assert.Equal(Collection(saved, "AthleteProfile").ToString(), Collection(updated, "AthleteProfile").ToString());
+    }
+
+    [Fact]
+    public async Task Invalid_version_two_activity_rejects_the_whole_batch()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        using var response = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2,
+            athleteProfiles = new[] { new { bodyWeightKg = 82.5m } },
+            activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-22" },
+            activities = new[] { new { activityId = 24444892080L, startTimeUtc = "2026-09-21T14:34:01Z",
+                typeKey = "strength_training", durationSeconds = -1m, distanceMeters = 0m } }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+        Assert.Equal(JsonValueKind.Null, (await CallTool(client, "get_athlete_profile")).GetProperty("profile").ValueKind);
+    }
+
+    [Fact]
+    public async Task Empty_activity_range_is_distinct_from_never_synced_and_replay_preserves_its_time()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var batch = new
+        {
+            version = 2,
+            activityRange = new { fromDate = "2030-04-09", toDate = "2030-04-10" },
+            activities = Array.Empty<object>()
+        };
+        using var posted = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+        var first = Collection(await CallTool(client, "get_sync_status"), "Activity");
+        Assert.Equal(0, first.GetProperty("count").GetInt32());
+        Assert.Equal(clock.GetUtcNow(), first.GetProperty("lastSyncedAt").GetDateTimeOffset());
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var replay = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(first.ToString(), Collection(await CallTool(client, "get_sync_status"), "Activity").ToString());
+    }
+
+    [Fact]
+    public async Task Reposting_version_two_does_not_append_a_profile_constraint_again()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var batch = new
+        {
+            version = 2,
+            athleteProfiles = new[] { new { constraint = new
+            {
+                description = "Travel week", validFrom = "2030-04-10T00:00:00Z", validUntil = "2030-04-17T00:00:00Z"
+            } } },
+            activityRange = new { fromDate = "2030-04-10", toDate = "2030-04-10" },
+            activities = Array.Empty<object>()
+        };
+        using var first = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var before = await CallTool(client, "get_athlete_profile");
+        var status = await CallTool(client, "get_sync_status");
+        Assert.Equal(new[] { "Travel week" }, ConstraintDescriptions(before));
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var replay = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(new[] { "Travel week" }, ConstraintDescriptions(await CallTool(client, "get_athlete_profile")));
+        Assert.Equal(status.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    [Theory]
+    [InlineData("{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-22\",\"toDate\":\"2026-09-21\"},\"activities\":[]}")]
+    [InlineData("{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-22\"},\"activities\":[{\"activityId\":1,\"startTimeUtc\":\"2026-09-21T14:34:01Z\",\"typeKey\":\"running\"}]}")]
+    [InlineData("{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-22\"},\"activities\":[null]}")]
+    [InlineData("{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-22\"},\"activities\":[],\"userId\":\"another-athlete\"}")]
+    public async Task Invalid_version_two_input_keeps_all_collections_unchanged(string batch)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        using var content = new StringContent(batch, System.Text.Encoding.UTF8, "application/json");
+        using var rejected = await client.PostAsync("/ingest", content);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    private static JsonElement Collection(JsonElement response, string name) =>
+        Assert.Single(response.GetProperty("collections").EnumerateArray(),
+            item => item.GetProperty("name").GetString() == name);
 
     private sealed class MutableClock(DateTimeOffset now) : TimeProvider
     {

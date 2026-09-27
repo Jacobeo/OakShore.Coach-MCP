@@ -9,6 +9,7 @@ surface. Terminology follows [CONTEXT.md](../CONTEXT.md).
 | --- | --- |
 | `get_athlete_profile` | Stable facts, plus any active Constraints |
 | `update_athlete_profile` | Change weight, equipment, availability or prioritized Goals; add a Constraint |
+| `get_sync_status` | Count stored records, report the last sync time per collection, and show the most recent Activity summary |
 | `get_macrocycle` | The Macrocycle, its Mesocycles and WeekOutlines, and where today falls |
 | `set_macrocycle` | Author or replace the Macrocycle |
 | `get_training_summary` | Activities in a date range: counts by modality, volume, strength detail, Adherence |
@@ -21,6 +22,12 @@ ExerciseSets.
 
 Every response carries the time the underlying data was last synced, so the
 agent can qualify its answer instead of reasoning confidently over a gap.
+
+> **You:** Did the Activity sync land?
+>
+> **Agent:** The store has 15 Activities, last synced at 12:00 UTC. The most
+> recent is a strength Activity from yesterday afternoon. The
+> AthleteProfile has one record, last synced at 12:00 UTC.
 
 ## 1. Bootstrap: creating the AthleteProfile
 

@@ -154,6 +154,19 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Migrations", "Migrations", "{ABF7D3CB-0931-45E8-AE47-832D9411A212}"
 	ProjectSection(SolutionItems) = preProject
 		src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql = src\OakShore.Coach.Infrastructure\Migrations\0004_TemporaryConstraints.sql
+		src\OakShore.Coach.Infrastructure\Migrations\0005_Activities.sql = src\OakShore.Coach.Infrastructure\Migrations\0005_Activities.sql
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sync", "Sync", "{C235129B-A641-43ED-941A-F524366EA99A}"
+	ProjectSection(SolutionItems) = preProject
+		src\sync\garmin_client.py = src\sync\garmin_client.py
+		src\sync\requirements.txt = src\sync\requirements.txt
+		src\sync\sync_activities.py = src\sync\sync_activities.py
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Python tests", "Python tests", "{C6DA51B4-D77B-4FD2-B64B-E19D60C0045A}"
+	ProjectSection(SolutionItems) = preProject
+		tests\python\test_sync_activities.py = tests\python\test_sync_activities.py
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
@@ -259,5 +272,6 @@ Global
 		{AC027FAC-0924-4CDD-AFAA-9BD417F518A4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{2E48B232-0D9B-4E29-89DF-F50862E612AD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{ABF7D3CB-0931-45E8-AE47-832D9411A212} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{C235129B-A641-43ED-941A-F524366EA99A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

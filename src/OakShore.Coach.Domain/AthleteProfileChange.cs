@@ -29,7 +29,6 @@ public sealed record ConstraintInput(string? Description, string? ValidFrom, str
         return false;
     }
 }
-
 public sealed record AthleteProfileChange(
     decimal? BodyWeightKg = null,
     IReadOnlyList<string?>? AvailableEquipment = null,
@@ -93,23 +92,4 @@ public sealed record AthleteProfileChange(
         if (values.Count > 50 || values.Any(value => string.IsNullOrWhiteSpace(value) || value.Length > 200 || value != value.Trim()))
             throw new ArgumentException($"{name} must contain at most 50 entries of 1 to 200 nonblank characters without surrounding whitespace.");
     }
-}
-
-public sealed record AthleteProfileBatch(int Version, IReadOnlyList<AthleteProfileChange?>? AthleteProfiles);
-
-public sealed class AthleteProfileIngestService(IAthleteProfileRepository repository, TimeProvider clock)
-{
-    public Task<AthleteProfileResponse> IngestAsync(string userId, AthleteProfileBatch batch, CancellationToken cancellationToken)
-    {
-        if (batch.Version != 1)
-            throw new ArgumentException("Only ingest version 1 is supported.");
-        if (batch.AthleteProfiles is not { Count: > 0 and <= 100 })
-            throw new ArgumentException("Supply between 1 and 100 AthleteProfile changes.");
-        var now = clock.GetUtcNow();
-        foreach (var change in batch.AthleteProfiles)
-            AthleteProfileChange.Validate(change, now);
-
-        return repository.SaveAsync(userId, batch.AthleteProfiles.Select(change => change!).ToArray(), now, cancellationToken);
-    }
-
 }

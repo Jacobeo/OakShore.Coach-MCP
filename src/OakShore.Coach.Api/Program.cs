@@ -60,9 +60,13 @@ public partial class Program
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<AthleteProfileStore>();
-        builder.Services.AddScoped<IAthleteProfileRepository, AthleteProfileRepository>();
+        builder.Services.AddScoped<AthleteProfileRepository>();
+        builder.Services.AddScoped<IAthleteProfileRepository>(services => services.GetRequiredService<AthleteProfileRepository>());
+        builder.Services.AddScoped<IIngestRepository, IngestRepository>();
+        builder.Services.AddScoped<ISyncStatusRepository, SyncStatusRepository>();
         builder.Services.AddScoped<AthleteProfileService>();
-        builder.Services.AddScoped<AthleteProfileIngestService>();
+        builder.Services.AddScoped<IngestService>();
+        builder.Services.AddScoped<SyncStatusService>();
         builder.Services.AddHttpClient("Ingest", (services, client) =>
         {
             client.BaseAddress = new Uri(builder.Configuration["Ingest:BaseUrl"] ?? publicUrl);
@@ -89,7 +93,7 @@ public partial class Program
             bearer_methods_supported = new[] { "header" }
         }));
         app.MapMcp("/mcp").RequireAuthorization("Athlete");
-        app.MapPost("/ingest", async (AthleteProfileBatch batch, HttpContext context, AthleteProfileIngestService ingest, CancellationToken cancellationToken) =>
+        app.MapPost("/ingest", async (IngestBatch batch, HttpContext context, IngestService ingest, CancellationToken cancellationToken) =>
         {
             try
             {

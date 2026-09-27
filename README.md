@@ -307,6 +307,44 @@ bearer token. The target URL comes from configuration, never the incoming Host
 header; redirects are disabled. A boundary test denies ingest authorization
 and verifies that the tool cannot persist a value through another route.
 
+## Ingest version 2 and manual Activity sync
+
+Version 2 adds an inclusive `activityRange` and an `activities` array. The array
+may be empty when Garmin reports no Activities. `athleteProfiles` is optional;
+when present, profile changes and Activities commit in one transaction. Version 1
+retains its existing contract.
+
+```json
+{"version":2,"activityRange":{"fromDate":"2026-09-21","toDate":"2026-09-22"},"activities":[{"activityId":24444892080,"startTimeUtc":"2026-09-21T14:34:01Z","typeKey":"strength_training","durationSeconds":2820.37890625,"distanceMeters":0,"totalSets":14,"activeSets":14,"totalReps":82}]}
+```
+
+Activity IDs must be positive and distinct within a batch; timestamps must be
+UTC with `Z`. Duration and distance are in seconds and metres, and strength
+totals are nonnegative. Invalid input leaves both collections unchanged. The
+store identifies a version 2 batch by its validated content: reposting the same
+batch preserves records and sync times. The `get_sync_status` read-only MCP tool
+returns a count and `lastSyncedAt` for each collection, plus the most recent
+Activity summary. A null time means no
+successful sync; a zero count with a time means a successful empty ActivityRange.
+
+Run the manual sync on the home machine with Python installed and the Garmin
+token file already saved at `~/.garminconnect/garmin_tokens.json`. An explicit
+`--token-dir` overrides `$GARMINTOKENS` and that default. Set an access token
+for the same audience as MCP in `COACH_ACCESS_TOKEN`, then:
+
+```powershell
+python -m pip install -r src/sync/requirements.txt
+$env:COACH_INGEST_URL = 'https://<app-host>/ingest'
+python src/sync/sync_activities.py --from-date 2026-09-21 --to-date 2026-09-22
+```
+
+The sync lists only the requested dates, waits at least three seconds between
+Garmin Activity-list requests, and posts one version 2 batch. A 401, 403, or 429
+stops it without retrying; network errors and 5xx responses retry up to three
+times with backoff. A missing or expired saved Garmin token requires the
+interactive login flow from the strength-data spike before this command runs.
+No automated test contacts Garmin.
+
 ## Project boundaries
 
 `OakShore.Coach.Domain` owns profile rules and repository/gateway interfaces and uses

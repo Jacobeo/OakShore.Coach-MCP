@@ -11,28 +11,28 @@ This is the first slice through the Python sync and establishes the Python seam.
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done
 
 **Source:** [Garmin sync](../../03-garmin-sync.md).
 
-- [ ] A manual run for a given date range signs in from the stored token file
+- [x] A manual run for a given date range signs in from the stored token file
   without an interactive prompt, lists Activities, and posts them to ingest.
-- [ ] Ingest accepts version 2 batches carrying Activities alongside
+- [x] Ingest accepts version 2 batches carrying Activities alongside
   AthleteProfile. Version 1 payloads remain accepted unchanged. Unsupported
   versions and invalid input are rejected without persisting any part of a batch.
-- [ ] Activities persist with UserId on every table and query, and re-posting the
+- [x] Activities persist with UserId on every table and query, and re-posting the
   same batch leaves the stored result unchanged.
-- [ ] A read tool reports, per collection, how many records are stored and when
+- [x] A read tool reports, per collection, how many records are stored and when
   each was last synced, distinguishing nothing-stored from stored-and-stale. It
   is annotated read-only and returns structuredContent alone.
-- [ ] Requests to Garmin are paced. A 401, 403 or 429 aborts the run immediately
+- [x] Requests to Garmin are paced. A 401, 403 or 429 aborts the run immediately
   with no retry; network errors and 5xx retry with backoff.
-- [ ] The Python seam replays the spike 01 fixtures at the Garmin client boundary
+- [x] The Python seam replays the spike 01 fixtures at the Garmin client boundary
   and asserts on the batches posted to ingest. Garmin calls live behind one
   module so the seam has a single place to intercept. No automated test contacts
   a live account.
-- [ ] The .NET seam covers version 2 validation, idempotent upsert and the read
+- [x] The .NET seam covers version 2 validation, idempotent upsert and the read
   tool by posting fixtures through ingest and reading back through MCP.
-- [ ] Any concept introduced that the glossary does not already name is added to
+- [x] Any concept introduced that the glossary does not already name is added to
   CONTEXT.md in the same change.
-- [ ] Architecture checks pass and every added file appears in the solution.
+- [x] Architecture checks pass and every added file appears in the solution.

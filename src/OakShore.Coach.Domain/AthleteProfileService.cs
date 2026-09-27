@@ -8,6 +8,6 @@ public sealed class AthleteProfileService(IAthleteProfileRepository repository, 
     public Task<AthleteProfileResponse> UpdateAsync(AthleteProfileChange change, CancellationToken cancellationToken)
     {
         AthleteProfileChange.Validate(change, clock.GetUtcNow());
-        return ingest.SendAsync(new AthleteProfileBatch(1, [change]), cancellationToken);
+        return ingest.SendAsync(new IngestBatch(1, [change]), cancellationToken);
     }
 }

@@ -141,3 +141,24 @@ The degree to which the Activities in a date range match what was prescribed for
 that range: measured against ScheduledWorkouts where they exist, and against the
 WeekOutline's modality allocation where they do not.
 _Avoid_: compliance, plan vs actual, completion
+
+### Sync
+
+**ActivityRange**:
+An inclusive pair of calendar dates explicitly requested for a manual Activity
+sync. The range travels with its ingest batch so a successful empty range still
+has a recorded sync time.
+_Avoid_: window, period, date span
+
+**IngestBatch**:
+A versioned, atomic delivery to the store. Version 2 carries one ActivityRange,
+its Activities (possibly none), and optional AthleteProfile changes. Replaying
+identical content is the same delivery and does not advance freshness.
+_Avoid_: upload, payload
+
+**SyncStatus**:
+The stored record count and last successful sync time for each collection, plus
+the most recent Activity summary when one is stored.
+A null time means the collection has never been synced; a non-null time with zero
+records means a completed sync found none.
+_Avoid_: sync health, sync state
