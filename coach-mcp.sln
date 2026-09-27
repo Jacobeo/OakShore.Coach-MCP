@@ -68,11 +68,24 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "gaudit", "gaudit", "{5A1575
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{001D62EF-D3A4-45A1-B227-CEB0217BABC4}"
 	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
 		.gitignore = .gitignore
 		Directory.Build.props = Directory.Build.props
+		Dockerfile = Dockerfile
 		README.md = README.md
 		AGENTS.md = AGENTS.md
 		CLAUDE.md = CLAUDE.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Infrastructure", "Infrastructure", "{1CF72A17-82C9-4CF0-8C9D-E1AD5B80DE4F}"
+	ProjectSection(SolutionItems) = preProject
+		infra\app.bicep = infra\app.bicep
+		infra\deploy.ps1 = infra\deploy.ps1
+		infra\foundation.bicep = infra\foundation.bicep
+		infra\grant-database-access.ps1 = infra\grant-database-access.ps1
+		infra\grant-app.sql = infra\grant-app.sql
+		infra\publish-image.ps1 = infra\publish-image.ps1
+		infra\smoke.ps1 = infra\smoke.ps1
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Specs", "Specs", "{297033D4-477B-4DB0-ABEE-930136AC31EC}"

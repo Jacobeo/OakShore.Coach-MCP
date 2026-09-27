@@ -58,9 +58,9 @@ editing of it is what stops it going stale.
 14. As the athlete, I want reading my profile never to prompt me for approval, so that ordinary questions are not interrupted.
 15. As the athlete, I want changes to my profile to be confirmed back to me in words, so that I can catch a misunderstanding immediately.
 16. As the athlete, I want every response to tell me how fresh its data is, so that I know when I am reasoning over a gap.
-17. As the athlete, I want the server to cost nothing to run, so that a personal project does not become a subscription.
+17. As the athlete, I want the server's standing cost near zero and preferably below $10/month, so that a personal project does not become an expensive subscription.
 18. As the athlete, I want to accept a few seconds of delay on my first question of the day, so that the server can scale to zero and stay free.
-19. As a developer, I want the database to be unreachable from the internet, so that the only way in is through code I wrote.
+19. As a developer, I want only the app's managed identity to have application database permissions, so that public SQL network access does not grant data access.
 20. As a developer, I want a health endpoint separate from the MCP endpoint, so that platform probes do not receive JSON-RPC.
 21. As a developer, I want the schema to carry an athlete identifier from the first migration, so that a second athlete never requires a rewrite.
 22. As a developer, I want data to enter the datastore only through the ingest endpoint, so that validation and authorisation live in exactly one place.
@@ -116,8 +116,12 @@ documented false-positive triggers overlap heavily with the vocabulary of a
 personal health application.
 
 **Datastore.** Azure SQL Database on the lifetime free offer, which provides
-sufficient compute and thirty-two gigabytes of data permanently at no cost. The
-database has no public network exposure; only the server reaches it.
+sufficient compute and thirty-two gigabytes of data permanently at no cost. To
+avoid Container Apps custom-VNet standing charges, the database uses its public
+endpoint with Microsoft Entra-only authentication. Azure SQL's Azure-services
+firewall rule permits network attempts from other Azure subscriptions; only the
+app's managed identity receives database permissions. This is the explicit
+cost/isolation trade-off recorded in [the hosting cost decision](../docs/hosting-cost-decision.md).
 
 **Ingest.** A single authenticated endpoint accepting batches. It is the only
 write path into the datastore, per ADR 0003's seam and ADR 0002's system-of-record

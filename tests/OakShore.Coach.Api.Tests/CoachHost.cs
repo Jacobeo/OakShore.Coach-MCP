@@ -28,7 +28,8 @@ public sealed class DatabaseFixture : IAsyncLifetime
 public sealed class CoachHost(DatabaseFixture database) : WebApplicationFactory<Program>
 {
     public bool DenyIngest { get; init; }
-    public const string Audience = "https://coach.example";
+    public const string PublicUrl = "https://coach.example";
+    public const string Audience = PublicUrl + "/mcp";
     public const string Issuer = "https://issuer.example";
     private readonly RsaSecurityKey key = new(RSA.Create(2048)) { KeyId = "test-key" };
 
@@ -36,8 +37,9 @@ public sealed class CoachHost(DatabaseFixture database) : WebApplicationFactory<
     {
         builder.UseSetting("Authentication:Audience", Audience)
             .UseSetting("Authentication:Authority", Issuer)
+            .UseSetting("Server:PublicUrl", PublicUrl)
             .UseSetting("Persistence:ConnectionString", database.ConnectionString)
-            .UseSetting("Ingest:BaseUrl", Audience);
+            .UseSetting("Ingest:BaseUrl", PublicUrl);
         builder.ConfigureServices(services =>
         {
             if (DenyIngest)

@@ -1,0 +1,13 @@
+.git/
+.github/
+.scratch/
+.local/
+.vs/
+docs/
+fixtures/
+gaudit/
+spikes/
+tests/
+**/bin/
+**/obj/
+**/.env*

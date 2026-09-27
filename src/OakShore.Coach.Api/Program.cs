@@ -12,10 +12,12 @@ public partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         var audience = builder.Configuration["Authentication:Audience"]
-            ?? throw new InvalidOperationException("Authentication:Audience must be the public server URL.");
+            ?? throw new InvalidOperationException("Authentication:Audience must be the public MCP URL.");
         var authority = builder.Configuration["Authentication:Authority"]
             ?? throw new InvalidOperationException("Authentication:Authority must name the hosted issuer.");
-        var metadataUrl = $"{audience.TrimEnd('/')}/.well-known/oauth-protected-resource";
+        var publicUrl = builder.Configuration["Server:PublicUrl"]
+            ?? throw new InvalidOperationException("Server:PublicUrl must be the public server origin.");
+        var metadataUrl = $"{publicUrl.TrimEnd('/')}/.well-known/oauth-protected-resource";
 
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
         {
@@ -63,7 +65,7 @@ public partial class Program
         builder.Services.AddScoped<AthleteProfileIngestService>();
         builder.Services.AddHttpClient("Ingest", (services, client) =>
         {
-            client.BaseAddress = new Uri(builder.Configuration["Ingest:BaseUrl"] ?? audience);
+            client.BaseAddress = new Uri(builder.Configuration["Ingest:BaseUrl"] ?? publicUrl);
             var request = services.GetRequiredService<IHttpContextAccessor>().HttpContext!.Request;
             client.DefaultRequestHeaders.Authorization = System.Net.Http.Headers.AuthenticationHeaderValue.Parse(request.Headers.Authorization.ToString());
         }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })

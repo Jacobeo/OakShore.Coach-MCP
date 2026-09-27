@@ -1,13 +1,40 @@
-# Ticket 02: private SQL access and the zero-cost requirement
+# Ticket 02: low-cost hosting and SQL network access
 
-**Decision pending. Do not provision Azure resources for ticket 02 until the
-hosting and database-networking choice is made.** This assessment was checked
-against Azure documentation on 2026-09-23. Subscription-specific offers and
-prices must also be checked in the target subscription before deployment.
+**Decision, 2026-09-23:** Keep Azure Container Apps and target approximately
+$0 standing cost, preferably below $10/month. Use Azure SQL's public endpoint
+instead of a private endpoint and customer VNet. The athlete explicitly chose
+this isolation trade-off after reviewing the private option's cost. Verify the
+SQL free offer in the target subscription before provisioning; never substitute
+a paid database automatically.
 
-Ticket 02 requires Azure SQL public network access to be **Disabled** and the
-entire service to cost nothing. Those requirements cannot both be met with its
-specified Azure Container Apps and Azure SQL topology:
+The SQL server uses Microsoft Entra-only authentication. The app connects with
+a dedicated managed identity granted access to its database. SQL's
+`AllowAzureServices` firewall rule allows connection attempts from **all Azure
+subscriptions**, not just this app or subscription. Azure SQL still rejects
+callers without database permission. This is a material exposure of the public
+endpoint, and the documented low-cost design accepts it for this personal
+project. See [Microsoft's firewall description](https://learn.microsoft.com/en-us/azure/azure-sql/database/firewall-configure?view=azuresql).
+
+No customer VNet, private endpoint, private DNS zone, Azure load balancer,
+Azure Container Registry, Log Analytics workspace, or warm replica is needed
+for this topology. Container Apps and SQL usage remain subject to their free
+grants, so the target is not a guaranteed cost cap. The cost assessment below
+explains the private alternative that was rejected.
+
+| Provisioned component | Expected standing charge | Usage condition |
+| --- | ---: | --- |
+| Resource group and managed identity | $0/month | No separate meter for these resources. |
+| Container Apps consumption environment and app | $0/month | Zero minimum replicas, no log destination or customer VNet; compute and requests must remain within the [monthly free grant](https://learn.microsoft.com/en-us/azure/container-apps/billing). |
+| Azure SQL `coach` database | $0/month | Subscription's [free offer](https://learn.microsoft.com/en-us/azure/azure-sql/database/free-offer?view=azuresql) is active; `AutoPause` stops database compute when its monthly allowance is exhausted. |
+| GitHub Container Registry | $0/month currently | [GitHub's current package billing policy](https://docs.github.com/en/billing/concepts/product-billing/github-packages) does not charge for container-image storage or bandwidth. |
+| WorkOS AuthKit Staging | $0/month | [Staging environment](https://workos.com/docs/authkit/environments) is used for setup and testing. |
+| Cross-region and internet transfer | Variable | North Europe app and West Europe SQL can incur transfer charges; inspect actual usage. |
+
+This is an expected near-zero standing charge, not a $10 spending cap.
+
+The original ticket required Azure SQL public network access to be **Disabled**
+and the entire service to cost nothing. Those requirements could not both be
+met with its specified Azure Container Apps and Azure SQL topology:
 
 - With SQL public access disabled, [Azure SQL private connectivity](https://learn.microsoft.com/en-us/azure/azure-sql/database/private-endpoint-overview?view=azuresql)
   uses a private endpoint. [Private Link charges](https://azure.microsoft.com/en-us/pricing/details/private-link/)
@@ -78,21 +105,20 @@ The remaining components do not remove these standing network charges:
 | [GitHub Container Registry](https://docs.github.com/en/billing/concepts/product-billing/github-packages) | Container-image storage and bandwidth are currently free; verify that this policy still applies at deployment. |
 | External identity provider | Check the selected provider's current plan and token issuance limits in ticket 03. |
 
-The current Azure CLI account context exists, but a resource inventory request
-returned `Status_InteractionRequired`; free-offer eligibility, regional
-availability, existing resources, and effective subscription prices have not
-yet been verified. No resource was provisioned during this assessment.
+The active subscription was reached after a fresh sign-in. North Europe
+rejected new Azure SQL server creation on 2026-09-23, so the app environment
+and managed identity were provisioned there while SQL was placed in West
+Europe. Azure reported the `coach` database on the free offer with
+`AutoPause`, Entra-only server authentication, and no stored Container Apps
+log destination. The Container App is deployed with zero minimum replicas and
+a private GHCR image credential. Effective charges still need checking in Cost
+Analysis after usage begins. Cross-region app-to-SQL traffic can add transfer
+charges.
+The resource group's Azure Cost Management query returned no rows on deployment
+day. On 2026-09-25, its month-to-date ActualCost query reported 0.00 DKK for
+each of September 23, 24, and 25. Continue checking as usage posts; these
+early rows do not establish a monthly cost cap.
 
-Choose one path before writing or running the provisioning deployment:
-
-1. Keep strict zero cost. Change the architecture or defer deployment; preserve
-   SQL isolation while the replacement is decided.
-2. Allow the standing network charges with an explicit budget. Keep SQL public
-   access disabled and use a SQL private endpoint, private DNS, and a VNet
-   integrated Container Apps environment.
-3. Change the isolation requirement. A SQL service endpoint could restrict the
-   reachable public SQL endpoint to the app subnet, but this requires a spec
-   change and still leaves Container Apps VNet integration charges to assess.
-
-None of these is an implicit exception to the ticket. Record the selected path
-and a subscription-specific cost estimate before provisioning.
+The chosen public-SQL topology avoids these private-network standing charges.
+Check the actual subscription's SQL free-offer eligibility, Container Apps
+free-grant usage, GHCR terms, and any outbound transfer charges during rollout.
