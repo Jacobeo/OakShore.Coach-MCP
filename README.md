@@ -348,6 +348,31 @@ times with backoff. A missing or expired saved Garmin token requires the
 interactive login flow from the strength-data spike before this command runs.
 No automated test contacts Garmin.
 
+## Watermark runs
+
+A run without dates continues from the Watermark, the sync's local record of
+completed days:
+
+```powershell
+$env:COACH_INGEST_URL = 'https://<app-host>/ingest'
+$env:COACH_SYNC_EARLIEST_DATE = '2026-09-01'
+python src/sync/sync_activities.py
+```
+
+Each pending day is fetched most recent first and posted as its own single-day
+version 2 batch. The Watermark records a day once its batch is accepted, so an
+interrupted run keeps everything already fetched and the next run continues
+where it stopped. The current day is synced but never recorded as completed, so
+an evening run picks up that day's session and the next run syncs the day again.
+A run processes at most `--max-days` days (default 30, or `COACH_SYNC_MAX_DAYS`),
+so a long gap closes over several runs, most recent days first. A first run
+reaches back to `--earliest-date` (or `COACH_SYNC_EARLIEST_DATE`), which a run
+without dates requires; days before it are left to the export backfill. The
+Watermark lives at `~/.coach-sync/watermark.json` (`--watermark-file`, or
+`COACH_SYNC_WATERMARK`) and an unreadable file stops the run rather than
+resyncing everything. Re-running over an already-synced period re-posts only the
+current day's identical batch, which the store treats as the same delivery.
+
 ## Project boundaries
 
 `OakShore.Coach.Domain` owns profile rules and repository/gateway interfaces and uses

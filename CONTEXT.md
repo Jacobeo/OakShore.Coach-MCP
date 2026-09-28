@@ -164,3 +164,11 @@ the most recent Activity summary when one is stored.
 A null time means the collection has never been synced; a non-null time with zero
 records means a completed sync found none.
 _Avoid_: sync health, sync state
+
+**Watermark**:
+The sync's own record, kept on the home machine, of the days it has completed.
+A day is complete once its batch is accepted by ingest; the current day is
+synced but never completed, so the next run syncs it again. A run without dates
+works most recent first through the days, from a configured earliest date to
+today, that the Watermark does not cover, and stops at a per-run ceiling.
+_Avoid_: checkpoint, cursor, last-run time, high-water mark
