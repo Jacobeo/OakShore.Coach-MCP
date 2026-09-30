@@ -38,3 +38,11 @@ This is the first slice through the Python sync and establishes the Python seam.
 - [x] Any concept introduced that the glossary does not already name is added to
   CONTEXT.md in the same change.
 - [x] Architecture checks pass and every added file appears in the solution.
+
+## Comments
+
+2026-09-30: The ticket 02 live smoke found that version 2 ingest was verified at
+both seams but never deployed: Azure was still running the 2026-09-23 image and
+answered version 2 batches with a bare 400 (unmapped `activityRange` and
+`activities` members). Redeployment restores the claim; a live check against the
+deployed app belongs in any future ticket that changes the ingest contract.

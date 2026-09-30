@@ -19,3 +19,11 @@ and re-authentication prompt.
   second waits or exits rather than proceeding.
 - [ ] The README documents registration, manual invocation, and how to confirm
   the last successful run from a chat client.
+
+## Comments
+
+2026-09-30: Measured during the ticket 02 live smoke: WorkOS access tokens for
+the ingest audience expire after five minutes. A scheduled run therefore cannot
+use a manually obtained token, and a long catch-up could outlive a single one.
+This ticket needs an unattended credential path on the home machine (a refresh
+token or machine-to-machine client) before scheduling can work.

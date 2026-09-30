@@ -9,6 +9,7 @@ import os
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from garmin_client import GarminActivityClient, load_token_client
@@ -77,9 +78,13 @@ def post_to_ingest(url: str, token: str, batch: dict[str, Any]) -> None:
         url, data=json.dumps(batch).encode("utf-8"), method="POST",
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
     )
-    with urlopen(request, timeout=60) as response:
-        if response.status != 200:
-            raise RuntimeError(f"Ingest returned HTTP {response.status}")
+    try:
+        with urlopen(request, timeout=60) as response:
+            if response.status != 200:
+                raise RuntimeError(f"Ingest returned HTTP {response.status}")
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", "replace")[:2000]
+        raise RuntimeError(f"Ingest returned HTTP {error.code}: {detail}") from None
 
 
 def env_date(name: str) -> date | None:
