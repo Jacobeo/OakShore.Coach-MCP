@@ -13,7 +13,8 @@ public sealed record IngestBatch(
 public interface IIngestRepository
 {
     Task SaveAsync(string userId, IReadOnlyList<AthleteProfileChange> profiles,
-        ActivityRange range, IReadOnlyList<Activity> activities, string batchHash,
+        ActivityRange range, IReadOnlyList<Activity> activities,
+        IReadOnlyDictionary<long, IReadOnlyList<ExerciseSet>> exerciseSets, string batchHash,
         DateTimeOffset lastSyncedAt, CancellationToken cancellationToken);
 }
 
@@ -46,9 +47,20 @@ public sealed class IngestService(
             ?? throw new ArgumentException("Activities cannot contain null.")).ToArray();
         if (activities.Select(activity => activity.ActivityId).Distinct().Count() != activities.Length)
             throw new ArgumentException("Activities in one batch must have distinct ActivityIds.");
+        // An Activity without the field keeps its stored ExerciseSets; an empty list clears them.
+        var exerciseSets = new Dictionary<long, IReadOnlyList<ExerciseSet>>();
+        foreach (var input in batch.Activities)
+        {
+            if (input!.ExerciseSets is not { } exerciseSetInputs)
+                continue;
+            if (exerciseSetInputs.Count > 1000)
+                throw new ArgumentException("An Activity carries at most 1000 ExerciseSets.");
+            exerciseSets[input.ActivityId] = exerciseSetInputs.Select(exerciseSetInput => (exerciseSetInput
+                ?? throw new ArgumentException("ExerciseSets cannot contain null.")).ToExerciseSet()).ToArray();
+        }
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(batch))));
         await ingest.SaveAsync(userId, (batch.AthleteProfiles ?? []).Select(change => change!).ToArray(),
-            batch.ActivityRange, activities, hash, now, cancellationToken);
+            batch.ActivityRange, activities, exerciseSets, hash, now, cancellationToken);
         return await status.GetAsync(userId, cancellationToken);
     }
 }

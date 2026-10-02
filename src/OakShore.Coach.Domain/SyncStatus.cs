@@ -2,7 +2,8 @@ namespace OakShore.Coach.Domain;
 
 public sealed record CollectionSyncStatus(string Name, int Count, DateTimeOffset? LastSyncedAt);
 public sealed record SyncStatusResponse(
-    IReadOnlyList<CollectionSyncStatus> Collections, Activity? LatestActivity, DateTimeOffset? LastSyncedAt);
+    IReadOnlyList<CollectionSyncStatus> Collections, Activity? LatestActivity,
+    StrengthDetail? LatestActivityStrengthDetail, DateTimeOffset? LastSyncedAt);
 
 public interface ISyncStatusRepository
 {

@@ -10,6 +10,7 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
     internal DbSet<AthleteProfileRow> AthleteProfiles => Set<AthleteProfileRow>();
     internal DbSet<ConstraintRow> Constraints => Set<ConstraintRow>();
     internal DbSet<ActivityRow> Activities => Set<ActivityRow>();
+    internal DbSet<ExerciseSetRow> ExerciseSets => Set<ExerciseSetRow>();
     internal DbSet<IngestBatchRow> IngestBatches => Set<IngestBatchRow>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options) =>
@@ -41,6 +42,16 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         activity.Property(row => row.TypeKey).HasMaxLength(100);
         activity.Property(row => row.ActivityName).HasMaxLength(500);
 
+        var exerciseSet = modelBuilder.Entity<ExerciseSetRow>();
+        exerciseSet.ToTable("ExerciseSets");
+        exerciseSet.HasKey(row => new { row.UserId, row.ActivityId, row.Position });
+        exerciseSet.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        exerciseSet.Property(row => row.SetType).HasMaxLength(50);
+        exerciseSet.Property(row => row.WeightKg).HasPrecision(18, 4);
+        exerciseSet.Property(row => row.ExerciseCategory).HasMaxLength(100);
+        exerciseSet.Property(row => row.ExerciseName).HasMaxLength(100);
+        exerciseSet.HasOne<ActivityRow>().WithMany().HasForeignKey(row => new { row.UserId, row.ActivityId });
+
         var batch = modelBuilder.Entity<IngestBatchRow>();
         batch.ToTable("IngestBatches");
         batch.HasKey(row => new { row.UserId, row.BatchHash });
@@ -59,7 +70,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
             "OakShore.Coach.Infrastructure.Migrations.0003_PrioritizedGoals.sql",
             "OakShore.Coach.Infrastructure.Migrations.0004_TemporaryConstraints.sql",
             "OakShore.Coach.Infrastructure.Migrations.0005_Activities.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0006_ActivityName.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0006_ActivityName.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0007_ExerciseSets.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -105,6 +117,24 @@ internal sealed class ActivityRow
     public int? ActiveSets { get; set; }
     public int? TotalReps { get; set; }
     public string? ActivityName { get; set; }
+}
+
+internal sealed class ExerciseSetRow
+{
+    public string UserId { get; set; } = "";
+    public long ActivityId { get; set; }
+    public int Position { get; set; }
+    public string SetType { get; set; } = "";
+    public int? Repetitions { get; set; }
+    public decimal? WeightKg { get; set; }
+    public bool Bodyweight { get; set; }
+    public string? ExerciseCategory { get; set; }
+    public string? ExerciseName { get; set; }
+    public int? CandidateCount { get; set; }
+    public double? TopProbability { get; set; }
+    public DateTimeOffset? StartTimeUtc { get; set; }
+    public double? DurationSeconds { get; set; }
+    public int? WktStepIndex { get; set; }
 }
 
 internal sealed class IngestBatchRow

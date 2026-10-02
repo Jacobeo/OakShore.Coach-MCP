@@ -8,5 +8,6 @@
     <EmbeddedResource Include="Migrations/0004_TemporaryConstraints.sql" />
     <EmbeddedResource Include="Migrations/0005_Activities.sql" />
     <EmbeddedResource Include="Migrations/0006_ActivityName.sql" />
+    <EmbeddedResource Include="Migrations/0007_ExerciseSets.sql" />
   </ItemGroup>
 </Project>

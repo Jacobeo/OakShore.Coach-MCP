@@ -112,6 +112,15 @@ class GarminActivityClient:
             return json.loads(response.content)
         raise AssertionError("unreachable")
 
+    def get_exercise_sets(self, activity_id: int) -> list[dict[str, Any]]:
+        payload = self._get(f"/activity-service/activity/{activity_id}/exerciseSets", {})
+        if not isinstance(payload, dict):
+            raise RuntimeError("Garmin exercise sets response was not an object")
+        exercise_sets = payload.get("exerciseSets") or []
+        if not isinstance(exercise_sets, list) or any(not isinstance(item, dict) for item in exercise_sets):
+            raise RuntimeError("Garmin exercise sets were not an array of objects")
+        return exercise_sets
+
     def list_activities(self, start: date, end: date) -> list[dict[str, Any]]:
         activities: list[dict[str, Any]] = []
         for page in range(self.MAX_PAGES):

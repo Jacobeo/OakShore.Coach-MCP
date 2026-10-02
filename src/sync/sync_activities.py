@@ -1,5 +1,7 @@
 """Sync Activities: a run without dates continues from the Watermark, most recent
-day first, bounded per run; an explicit inclusive date range syncs just that range."""
+day first, bounded per run; an explicit inclusive date range syncs just that range.
+Each strength Activity costs one further call for its ExerciseSets, posted with
+weight in kilograms; Cardio Activities are never enriched."""
 
 from __future__ import annotations
 
@@ -14,6 +16,10 @@ from urllib.request import Request, urlopen
 
 from garmin_client import GarminActivityClient, load_token_client
 from watermark import Watermark
+
+
+# Cardio is the complement of strength, so an unanticipated sport is posted unenriched.
+STRENGTH_TYPE_KEYS = frozenset({"strength_training"})
 
 
 def activity_from_garmin(entry: dict[str, Any]) -> dict[str, Any]:
@@ -32,6 +38,35 @@ def activity_from_garmin(entry: dict[str, Any]) -> dict[str, Any]:
     return activity
 
 
+def exercise_set_start_utc(value: str | None) -> str | None:
+    if value is None:
+        return None
+    # Per-set startTime is GMT with no offset marker; reading it as local time would shift every set.
+    started = datetime.fromisoformat(value)
+    return started.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def exercise_set_from_garmin(entry: dict[str, Any]) -> dict[str, Any]:
+    candidates = entry.get("exercises") or []
+    top = candidates[0] if candidates else None
+    weight_grams = entry.get("weight")
+    # Garmin's -1 states the load was the athlete's own mass; 0 is a set performed with
+    # no external load; null is nothing performed. Three answers, never collapsed.
+    bodyweight = weight_grams == -1.0
+    return {
+        "setType": entry["setType"],
+        "repetitions": entry.get("repetitionCount"),
+        "weightKg": None if weight_grams is None or bodyweight else weight_grams / 1000,
+        "bodyweight": bodyweight,
+        "exercise": None if top is None else {"category": top["category"], "name": top.get("name")},
+        "candidateCount": len(candidates),
+        "topProbability": None if top is None else top.get("probability"),
+        "startTimeUtc": exercise_set_start_utc(entry.get("startTime")),
+        "durationSeconds": entry.get("duration"),
+        "wktStepIndex": entry.get("wktStepIndex"),
+    }
+
+
 def run(
     start: date,
     end: date,
@@ -40,7 +75,13 @@ def run(
 ) -> int:
     if start > end:
         raise ValueError("from date must be no later than to date")
-    activities = [activity_from_garmin(entry) for entry in garmin.list_activities(start, end)]
+    activities = []
+    for entry in garmin.list_activities(start, end):
+        activity = activity_from_garmin(entry)
+        if activity["typeKey"] in STRENGTH_TYPE_KEYS:
+            activity["exerciseSets"] = [exercise_set_from_garmin(item)
+                                        for item in garmin.get_exercise_sets(activity["activityId"])]
+        activities.append(activity)
     post({
         "version": 2,
         "activityRange": {"fromDate": start.isoformat(), "toDate": end.isoformat()},

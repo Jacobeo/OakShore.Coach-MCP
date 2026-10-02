@@ -320,7 +320,7 @@ retains its existing contract.
 
 Activity IDs must be positive and distinct within a batch; timestamps must be
 UTC with `Z`. Duration and distance are in seconds and metres, and strength
-totals are nonnegative. Invalid input leaves both collections unchanged. The
+totals are nonnegative. Invalid input leaves all collections unchanged. The
 optional `activityName` carries Garmin's Activity name (up to 500 characters);
 omitting it from a later batch preserves the stored name. `typeKey` identifies
 the Activity type, such as running, indoor cycling, or strength training. The
@@ -329,6 +329,40 @@ batch preserves records and sync times. The `get_sync_status` read-only MCP tool
 returns a count and `lastSyncedAt` for each collection, plus the most recent
 Activity summary, including its name and type. A null time means no
 successful sync; a zero count with a time means a successful empty ActivityRange.
+
+An Activity may carry its ExerciseSets:
+
+```json
+{"activityId":24444892080,"startTimeUtc":"2026-09-21T14:34:01Z","typeKey":"strength_training","durationSeconds":2820.4,"exerciseSets":[{"setType":"ACTIVE","repetitions":8,"weightKg":75.0,"bodyweight":false,"exercise":{"category":"BENCH_PRESS","name":null},"candidateCount":3,"topProbability":99.609375,"startTimeUtc":"2026-09-21T14:41:27.0Z","durationSeconds":62.711,"wktStepIndex":4}]}
+```
+
+ExerciseSet contract rules:
+
+- The canonical weight unit is kilograms: `weightKg` is nonnegative, below
+  1000000, with at most four decimal places. The sync converts Garmin's grams before posting, so
+  grams never reach the store, and the export's FIT path converts to the same
+  unit at the same boundary.
+- A bodyweight working set states `bodyweight: true` and omits `weightKg`.
+  `weightKg: 0` is a set performed with no external load, and neither field at
+  all means no load was recorded. The three are stored distinctly and never
+  collapsed.
+- `exercise` is the movement's `category` (required, 1–100 characters) with an
+  optional `name`; a category with a null name, such as the flat bench press,
+  is a complete Exercise. `candidateCount` (0–999) and `topProbability` (0–100)
+  describe Garmin's classification of the movement.
+- `setType` is Garmin's value, `ACTIVE` or `REST`, 1–50 nonblank characters.
+  An `ACTIVE` set with zero repetitions is a CancelledExerciseSet: stored,
+  identifiable in responses, and excluded from volume and per-set averages.
+- `repetitions` (0–99999), `startTimeUtc`, `durationSeconds` and `wktStepIndex`
+  (0–99999) are optional. At most 1000 ExerciseSets per Activity; list entries
+  cannot be null. An invalid ExerciseSet rejects the whole batch.
+- Omitting `exerciseSets` from a later batch preserves the stored sets, the way
+  an omitted `activityName` preserves the name; an empty array clears them.
+- `get_sync_status` reports an `ExerciseSet` collection and, when the most
+  recent Activity has stored sets, `latestActivityStrengthDetail`: the rows in
+  recorded order plus `workingExerciseSets`, `cancelledExerciseSets`,
+  `volumeKg`, and `averageRepetitions`, the figures excluding
+  CancelledExerciseSets and counting no stated kilograms for bodyweight sets.
 
 Run the manual sync on the home machine with Python installed and the Garmin
 token file already saved at `~/.garminconnect/garmin_tokens.json`. An explicit
@@ -341,8 +375,11 @@ $env:COACH_INGEST_URL = 'https://<app-host>/ingest'
 python src/sync/sync_activities.py --from-date 2026-09-21 --to-date 2026-09-22
 ```
 
-The sync lists only the requested dates, waits at least three seconds between
-Garmin Activity-list requests, and posts one version 2 batch. A 401, 403, or 429
+The sync lists only the requested dates, enriches each strength Activity with
+one further call for its exercise sets, waits at least three seconds between
+Garmin requests, and posts one version 2 batch with weights converted to
+kilograms. Cardio Activities are not enriched, and an unanticipated sport is
+treated as Cardio rather than dropped. A 401, 403, or 429
 stops it without retrying; network errors and 5xx responses retry up to three
 times with backoff. A missing or expired saved Garmin token requires the
 interactive login flow from the strength-data spike before this command runs.

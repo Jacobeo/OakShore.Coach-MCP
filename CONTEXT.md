@@ -38,6 +38,21 @@ is answered by the rest of the Activity, never by the row alone. Never counts
 towards volume or a per-set average.
 _Avoid_: empty set, failed set, zero set, bad data
 
+**Volume**:
+The load a strength Activity's working ExerciseSets lifted: repetitions times
+weight in kilograms, summed. A CancelledExerciseSet never counts towards it, and
+a bodyweight ExerciseSet adds nothing to it, because its load is stated as the
+athlete's own mass rather than in kilograms — what that mass was is decided
+where the figure is read.
+_Avoid_: tonnage, workload, total weight
+
+**StrengthDetail**:
+One strength Activity's stored ExerciseSets in recorded order, together with the
+figures they support: working and cancelled set counts, Volume, and the average
+repetitions per working set. CancelledExerciseSets appear in the rows and in
+their own count, and in no figure.
+_Avoid_: set summary, strength breakdown, workout detail
+
 **Freestyle**:
 Said of an Activity recorded without a Workout to follow. The word exists to
 name the case this athlete does not train in; the other case is an Activity

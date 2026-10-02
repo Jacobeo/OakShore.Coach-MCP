@@ -44,15 +44,24 @@ def client(session):
                                 lambda: {"Authorization": "Bearer fixture"}, sleep=lambda _: None)
 
 
-def day_response(day):
+def day_results(day):
+    """The list response for one day, followed by one enrichment response per strength Activity."""
     entries = [entry for entry in FIXTURE_ENTRIES
                if entry["startTimeGMT"].startswith(day.isoformat())]
-    return Response(200, json.dumps(entries).encode("utf-8"))
+    results = [Response(200, json.dumps(entries).encode("utf-8"))]
+    for entry in entries:
+        if entry["activityType"]["typeKey"] == "strength_training":
+            results.append(Response(200, (ROOT / "fixtures" / "garmin" /
+                                          f"activity-service--exerciseSets__activity-"
+                                          f"{entry['activityId']}.json").read_bytes()))
+    return results
 
 
 def requested_days(session):
     days = []
-    for _, _, kwargs in session.calls:
+    for _, url, kwargs in session.calls:
+        if "/activitylist-service/" not in url:
+            continue
         params = kwargs["params"]
         assert params["startDate"] == params["endDate"]
         days.append(params["startDate"])
@@ -78,7 +87,7 @@ class WatermarkRunTests(unittest.TestCase):
                 date(2026, 9, 18), date(2026, 9, 17)]
 
         summary, requested, posted = self.sync(TODAY, date(2026, 9, 17), 30,
-                                               *[day_response(day) for day in days])
+                                               *[result for day in days for result in day_results(day)])
 
         self.assertEqual((5, 2, 0), summary)
         self.assertEqual([day.isoformat() for day in days], requested)
@@ -93,19 +102,19 @@ class WatermarkRunTests(unittest.TestCase):
     def test_next_run_continues_from_the_last_completed_date_and_resyncs_today(self):
         earliest = date(2026, 9, 19)
         self.sync(date(2026, 9, 20), earliest, 30,
-                  day_response(date(2026, 9, 20)), day_response(date(2026, 9, 19)))
+                  *day_results(date(2026, 9, 20)), *day_results(date(2026, 9, 19)))
 
         _, requested, _ = self.sync(TODAY, earliest, 30,
-                                    day_response(TODAY), day_response(date(2026, 9, 20)))
+                                    *day_results(TODAY), *day_results(date(2026, 9, 20)))
 
         self.assertEqual(["2026-09-21", "2026-09-20"], requested)
 
     def test_running_twice_in_an_hour_resyncs_only_today(self):
         earliest = date(2026, 9, 19)
-        self.sync(TODAY, earliest, 30, day_response(TODAY),
-                  day_response(date(2026, 9, 20)), day_response(date(2026, 9, 19)))
+        self.sync(TODAY, earliest, 30, *day_results(TODAY),
+                  *day_results(date(2026, 9, 20)), *day_results(date(2026, 9, 19)))
 
-        summary, requested, posted = self.sync(TODAY, earliest, 30, day_response(TODAY))
+        summary, requested, posted = self.sync(TODAY, earliest, 30, *day_results(TODAY))
 
         self.assertEqual((1, 1, 0), summary)
         self.assertEqual(["2026-09-21"], requested)
@@ -130,7 +139,7 @@ class WatermarkRunTests(unittest.TestCase):
 
     def test_interrupted_run_keeps_committed_days_and_the_next_run_continues(self):
         earliest = date(2026, 9, 17)
-        session = Session(day_response(TODAY), day_response(date(2026, 9, 20)), Response(429))
+        session = Session(*day_results(TODAY), *day_results(date(2026, 9, 20)), Response(429))
         posted = []
 
         with self.assertRaises(GarminAbort):
@@ -144,11 +153,11 @@ class WatermarkRunTests(unittest.TestCase):
 
     def test_rerunning_an_already_synced_period_reposts_the_same_delivery(self):
         earliest = date(2026, 9, 19)
-        _, _, first_posted = self.sync(TODAY, earliest, 30, day_response(TODAY),
-                                       day_response(date(2026, 9, 20)),
-                                       day_response(date(2026, 9, 19)))
+        _, _, first_posted = self.sync(TODAY, earliest, 30, *day_results(TODAY),
+                                       *day_results(date(2026, 9, 20)),
+                                       *day_results(date(2026, 9, 19)))
 
-        _, requested, reposted = self.sync(TODAY, earliest, 30, day_response(TODAY))
+        _, requested, reposted = self.sync(TODAY, earliest, 30, *day_results(TODAY))
 
         self.assertEqual(["2026-09-21"], requested)
         self.assertEqual([first_posted[0]], reposted)

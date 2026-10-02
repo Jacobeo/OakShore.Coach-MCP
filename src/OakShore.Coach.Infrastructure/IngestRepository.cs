@@ -7,7 +7,8 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
     : IIngestRepository
 {
     public async Task SaveAsync(string userId, IReadOnlyList<AthleteProfileChange> profileChanges,
-        ActivityRange range, IReadOnlyList<Activity> activities, string batchHash,
+        ActivityRange range, IReadOnlyList<Activity> activities,
+        IReadOnlyDictionary<long, IReadOnlyList<ExerciseSet>> exerciseSets, string batchHash,
         DateTimeOffset lastSyncedAt, CancellationToken cancellationToken)
     {
         await using var transaction = await store.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
@@ -35,6 +36,37 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             row.TotalReps = activity.TotalReps;
             if (activity.ActivityName is not null)
                 row.ActivityName = activity.ActivityName;
+        }
+        var enrichedActivityIds = exerciseSets.Keys.ToArray();
+        List<ExerciseSetRow> existingExerciseSets = enrichedActivityIds.Length == 0 ? []
+            : await store.ExerciseSets.Where(row => row.UserId == userId && enrichedActivityIds.Contains(row.ActivityId))
+                .ToListAsync(cancellationToken);
+        var exerciseSetsByActivity = existingExerciseSets.ToLookup(row => row.ActivityId);
+        foreach (var (activityId, activityExerciseSets) in exerciseSets)
+        {
+            var rows = exerciseSetsByActivity[activityId].ToDictionary(row => row.Position);
+            for (var position = 0; position < activityExerciseSets.Count; position++)
+            {
+                if (!rows.TryGetValue(position, out var row))
+                {
+                    row = new ExerciseSetRow { UserId = userId, ActivityId = activityId, Position = position };
+                    store.ExerciseSets.Add(row);
+                }
+                var exerciseSet = activityExerciseSets[position];
+                row.SetType = exerciseSet.SetType;
+                row.Repetitions = exerciseSet.Repetitions;
+                row.WeightKg = exerciseSet.WeightKg;
+                row.Bodyweight = exerciseSet.Bodyweight;
+                row.ExerciseCategory = exerciseSet.Exercise?.Category;
+                row.ExerciseName = exerciseSet.Exercise?.Name;
+                row.CandidateCount = exerciseSet.CandidateCount;
+                row.TopProbability = exerciseSet.TopProbability;
+                row.StartTimeUtc = exerciseSet.StartTimeUtc;
+                row.DurationSeconds = exerciseSet.DurationSeconds;
+                row.WktStepIndex = exerciseSet.WktStepIndex;
+            }
+            store.ExerciseSets.RemoveRange(exerciseSetsByActivity[activityId]
+                .Where(row => row.Position >= activityExerciseSets.Count));
         }
         var dates = range.Validate();
         store.IngestBatches.Add(new IngestBatchRow

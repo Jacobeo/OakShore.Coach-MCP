@@ -893,6 +893,187 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
     }
 
+    [Fact]
+    public async Task Strength_exercise_sets_persist_in_kilograms_and_report_strength_detail()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var exerciseSets = FixtureExerciseSets(24444892080);
+        var batch = StrengthBatch(exerciseSets);
+        using var posted = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var saved = await CallTool(client, "get_sync_status");
+        Assert.Equal(28, Collection(saved, "ExerciseSet").GetProperty("count").GetInt32());
+        Assert.Equal(clock.GetUtcNow(), Collection(saved, "ExerciseSet").GetProperty("lastSyncedAt").GetDateTimeOffset());
+        var detail = saved.GetProperty("latestActivityStrengthDetail");
+        var rows = detail.GetProperty("exerciseSets");
+        Assert.Equal(28, rows.GetArrayLength());
+        var first = rows[0];
+        Assert.Equal("BANDED_EXERCISES", first.GetProperty("exercise").GetProperty("category").GetString());
+        Assert.Equal("GLUTE_BRIDGE", first.GetProperty("exercise").GetProperty("name").GetString());
+        Assert.Equal(("ACTIVE", 8, 0m, false), (first.GetProperty("setType").GetString(),
+            first.GetProperty("repetitions").GetInt32(), first.GetProperty("weightKg").GetDecimal(),
+            first.GetProperty("bodyweight").GetBoolean()));
+        Assert.True(first.GetProperty("working").GetBoolean());
+        Assert.Equal(new DateTimeOffset(2026, 9, 21, 14, 34, 1, TimeSpan.Zero),
+            first.GetProperty("startTimeUtc").GetDateTimeOffset());
+        Assert.Equal(0, first.GetProperty("wktStepIndex").GetInt32());
+        Assert.Equal(3, first.GetProperty("candidateCount").GetInt32());
+        Assert.Equal(99.609375, first.GetProperty("topProbability").GetDouble());
+        var bench = rows[5];
+        Assert.Equal("BENCH_PRESS", bench.GetProperty("exercise").GetProperty("category").GetString());
+        Assert.Equal(JsonValueKind.Null, bench.GetProperty("exercise").GetProperty("name").ValueKind);
+        Assert.Equal(75m, bench.GetProperty("weightKg").GetDecimal());
+        var rest = rows[1];
+        Assert.Equal("REST", rest.GetProperty("setType").GetString());
+        Assert.Equal(JsonValueKind.Null, rest.GetProperty("repetitions").ValueKind);
+        Assert.False(rest.GetProperty("cancelled").GetBoolean());
+        var cancelled = rows[6];
+        Assert.True(cancelled.GetProperty("cancelled").GetBoolean());
+        Assert.False(cancelled.GetProperty("working").GetBoolean());
+        Assert.Equal(0, cancelled.GetProperty("repetitions").GetInt32());
+        Assert.Equal(85m, cancelled.GetProperty("weightKg").GetDecimal());
+        Assert.Equal(12, detail.GetProperty("workingExerciseSets").GetInt32());
+        Assert.Equal(2, detail.GetProperty("cancelledExerciseSets").GetInt32());
+        Assert.Equal(3482m, detail.GetProperty("volumeKg").GetDecimal());
+        Assert.Equal(82d / 12, detail.GetProperty("averageRepetitions").GetDouble());
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var replayed = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, replayed.StatusCode);
+        Assert.Equal(saved.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        var corrected = exerciseSets.Take(27)
+            .Select((exerciseSet, index) => index != 5 ? exerciseSet : exerciseSet with { WeightKg = 77.5m }).ToArray();
+        using var reposted = await client.PostAsJsonAsync("/ingest", StrengthBatch(corrected));
+        Assert.Equal(HttpStatusCode.OK, reposted.StatusCode);
+        var updated = await CallTool(client, "get_sync_status");
+        Assert.Equal(27, Collection(updated, "ExerciseSet").GetProperty("count").GetInt32());
+        Assert.Equal(77.5m, updated.GetProperty("latestActivityStrengthDetail")
+            .GetProperty("exerciseSets")[5].GetProperty("weightKg").GetDecimal());
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var unenriched = await client.PostAsJsonAsync("/ingest", StrengthBatch(null));
+        Assert.Equal(HttpStatusCode.OK, unenriched.StatusCode);
+        var preserved = await CallTool(client, "get_sync_status");
+        Assert.Equal(27, Collection(preserved, "ExerciseSet").GetProperty("count").GetInt32());
+        Assert.Equal(77.5m, preserved.GetProperty("latestActivityStrengthDetail")
+            .GetProperty("exerciseSets")[5].GetProperty("weightKg").GetDecimal());
+    }
+
+    [Fact]
+    public async Task Bodyweight_working_set_is_a_stated_load_distinct_from_no_load_at_all()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        using var posted = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2,
+            activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-21" },
+            activities = new[] { new
+            {
+                activityId = 991L, startTimeUtc = "2026-09-21T10:00:00Z", typeKey = "strength_training",
+                durationSeconds = 600.0,
+                exerciseSets = new[]
+                {
+                    new ExerciseSetInput("ACTIVE", Repetitions: 5, Bodyweight: true),
+                    new ExerciseSetInput("ACTIVE", Repetitions: 8, WeightKg: 0m)
+                }
+            } }
+        });
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var detail = (await CallTool(client, "get_sync_status")).GetProperty("latestActivityStrengthDetail");
+        var stated = detail.GetProperty("exerciseSets")[0];
+        Assert.True(stated.GetProperty("bodyweight").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, stated.GetProperty("weightKg").ValueKind);
+        Assert.True(stated.GetProperty("working").GetBoolean());
+        var unloaded = detail.GetProperty("exerciseSets")[1];
+        Assert.False(unloaded.GetProperty("bodyweight").GetBoolean());
+        Assert.Equal(0m, unloaded.GetProperty("weightKg").GetDecimal());
+        Assert.Equal(2, detail.GetProperty("workingExerciseSets").GetInt32());
+        Assert.Equal(0m, detail.GetProperty("volumeKg").GetDecimal());
+        Assert.Equal(6.5, detail.GetProperty("averageRepetitions").GetDouble());
+    }
+
+    [Theory]
+    [InlineData("{\"setType\":\"ACTIVE\",\"repetitions\":5,\"weightKg\":75.0,\"bodyweight\":true}")]
+    [InlineData("{\"setType\":\"ACTIVE\",\"repetitions\":-1}")]
+    [InlineData("{\"setType\":\"ACTIVE\",\"repetitions\":5,\"weightKg\":75.00001}")]
+    [InlineData("{\"setType\":\"  \",\"repetitions\":5}")]
+    [InlineData("{\"repetitions\":5}")]
+    [InlineData("{\"setType\":\"ACTIVE\",\"exercise\":{\"category\":\"  \"}}")]
+    [InlineData("null")]
+    public async Task Invalid_exercise_set_rejects_the_whole_batch(string setJson)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        var batch = "{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},"
+            + "\"activities\":[{\"activityId\":992,\"startTimeUtc\":\"2026-09-21T10:00:00Z\","
+            + "\"typeKey\":\"strength_training\",\"durationSeconds\":600.0,\"exerciseSets\":[" + setJson + "]}]}";
+        using var content = new StringContent(batch, System.Text.Encoding.UTF8, "application/json");
+        using var rejected = await client.PostAsync("/ingest", content);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    private sealed record ExerciseSetInput(string SetType, int? Repetitions = null, decimal? WeightKg = null,
+        bool? Bodyweight = null, object? Exercise = null, int? CandidateCount = null,
+        double? TopProbability = null, string? StartTimeUtc = null, double? DurationSeconds = null,
+        int? WktStepIndex = null);
+
+    private static object StrengthBatch(IReadOnlyList<ExerciseSetInput>? exerciseSets) => new
+    {
+        version = 2,
+        activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-22" },
+        activities = new[] { new
+        {
+            activityId = 24444892080L, startTimeUtc = "2026-09-21T14:34:01Z", typeKey = "strength_training",
+            durationSeconds = 2820.37890625, distanceMeters = 0.0, totalSets = 14, activeSets = 14,
+            totalReps = 82, exerciseSets
+        } }
+    };
+
+    // The seam derives its batches from the fixture corpus: grams become kilograms and
+    // Garmin's -1 weight becomes a stated bodyweight load at this mapping, as in the sync.
+    private static ExerciseSetInput[] FixtureExerciseSets(long activityId)
+    {
+        using var fixture = JsonDocument.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, $"../../../../../fixtures/garmin/activity-service--exerciseSets__activity-{activityId}.json"))));
+        return fixture.RootElement.GetProperty("exerciseSets").EnumerateArray().Select(entry =>
+        {
+            var weight = entry.GetProperty("weight").ValueKind == JsonValueKind.Null
+                ? (decimal?)null : entry.GetProperty("weight").GetDecimal();
+            var bodyweight = weight == -1m;
+            var candidates = entry.GetProperty("exercises");
+            var top = candidates.GetArrayLength() == 0 ? (JsonElement?)null : candidates[0];
+            return new ExerciseSetInput(
+                entry.GetProperty("setType").GetString()!,
+                entry.GetProperty("repetitionCount").ValueKind == JsonValueKind.Null
+                    ? null : entry.GetProperty("repetitionCount").GetInt32(),
+                bodyweight || weight is null ? null : weight / 1000m,
+                bodyweight,
+                top is null ? null : new
+                {
+                    category = top.Value.GetProperty("category").GetString(),
+                    name = top.Value.GetProperty("name").ValueKind == JsonValueKind.Null
+                        ? null : top.Value.GetProperty("name").GetString()
+                },
+                candidates.GetArrayLength(),
+                top?.GetProperty("probability").GetDouble(),
+                entry.GetProperty("startTime").ValueKind == JsonValueKind.Null
+                    ? null : entry.GetProperty("startTime").GetString() + "Z",
+                entry.GetProperty("duration").ValueKind == JsonValueKind.Null
+                    ? null : entry.GetProperty("duration").GetDouble(),
+                entry.GetProperty("wktStepIndex").ValueKind == JsonValueKind.Null
+                    ? null : entry.GetProperty("wktStepIndex").GetInt32());
+        }).ToArray();
+    }
+
     private static JsonElement Collection(JsonElement response, string name) =>
         Assert.Single(response.GetProperty("collections").EnumerateArray(),
             item => item.GetProperty("name").GetString() == name);

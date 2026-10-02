@@ -22,7 +22,8 @@ public sealed record ActivityInput(
     int? TotalSets = null,
     int? ActiveSets = null,
     int? TotalReps = null,
-    string? ActivityName = null)
+    string? ActivityName = null,
+    IReadOnlyList<ExerciseSetInput?>? ExerciseSets = null)
 {
     public Activity ToActivity()
     {
