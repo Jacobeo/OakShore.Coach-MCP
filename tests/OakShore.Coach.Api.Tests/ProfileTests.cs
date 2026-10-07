@@ -1021,6 +1021,201 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
     }
 
+    [Fact]
+    public async Task Cardio_time_in_zones_persists_against_the_default_sport_profile()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        Assert.Equal(0, Collection(before, "SportProfile").GetProperty("count").GetInt32());
+        Assert.Equal(JsonValueKind.Null, Collection(before, "SportProfile").GetProperty("lastSyncedAt").ValueKind);
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("latestActivityCardioDetail").ValueKind);
+
+        var batch = CardioBatch(FixtureSportProfiles(), FixtureCardioActivity(24174672446), FixtureCardioActivity(24399329227));
+        using var posted = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var saved = await CallTool(client, "get_sync_status");
+        Assert.Equal(1, Collection(saved, "SportProfile").GetProperty("count").GetInt32());
+        Assert.Equal(clock.GetUtcNow(), Collection(saved, "SportProfile").GetProperty("lastSyncedAt").GetDateTimeOffset());
+        Assert.Equal(24399329227L, saved.GetProperty("latestActivity").GetProperty("activityId").GetInt64());
+        var detail = saved.GetProperty("latestActivityCardioDetail");
+        var profile = detail.GetProperty("sportProfile");
+        Assert.Equal("DEFAULT", profile.GetProperty("name").GetString());
+        Assert.Equal("HR_RESERVE", profile.GetProperty("trainingMethod").GetString());
+        Assert.Equal((51, 180), (profile.GetProperty("restingHeartRateBpm").GetInt32(), profile.GetProperty("maxHeartRateBpm").GetInt32()));
+        Assert.Equal(JsonValueKind.Null, profile.GetProperty("lactateThresholdHeartRateBpm").ValueKind);
+        Assert.Equal(new[] { (1, 116), (2, 128), (3, 141), (4, 154), (5, 167) }, profile.GetProperty("heartRateZones")
+            .EnumerateArray().Select(zone => (zone.GetProperty("zoneNumber").GetInt32(), zone.GetProperty("lowBoundaryBpm").GetInt32())));
+        Assert.Equal(clock.GetUtcNow(), detail.GetProperty("sportProfileObservedAt").GetDateTimeOffset());
+        Assert.Equal(new[] { (1, 591.39), (2, 378.007), (3, 759.999), (4, 306.997), (5, 178.384) }, detail.GetProperty("timeInHeartRateZones")
+            .EnumerateArray().Select(zone => (zone.GetProperty("zoneNumber").GetInt32(), zone.GetProperty("seconds").GetDouble())));
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var replayed = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, replayed.StatusCode);
+        Assert.Equal(saved.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    [Fact]
+    public async Task A_later_boundary_change_does_not_alter_a_stored_activity()
+    {
+        var observed = new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero);
+        var clock = new MutableClock(observed);
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var run = FixtureCardioActivity(24399329227);
+        using var first = await client.PostAsJsonAsync("/ingest", CardioBatch(FixtureSportProfiles(), run));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        var changedAt = observed.AddDays(1);
+        clock.Set(changedAt);
+        var changed = new[] { FixtureSportProfiles()[0] with { HeartRateZones = [new(1, 120), new(2, 132), new(3, 145), new(4, 158), new(5, 170)] } };
+        using var resynced = await client.PostAsJsonAsync("/ingest", CardioBatch(changed, run));
+        Assert.Equal(HttpStatusCode.OK, resynced.StatusCode);
+        var kept = await CallTool(client, "get_sync_status");
+        var keptDetail = kept.GetProperty("latestActivityCardioDetail");
+        Assert.Equal(116, keptDetail.GetProperty("sportProfile").GetProperty("heartRateZones")[0].GetProperty("lowBoundaryBpm").GetInt32());
+        Assert.Equal(observed, keptDetail.GetProperty("sportProfileObservedAt").GetDateTimeOffset());
+        Assert.Equal(1, Collection(kept, "SportProfile").GetProperty("count").GetInt32());
+        Assert.Equal(changedAt, Collection(kept, "SportProfile").GetProperty("lastSyncedAt").GetDateTimeOffset());
+
+        clock.Set(changedAt.AddDays(1));
+        var laterRun = run with { ActivityId = 24499329227, StartTimeUtc = "2026-09-24T17:19:25Z" };
+        using var later = await client.PostAsJsonAsync("/ingest", CardioBatch(changed, laterRun));
+        Assert.Equal(HttpStatusCode.OK, later.StatusCode);
+        var laterDetail = (await CallTool(client, "get_sync_status")).GetProperty("latestActivityCardioDetail");
+        Assert.Equal(120, laterDetail.GetProperty("sportProfile").GetProperty("heartRateZones")[0].GetProperty("lowBoundaryBpm").GetInt32());
+        Assert.Equal(changedAt, laterDetail.GetProperty("sportProfileObservedAt").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task Clearing_time_in_zones_keeps_the_pin_and_a_changed_type_is_measured_against_its_own_sport_profile()
+    {
+        var observed = new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero);
+        var clock = new MutableClock(observed);
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var cycling = new SportProfileInput("CYCLING", "HR_RESERVE", 51, 175, null, [new(1, 110), new(2, 124)]);
+        var run = FixtureCardioActivity(24399329227);
+        using var first = await client.PostAsJsonAsync("/ingest", CardioBatch([FixtureSportProfiles()[0], cycling], run));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        clock.Set(observed.AddDays(1));
+        using var cleared = await client.PostAsJsonAsync("/ingest", CardioBatch([FixtureSportProfiles()[0], cycling],
+            run with { TimeInHeartRateZones = [] }));
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await CallTool(client, "get_sync_status")).GetProperty("latestActivityCardioDetail").ValueKind);
+
+        clock.Set(observed.AddDays(2));
+        var changed = FixtureSportProfiles()[0] with { HeartRateZones = [new(1, 120), new(2, 132), new(3, 145), new(4, 158), new(5, 170)] };
+        using var resent = await client.PostAsJsonAsync("/ingest", CardioBatch([changed, cycling], run));
+        Assert.Equal(HttpStatusCode.OK, resent.StatusCode);
+        var kept = (await CallTool(client, "get_sync_status")).GetProperty("latestActivityCardioDetail");
+        Assert.Equal(116, kept.GetProperty("sportProfile").GetProperty("heartRateZones")[0].GetProperty("lowBoundaryBpm").GetInt32());
+
+        using var retyped = await client.PostAsJsonAsync("/ingest", CardioBatch([changed, cycling], run with { TypeKey = "indoor_cycling" }));
+        Assert.Equal(HttpStatusCode.OK, retyped.StatusCode);
+        var ride = (await CallTool(client, "get_sync_status")).GetProperty("latestActivityCardioDetail");
+        Assert.Equal("CYCLING", ride.GetProperty("sportProfile").GetProperty("name").GetString());
+    }
+
+    [Theory]
+    [InlineData("running", "RUNNING")]
+    [InlineData("trail_running", "RUNNING")]
+    [InlineData("indoor_cycling", "CYCLING")]
+    [InlineData("road_biking", "CYCLING")]
+    [InlineData("lap_swimming", "DEFAULT")]
+    [InlineData("underwater_hockey", "DEFAULT")]
+    public async Task An_activity_resolves_to_its_sport_override_and_otherwise_to_the_default(string typeKey, string expected)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var profiles = new[]
+        {
+            FixtureSportProfiles()[0],
+            new SportProfileInput("RUNNING", "HR_RESERVE", 51, 185, null, [new(1, 120), new(2, 133)]),
+            new SportProfileInput("CYCLING", "HR_RESERVE", 51, 175, null, [new(1, 110), new(2, 124)])
+        };
+        using var posted = await client.PostAsJsonAsync("/ingest",
+            CardioBatch(profiles, FixtureCardioActivity(24399329227) with { TypeKey = typeKey }));
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var detail = (await CallTool(client, "get_sync_status")).GetProperty("latestActivityCardioDetail");
+        Assert.Equal(expected, detail.GetProperty("sportProfile").GetProperty("name").GetString());
+    }
+
+    [Theory]
+    [InlineData("", "[{\"zoneNumber\":1,\"seconds\":60}]")]
+    [InlineData("[{\"name\":\"RUNNING\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":120}]}]", "[{\"zoneNumber\":1,\"seconds\":60}]")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":120}]},{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":120}]}]", "null")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":130},{\"zoneNumber\":2,\"lowBoundaryBpm\":120}]}]", "null")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[]}]", "null")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":0,\"lowBoundaryBpm\":120}]}]", "null")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":120}]}]", "[{\"zoneNumber\":1,\"seconds\":-1}]")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":120}]}]", "[{\"zoneNumber\":1,\"seconds\":60},{\"zoneNumber\":1,\"seconds\":60}]")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":120}]}]", "[{\"zoneNumber\":1}]")]
+    [InlineData("[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":120}]}]", "[null]")]
+    public async Task Invalid_time_in_zones_or_sport_profiles_reject_the_whole_batch(string sportProfiles, string timeInZones)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        var batch = "{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-17\",\"toDate\":\"2026-09-17\"},"
+            + (sportProfiles == "" ? "" : "\"sportProfiles\":" + sportProfiles + ",")
+            + "\"activities\":[{\"activityId\":993,\"startTimeUtc\":\"2026-09-17T17:19:25Z\","
+            + "\"typeKey\":\"running\",\"durationSeconds\":2400.0,\"timeInHeartRateZones\":" + timeInZones + "}]}";
+        using var content = new StringContent(batch, System.Text.Encoding.UTF8, "application/json");
+        using var rejected = await client.PostAsync("/ingest", content);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    private sealed record HeartRateZoneInput(int ZoneNumber, int LowBoundaryBpm);
+    private sealed record SportProfileInput(string Name, string? TrainingMethod, int? RestingHeartRateBpm,
+        int? MaxHeartRateBpm, int? LactateThresholdHeartRateBpm, IReadOnlyList<HeartRateZoneInput> HeartRateZones);
+    private sealed record TimeInHeartRateZoneInput(int ZoneNumber, double Seconds);
+    private sealed record CardioActivityInput(long ActivityId, string StartTimeUtc, string TypeKey, double DurationSeconds,
+        IReadOnlyList<TimeInHeartRateZoneInput> TimeInHeartRateZones);
+
+    private static object CardioBatch(IReadOnlyList<SportProfileInput> sportProfiles, params CardioActivityInput[] activities) => new
+    {
+        version = 2,
+        activityRange = new { fromDate = "2026-08-30", toDate = "2026-09-24" },
+        sportProfiles,
+        activities
+    };
+
+    // Mapped as the sync maps them: numbered fields read as found, Garmin's names for the bpm figures made explicit.
+    private static SportProfileInput[] FixtureSportProfiles()
+    {
+        using var fixture = JsonDocument.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../../fixtures/garmin/biometric-service--heartRateZones.json"))));
+        int? Bpm(JsonElement entry, string name) =>
+            entry.GetProperty(name).ValueKind == JsonValueKind.Null ? null : entry.GetProperty(name).GetInt32();
+        return fixture.RootElement.EnumerateArray().Select(entry => new SportProfileInput(
+            entry.GetProperty("sport").GetString()!, entry.GetProperty("trainingMethod").GetString(),
+            Bpm(entry, "restingHeartRateUsed"), Bpm(entry, "maxHeartRateUsed"), Bpm(entry, "lactateThresholdHeartRateUsed"),
+            entry.EnumerateObject().Where(field => field.Name.StartsWith("zone") && field.Name.EndsWith("Floor"))
+                .Select(field => new HeartRateZoneInput(int.Parse(field.Name[4..^5]), field.Value.GetInt32()))
+                .OrderBy(zone => zone.ZoneNumber).ToArray())).ToArray();
+    }
+
+    private static CardioActivityInput FixtureCardioActivity(long activityId)
+    {
+        using var fixture = JsonDocument.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../../fixtures/garmin/activitylist-service--search-activities__page-00.json"))));
+        var entry = fixture.RootElement.EnumerateArray().Single(item => item.GetProperty("activityId").GetInt64() == activityId);
+        return new CardioActivityInput(activityId,
+            entry.GetProperty("startTimeGMT").GetString()!.Replace(' ', 'T') + "Z",
+            entry.GetProperty("activityType").GetProperty("typeKey").GetString()!,
+            entry.GetProperty("duration").GetDouble(),
+            entry.EnumerateObject().Where(field => field.Name.StartsWith("hrTimeInZone_") && field.Value.ValueKind != JsonValueKind.Null)
+                .Select(field => new TimeInHeartRateZoneInput(int.Parse(field.Name["hrTimeInZone_".Length..]), field.Value.GetDouble()))
+                .OrderBy(zone => zone.ZoneNumber).ToArray());
+    }
+
     private sealed record ExerciseSetInput(string SetType, int? Repetitions = null, decimal? WeightKg = null,
         bool? Bodyweight = null, object? Exercise = null, int? CandidateCount = null,
         double? TopProbability = null, string? StartTimeUtc = null, double? DurationSeconds = null,

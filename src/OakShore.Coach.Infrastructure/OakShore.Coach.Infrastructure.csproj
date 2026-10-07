@@ -9,5 +9,6 @@
     <EmbeddedResource Include="Migrations/0005_Activities.sql" />
     <EmbeddedResource Include="Migrations/0006_ActivityName.sql" />
     <EmbeddedResource Include="Migrations/0007_ExerciseSets.sql" />
+    <EmbeddedResource Include="Migrations/0008_HeartRateZones.sql" />
   </ItemGroup>
 </Project>

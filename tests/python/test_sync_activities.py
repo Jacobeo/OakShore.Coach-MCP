@@ -20,6 +20,8 @@ FIXTURE = (FIXTURES / "activitylist-service--search-activities__page-00.json").r
 LIST_ENTRIES = json.loads(FIXTURE)
 STRENGTH_IDS = [entry["activityId"] for entry in LIST_ENTRIES
                 if entry["activityType"]["typeKey"] == "strength_training"]
+ZONES = (FIXTURES / "biometric-service--heartRateZones.json").read_bytes()
+ZONES_URL = "https://garmin.example/biometric-service/heartRateZones"
 START = date(2026, 8, 5)
 END = date(2026, 9, 22)
 
@@ -29,8 +31,8 @@ def exercise_set_fixture(activity_id):
 
 
 def corpus_responses():
-    return [Response(200, FIXTURE)] + [Response(200, exercise_set_fixture(activity_id))
-                                       for activity_id in STRENGTH_IDS]
+    return [Response(200, FIXTURE), Response(200, ZONES)] + [
+        Response(200, exercise_set_fixture(activity_id)) for activity_id in STRENGTH_IDS]
 
 
 class Response:
@@ -66,8 +68,8 @@ class ActivitySyncTests(unittest.TestCase):
         count = run(START, END, client(session, sleeps), posted.append)
 
         self.assertEqual(15, count)
-        self.assertEqual([4.0] * 8, sleeps)
-        self.assertEqual(8, len(session.calls))
+        self.assertEqual([4.0] * 9, sleeps)
+        self.assertEqual(9, len(session.calls))
         method, url, kwargs = session.calls[0]
         self.assertEqual("GET", method)
         self.assertEqual("https://garmin.example/activitylist-service/activities/search/activities", url)
@@ -76,7 +78,7 @@ class ActivitySyncTests(unittest.TestCase):
         self.assertEqual(
             [f"https://garmin.example/activity-service/activity/{activity_id}/exerciseSets"
              for activity_id in STRENGTH_IDS],
-            [url for _, url, _ in session.calls[1:]])
+            [url for _, url, _ in session.calls[2:]])
         self.assertEqual(1, len(posted))
         batch = posted[0]
         self.assertEqual(2, batch["version"])
@@ -157,6 +159,74 @@ class ActivitySyncTests(unittest.TestCase):
         self.assertTrue(all(s["bodyweight"] and s["weightKg"] is None and s["startTimeUtc"] is None
                             for s in rest))
 
+    def test_cardio_time_in_zones_comes_off_the_list_against_boundaries_fetched_once(self):
+        session = Session(*corpus_responses())
+        posted = []
+
+        run(START, END, client(session, []), posted.append)
+
+        self.assertEqual([ZONES_URL], [url for _, url, _ in session.calls if "heartRateZones" in url])
+        self.assertFalse(any("hrTimeInZones" in url for _, url, _ in session.calls))
+        batch = posted[0]
+        self.assertEqual([{
+            "name": "DEFAULT",
+            "trainingMethod": "HR_RESERVE",
+            "restingHeartRateBpm": 51,
+            "maxHeartRateBpm": 180,
+            "lactateThresholdHeartRateBpm": None,
+            "heartRateZones": [{"zoneNumber": 1, "lowBoundaryBpm": 116},
+                               {"zoneNumber": 2, "lowBoundaryBpm": 128},
+                               {"zoneNumber": 3, "lowBoundaryBpm": 141},
+                               {"zoneNumber": 4, "lowBoundaryBpm": 154},
+                               {"zoneNumber": 5, "lowBoundaryBpm": 167}],
+        }], batch["sportProfiles"])
+        for activity in batch["activities"]:
+            if activity["activityId"] in STRENGTH_IDS:
+                self.assertNotIn("timeInHeartRateZones", activity)
+                continue
+            # The per-Activity endpoint's captured seconds equal the list entry's.
+            captured = json.loads((FIXTURES / "activity-service--hrTimeInZones__activity-"
+                                   f"{activity['activityId']}.json").read_bytes())
+            self.assertEqual([{"zoneNumber": zone["zoneNumber"], "seconds": zone["secsInZone"]}
+                              for zone in sorted(captured, key=lambda zone: zone["zoneNumber"])],
+                             activity["timeInHeartRateZones"])
+
+    def test_zone_fields_are_read_as_found_and_an_absent_zone_is_unknown_not_zero(self):
+        entries = [
+            {"activityId": 1, "activityName": None, "startTimeGMT": "2026-09-21 10:00:00",
+             "activityType": {"typeKey": "running"}, "duration": 600.0,
+             "hrTimeInZone_1": None, "hrTimeInZone_2": 120.5, "hrTimeInZone_6": 30.0},
+            {"activityId": 2, "activityName": None, "startTimeGMT": "2026-09-21 12:00:00",
+             "activityType": {"typeKey": "cycling"}, "duration": 600.0},
+        ]
+        zones = [{"sport": "DEFAULT", "trainingMethod": "PERCENT_MAX_HR", "zone1Floor": 100,
+                  "zone2Floor": None, "zone3Floor": 140, "zone6Floor": 190},
+                 {"sport": "CYCLING", "zone1Floor": 110}]
+        session = Session(Response(200, json.dumps(entries).encode("utf-8")),
+                          Response(200, json.dumps(zones).encode("utf-8")))
+        posted = []
+
+        run(START, END, client(session, []), posted.append)
+
+        first, second = posted[0]["activities"]
+        self.assertEqual([{"zoneNumber": 2, "seconds": 120.5}, {"zoneNumber": 6, "seconds": 30.0}],
+                         first["timeInHeartRateZones"])
+        self.assertNotIn("timeInHeartRateZones", second)
+        default, cycling = posted[0]["sportProfiles"]
+        self.assertEqual([{"zoneNumber": 1, "lowBoundaryBpm": 100}, {"zoneNumber": 3, "lowBoundaryBpm": 140},
+                          {"zoneNumber": 6, "lowBoundaryBpm": 190}], default["heartRateZones"])
+        self.assertEqual(("CYCLING", None), (cycling["name"], cycling["restingHeartRateBpm"]))
+
+    def test_a_run_without_time_in_zones_makes_no_boundary_call(self):
+        session = Session(Response(200, json.dumps([LIST_ENTRIES[0]]).encode("utf-8")),
+                          Response(200, exercise_set_fixture(24444892080)))
+        posted = []
+
+        run(START, END, client(session, []), posted.append)
+
+        self.assertEqual(2, len(session.calls))
+        self.assertNotIn("sportProfiles", posted[0])
+
     def test_an_unanticipated_sport_is_cardio_so_it_is_posted_but_never_enriched(self):
         entries = [{"activityId": 99, "activityName": None, "startTimeGMT": "2026-09-21 10:00:00",
                     "activityType": {"typeKey": "underwater_hockey"}, "duration": 600.0}]
@@ -192,6 +262,27 @@ class ActivitySyncTests(unittest.TestCase):
             session = Session(strength_list, Response(200, b"[]"))
             with self.assertRaisesRegex(RuntimeError, "exercise sets"):
                 run(START, END, client(session, []), lambda batch: None)
+        cardio_list = Response(200, json.dumps([LIST_ENTRIES[1]]).encode("utf-8"))
+        with self.subTest("429 on the boundaries aborts without posting"):
+            session = Session(cardio_list, Response(429))
+            posted = []
+            with self.assertRaises(GarminAbort):
+                run(START, END, client(session, []), posted.append)
+            self.assertEqual([], posted)
+        for zones in ([], [{"sport": "RUNNING", "zone1Floor": 120}],
+                      [{"sport": "DEFAULT", "zone1Floor": None}], [{"zone1Floor": 120}]):
+            with self.subTest("boundaries without a usable DEFAULT stop the run", zones=zones):
+                session = Session(Response(200, json.dumps([LIST_ENTRIES[1]]).encode("utf-8")),
+                                  Response(200, json.dumps(zones).encode("utf-8")))
+                posted = []
+                with self.assertRaisesRegex(RuntimeError, "DEFAULT"):
+                    run(START, END, client(session, []), posted.append)
+                self.assertEqual([], posted)
+        with self.subTest("boundaries in an unexpected shape stop the run"):
+            session = Session(Response(200, json.dumps([LIST_ENTRIES[1]]).encode("utf-8")),
+                              Response(200, b"{}"))
+            with self.assertRaisesRegex(RuntimeError, "heart rate zones"):
+                run(START, END, client(session, []), lambda batch: None)
 
     def test_empty_range_still_posts_a_batch(self):
         posted = []
@@ -216,8 +307,8 @@ class ActivitySyncTests(unittest.TestCase):
                 sleeps = []
                 posted = []
                 run(START, END, client(session, sleeps), posted.append)
-                self.assertEqual([4.0, 1] + [4.0] * 8, sleeps)
-                self.assertEqual(9, len(session.calls))
+                self.assertEqual([4.0, 1] + [4.0] * 9, sleeps)
+                self.assertEqual(10, len(session.calls))
                 self.assertEqual(15, len(posted[0]["activities"]))
 
     def test_saved_token_is_loaded_without_login_and_refresh_is_paced(self):

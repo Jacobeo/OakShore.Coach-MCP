@@ -11,6 +11,9 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
     internal DbSet<ConstraintRow> Constraints => Set<ConstraintRow>();
     internal DbSet<ActivityRow> Activities => Set<ActivityRow>();
     internal DbSet<ExerciseSetRow> ExerciseSets => Set<ExerciseSetRow>();
+    internal DbSet<SportProfileRow> SportProfiles => Set<SportProfileRow>();
+    internal DbSet<HeartRateZoneRow> HeartRateZones => Set<HeartRateZoneRow>();
+    internal DbSet<TimeInHeartRateZoneRow> TimeInHeartRateZones => Set<TimeInHeartRateZoneRow>();
     internal DbSet<IngestBatchRow> IngestBatches => Set<IngestBatchRow>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options) =>
@@ -41,6 +44,9 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         activity.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
         activity.Property(row => row.TypeKey).HasMaxLength(100);
         activity.Property(row => row.ActivityName).HasMaxLength(500);
+        activity.Property(row => row.SportProfileName).HasMaxLength(50).UseCollation("Latin1_General_100_BIN2");
+        activity.HasOne<SportProfileRow>().WithMany()
+            .HasForeignKey(row => new { row.UserId, row.SportProfileName, row.SportProfileRevision });
 
         var exerciseSet = modelBuilder.Entity<ExerciseSetRow>();
         exerciseSet.ToTable("ExerciseSets");
@@ -51,6 +57,27 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         exerciseSet.Property(row => row.ExerciseCategory).HasMaxLength(100);
         exerciseSet.Property(row => row.ExerciseName).HasMaxLength(100);
         exerciseSet.HasOne<ActivityRow>().WithMany().HasForeignKey(row => new { row.UserId, row.ActivityId });
+
+        var sportProfile = modelBuilder.Entity<SportProfileRow>();
+        sportProfile.ToTable("SportProfiles");
+        sportProfile.HasKey(row => new { row.UserId, row.Name, row.Revision });
+        sportProfile.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        sportProfile.Property(row => row.Name).HasMaxLength(50).UseCollation("Latin1_General_100_BIN2");
+        sportProfile.Property(row => row.TrainingMethod).HasMaxLength(50);
+
+        var heartRateZone = modelBuilder.Entity<HeartRateZoneRow>();
+        heartRateZone.ToTable("HeartRateZones");
+        heartRateZone.HasKey(row => new { row.UserId, row.SportProfileName, row.SportProfileRevision, row.ZoneNumber });
+        heartRateZone.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        heartRateZone.Property(row => row.SportProfileName).HasMaxLength(50).UseCollation("Latin1_General_100_BIN2");
+        heartRateZone.HasOne<SportProfileRow>().WithMany()
+            .HasForeignKey(row => new { row.UserId, row.SportProfileName, row.SportProfileRevision });
+
+        var timeInZone = modelBuilder.Entity<TimeInHeartRateZoneRow>();
+        timeInZone.ToTable("TimeInHeartRateZones");
+        timeInZone.HasKey(row => new { row.UserId, row.ActivityId, row.ZoneNumber });
+        timeInZone.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        timeInZone.HasOne<ActivityRow>().WithMany().HasForeignKey(row => new { row.UserId, row.ActivityId });
 
         var batch = modelBuilder.Entity<IngestBatchRow>();
         batch.ToTable("IngestBatches");
@@ -71,7 +98,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
             "OakShore.Coach.Infrastructure.Migrations.0004_TemporaryConstraints.sql",
             "OakShore.Coach.Infrastructure.Migrations.0005_Activities.sql",
             "OakShore.Coach.Infrastructure.Migrations.0006_ActivityName.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0007_ExerciseSets.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0007_ExerciseSets.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0008_HeartRateZones.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -117,6 +145,8 @@ internal sealed class ActivityRow
     public int? ActiveSets { get; set; }
     public int? TotalReps { get; set; }
     public string? ActivityName { get; set; }
+    public string? SportProfileName { get; set; }
+    public int? SportProfileRevision { get; set; }
 }
 
 internal sealed class ExerciseSetRow
@@ -135,6 +165,40 @@ internal sealed class ExerciseSetRow
     public DateTimeOffset? StartTimeUtc { get; set; }
     public double? DurationSeconds { get; set; }
     public int? WktStepIndex { get; set; }
+}
+
+internal sealed class SportProfileRow
+{
+    public string UserId { get; set; } = "";
+    public string Name { get; set; } = "";
+    public int Revision { get; set; }
+    public string? TrainingMethod { get; set; }
+    public int? RestingHeartRateBpm { get; set; }
+    public int? MaxHeartRateBpm { get; set; }
+    public int? LactateThresholdHeartRateBpm { get; set; }
+    public DateTimeOffset FirstObservedAt { get; set; }
+    public DateTimeOffset LastObservedAt { get; set; }
+
+    public SportProfile ToSportProfile(IEnumerable<HeartRateZoneRow> heartRateZones) => new(
+        Name, TrainingMethod, RestingHeartRateBpm, MaxHeartRateBpm, LactateThresholdHeartRateBpm,
+        heartRateZones.OrderBy(row => row.ZoneNumber).Select(row => new HeartRateZone(row.ZoneNumber, row.LowBoundaryBpm)).ToArray());
+}
+
+internal sealed class HeartRateZoneRow
+{
+    public string UserId { get; set; } = "";
+    public string SportProfileName { get; set; } = "";
+    public int SportProfileRevision { get; set; }
+    public int ZoneNumber { get; set; }
+    public int LowBoundaryBpm { get; set; }
+}
+
+internal sealed class TimeInHeartRateZoneRow
+{
+    public string UserId { get; set; } = "";
+    public long ActivityId { get; set; }
+    public int ZoneNumber { get; set; }
+    public double Seconds { get; set; }
 }
 
 internal sealed class IngestBatchRow

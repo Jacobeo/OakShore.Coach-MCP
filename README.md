@@ -364,6 +364,43 @@ ExerciseSet contract rules:
   `volumeKg`, and `averageRepetitions`, the figures excluding
   CancelledExerciseSets and counting no stated kilograms for bodyweight sets.
 
+A Cardio Activity may carry its time in each HeartRateZone, and the batch then
+carries the SportProfiles those zones are measured against:
+
+```json
+{"version":2,"activityRange":{"fromDate":"2026-09-17","toDate":"2026-09-17"},"sportProfiles":[{"name":"DEFAULT","trainingMethod":"HR_RESERVE","restingHeartRateBpm":51,"maxHeartRateBpm":180,"lactateThresholdHeartRateBpm":null,"heartRateZones":[{"zoneNumber":1,"lowBoundaryBpm":116},{"zoneNumber":2,"lowBoundaryBpm":128}]}],"activities":[{"activityId":24399329227,"startTimeUtc":"2026-09-17T17:19:25Z","typeKey":"running","durationSeconds":2300.68994140625,"timeInHeartRateZones":[{"zoneNumber":1,"seconds":591.39},{"zoneNumber":2,"seconds":378.007}]}]}
+```
+
+Time in zones contract rules:
+
+- `timeInHeartRateZones` holds at most 20 entries, each a distinct `zoneNumber`
+  (1–20) with finite `seconds` from 0 to 1000000000. An absent zone is unknown,
+  never zero seconds, and the seconds need not sum to the Activity's duration.
+- An Activity carrying time in zones requires `sportProfiles` in the same batch.
+  It holds at most 20 profiles with distinct `name`s (1–50 characters), and
+  must include `DEFAULT`. Each has 1–20 `heartRateZones` with distinct
+  `zoneNumber`s whose `lowBoundaryBpm` (1–300) rises with the zone number.
+  `trainingMethod` and the resting, maximum and lactate-threshold heart rates
+  (1–300 bpm) are optional.
+- An Activity is measured against the override for its sport (`RUNNING`,
+  `CYCLING` or `SWIMMING`, matched from its `typeKey`) when the batch carries
+  one, and against `DEFAULT` otherwise.
+- Boundaries that differ from a profile's latest stored ones are stored
+  alongside them as a new revision, observed at the batch's acceptance time.
+  An Activity keeps the revision it was first stored with time in zones
+  against: re-sending it after the boundaries change updates its seconds but
+  not its boundaries. Only a changed `typeKey` moves it to the current revision
+  of its new sport's SportProfile.
+- Omitting `timeInHeartRateZones` preserves the stored seconds; an empty array
+  clears them but keeps the revision for when seconds are sent again.
+- Time in zones is accepted for any `typeKey`; the sync sends it for Cardio
+  Activities only.
+- `get_sync_status` reports a `SportProfile` collection, its time being the last
+  batch that delivered boundaries, and, when the most recent Activity has time in
+  zones, `latestActivityCardioDetail`: its `sportProfile` with boundaries,
+  `sportProfileObservedAt`, and `timeInHeartRateZones`. The seconds are Garmin's,
+  measured against the boundaries observed on that date.
+
 Run the manual sync on the home machine with Python installed and the Garmin
 token file already saved at `~/.garminconnect/garmin_tokens.json`. An explicit
 `--token-dir` overrides `$GARMINTOKENS` and that default. Set an access token
@@ -378,8 +415,10 @@ python src/sync/sync_activities.py --from-date 2026-09-21 --to-date 2026-09-22
 The sync lists only the requested dates, enriches each strength Activity with
 one further call for its exercise sets, waits at least three seconds between
 Garmin requests, and posts one version 2 batch with weights converted to
-kilograms. Cardio Activities are not enriched, and an unanticipated sport is
-treated as Cardio rather than dropped. A 401, 403, or 429
+kilograms. Cardio Activities, including any unanticipated sport, cost no further
+call: their time in zones is read off the Activity list, and the zone
+boundaries are fetched at most once per run, only when an Activity carries
+time in zones. A 401, 403, or 429
 stops it without retrying; network errors and 5xx responses retry up to three
 times with backoff. A missing or expired saved Garmin token requires the
 interactive login flow from the strength-data spike before this command runs.

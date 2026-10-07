@@ -2,7 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -44,11 +44,15 @@ def client(session):
                                 lambda: {"Authorization": "Bearer fixture"}, sleep=lambda _: None)
 
 
-def day_results(day):
-    """The list response for one day, followed by one enrichment response per strength Activity."""
+def day_results(day, zones=False):
+    """The list response for one day, the zone boundaries when this is the run's first day
+    to need them, then one enrichment response per strength Activity."""
     entries = [entry for entry in FIXTURE_ENTRIES
                if entry["startTimeGMT"].startswith(day.isoformat())]
     results = [Response(200, json.dumps(entries).encode("utf-8"))]
+    if zones:
+        results.append(Response(200, (ROOT / "fixtures" / "garmin" /
+                                      "biometric-service--heartRateZones.json").read_bytes()))
     for entry in entries:
         if entry["activityType"]["typeKey"] == "strength_training":
             results.append(Response(200, (ROOT / "fixtures" / "garmin" /
@@ -80,6 +84,7 @@ class WatermarkRunTests(unittest.TestCase):
         posted = []
         summary = run_watermark(today, earliest, max_days,
                                 watermark or Watermark(self.path), client(session), posted.append)
+        self.zone_calls = sum("/biometric-service/heartRateZones" in url for _, url, _ in session.calls)
         return summary, requested_days(session), posted
 
     def test_first_run_syncs_from_the_earliest_date_most_recent_first(self):
@@ -87,7 +92,8 @@ class WatermarkRunTests(unittest.TestCase):
                 date(2026, 9, 18), date(2026, 9, 17)]
 
         summary, requested, posted = self.sync(TODAY, date(2026, 9, 17), 30,
-                                               *[result for day in days for result in day_results(day)])
+                                               *[result for day in days
+                                                 for result in day_results(day, zones=day == days[-1])])
 
         self.assertEqual((5, 2, 0), summary)
         self.assertEqual([day.isoformat() for day in days], requested)
@@ -98,6 +104,25 @@ class WatermarkRunTests(unittest.TestCase):
         self.assertEqual([24444892080], [a["activityId"] for a in posted[0]["activities"]])
         self.assertEqual([], posted[1]["activities"])
         self.assertEqual([24399329227], [a["activityId"] for a in posted[4]["activities"]])
+
+    def test_boundaries_are_fetched_once_per_run_however_many_cardio_activities_it_meets(self):
+        today = date(2026, 9, 17)
+        days = [today - timedelta(days=offset) for offset in range(16)]
+        cardio_days = {date(2026, 9, 17), date(2026, 9, 10), date(2026, 9, 4), date(2026, 9, 2)}
+
+        summary, _, posted = self.sync(today, date(2026, 9, 2), 30,
+                                       *[result for day in days
+                                         for result in day_results(day, zones=day == today)])
+
+        self.assertEqual((16, 5, 0), summary)
+        self.assertEqual(1, self.zone_calls)
+        for batch in posted:
+            day = date.fromisoformat(batch["activityRange"]["fromDate"])
+            cardio = [a for a in batch["activities"] if a["typeKey"] == "running"]
+            self.assertEqual(day in cardio_days, bool(cardio))
+            for activity in cardio:
+                self.assertEqual(5, len(activity["timeInHeartRateZones"]))
+                self.assertEqual(["DEFAULT"], [profile["name"] for profile in batch["sportProfiles"]])
 
     def test_next_run_continues_from_the_last_completed_date_and_resyncs_today(self):
         earliest = date(2026, 9, 19)

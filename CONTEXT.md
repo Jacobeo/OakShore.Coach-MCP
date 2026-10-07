@@ -69,14 +69,23 @@ _Avoid_: endurance, aerobic, conditioning
 **HeartRateZone**:
 One band of the athlete's heart-rate range, identified by its number and its
 lower boundary in beats per minute. A cardio Activity records the time spent in
-each, and carries the boundaries that were in force when it happened.
+each, measured against the SportProfile revision it was first stored against.
 _Avoid_: zone, HR zone, intensity zone, band
 
 **SportProfile**:
 The sport a set of HeartRateZone boundaries is configured for. An athlete has a
 default profile and may override it per sport, so time in zones is only
-comparable across sports once the profile behind each Activity is known.
+comparable across sports once the profile behind each Activity is known. Its
+boundaries are kept as observed on a date: a change adds a revision rather than
+replacing one, and a Cardio Activity keeps the revision it was first stored
+against.
 _Avoid_: sport, sport type, zone set, profile
+
+**CardioDetail**:
+One Cardio Activity's time in each HeartRateZone, together with the SportProfile
+revision it is measured against and the date those boundaries were observed —
+which is not a claim that they were the boundaries in force when it happened.
+_Avoid_: zone summary, intensity breakdown, cardio summary
 
 ### Prescribed training
 

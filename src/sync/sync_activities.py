@@ -1,13 +1,15 @@
 """Sync Activities: a run without dates continues from the Watermark, most recent
 day first, bounded per run; an explicit inclusive date range syncs just that range.
 Each strength Activity costs one further call for its ExerciseSets, posted with
-weight in kilograms; Cardio Activities are never enriched."""
+weight in kilograms. Cardio Activities carry time in zones off the list entry, and
+the zone boundaries behind them are fetched at most once per run (ADR 0008)."""
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -20,6 +22,50 @@ from watermark import Watermark
 
 # Cardio is the complement of strength, so an unanticipated sport is posted unenriched.
 STRENGTH_TYPE_KEYS = frozenset({"strength_training"})
+TIME_IN_HEART_RATE_ZONE_FIELD = re.compile(r"hrTimeInZone_(\d+)")
+HEART_RATE_ZONE_FLOOR_FIELD = re.compile(r"zone(\d+)Floor")
+
+
+def numbered_fields(entry: dict[str, Any], pattern: re.Pattern[str]) -> list[tuple[int, Any]]:
+    # Read the numbered fields that are there rather than assuming five; an absent or
+    # null one is unknown, never zero.
+    found = [(int(match.group(1)), value) for key, value in entry.items()
+             if (match := pattern.fullmatch(key)) and value is not None]
+    return sorted(found)
+
+
+def time_in_heart_rate_zones_from_garmin(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    return [{"zoneNumber": number, "seconds": seconds}
+            for number, seconds in numbered_fields(entry, TIME_IN_HEART_RATE_ZONE_FIELD)]
+
+
+def sport_profile_from_garmin(entry: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "name": entry.get("sport"),
+        "trainingMethod": entry.get("trainingMethod"),
+        "restingHeartRateBpm": entry.get("restingHeartRateUsed"),
+        "maxHeartRateBpm": entry.get("maxHeartRateUsed"),
+        "lactateThresholdHeartRateBpm": entry.get("lactateThresholdHeartRateUsed"),
+        "heartRateZones": [{"zoneNumber": number, "lowBoundaryBpm": floor}
+                           for number, floor in numbered_fields(entry, HEART_RATE_ZONE_FLOOR_FIELD)],
+    }
+
+
+def sport_profiles_once(garmin: GarminActivityClient) -> Callable[[], list[dict[str, Any]]]:
+    fetched: list[list[dict[str, Any]]] = []
+
+    def get() -> list[dict[str, Any]]:
+        if not fetched:
+            # A profile with no name or no floors measures nothing, so it is left out;
+            # without a usable DEFAULT no Activity can be measured and the run stops.
+            sport_profiles = [sport_profile for sport_profile in map(sport_profile_from_garmin,
+                                                                     garmin.get_heart_rate_zones())
+                              if sport_profile["name"] and sport_profile["heartRateZones"]]
+            if not any(sport_profile["name"] == "DEFAULT" for sport_profile in sport_profiles):
+                raise RuntimeError("Garmin heart rate zones carry no DEFAULT SportProfile with boundaries")
+            fetched.append(sport_profiles)
+        return fetched[0]
+    return get
 
 
 def activity_from_garmin(entry: dict[str, Any]) -> dict[str, Any]:
@@ -72,21 +118,30 @@ def run(
     end: date,
     garmin: GarminActivityClient,
     post: Callable[[dict[str, Any]], Any],
+    sport_profiles: Callable[[], list[dict[str, Any]]] | None = None,
 ) -> int:
     if start > end:
         raise ValueError("from date must be no later than to date")
+    sport_profiles = sport_profiles or sport_profiles_once(garmin)
     activities = []
     for entry in garmin.list_activities(start, end):
         activity = activity_from_garmin(entry)
-        if activity["typeKey"] in STRENGTH_TYPE_KEYS:
-            activity["exerciseSets"] = [exercise_set_from_garmin(item)
-                                        for item in garmin.get_exercise_sets(activity["activityId"])]
+        if activity["typeKey"] not in STRENGTH_TYPE_KEYS and (
+                time_in_heart_rate_zones := time_in_heart_rate_zones_from_garmin(entry)):
+            activity["timeInHeartRateZones"] = time_in_heart_rate_zones
         activities.append(activity)
-    post({
+    batch: dict[str, Any] = {
         "version": 2,
         "activityRange": {"fromDate": start.isoformat(), "toDate": end.isoformat()},
         "activities": activities,
-    })
+    }
+    if any("timeInHeartRateZones" in activity for activity in activities):
+        batch["sportProfiles"] = sport_profiles()
+    for activity in activities:
+        if activity["typeKey"] in STRENGTH_TYPE_KEYS:
+            activity["exerciseSets"] = [exercise_set_from_garmin(item)
+                                        for item in garmin.get_exercise_sets(activity["activityId"])]
+    post(batch)
     return len(activities)
 
 
@@ -102,9 +157,10 @@ def run_watermark(
     if max_days < 1:
         raise ValueError("max_days must be positive")
     pending = watermark.pending_days(earliest, today)
+    sport_profiles = sport_profiles_once(garmin)
     activity_count = 0
     for day in pending[:max_days]:
-        activity_count += run(day, day, garmin, post)
+        activity_count += run(day, day, garmin, post, sport_profiles)
         # Today is synced but never completed, so the next run picks up the rest of it.
         if day < today:
             watermark.mark_completed(day)

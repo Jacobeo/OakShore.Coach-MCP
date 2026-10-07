@@ -23,7 +23,8 @@ public sealed record ActivityInput(
     int? ActiveSets = null,
     int? TotalReps = null,
     string? ActivityName = null,
-    IReadOnlyList<ExerciseSetInput?>? ExerciseSets = null)
+    IReadOnlyList<ExerciseSetInput?>? ExerciseSets = null,
+    IReadOnlyList<TimeInHeartRateZoneInput?>? TimeInHeartRateZones = null)
 {
     public Activity ToActivity()
     {

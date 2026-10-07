@@ -1,4 +1,4 @@
-# Time in zones comes from the Activity list, against one zone set
+# Time in zones comes from the Activity list, against the boundaries observed
 
 Spec 01's third issue dumped `hrTimeInZones` for eight cardio Activities and
 the configured zone boundaries once. Reading those dumps changes the call shape
@@ -26,9 +26,13 @@ a `maxHR` of 183.
 **So the sync reads time in zones off the Activity list, fetches the zone
 boundaries once per run, and does not call `hrTimeInZones` at all.**
 
-The boundaries are stored once with the date they were observed, and that one
-set is applied to every Activity, including the backfilled decade. Zone history
-is not tracked. The athlete's judgement is that their zones do not move enough
+The boundaries are stored with the date they were observed, and a Cardio
+Activity is measured against the set current when it is first stored with time in zones,
+including the backfilled decade, which takes the set current at import. A
+later change adds a revision beside the old set rather than overwriting it, and
+an Activity keeps the revision it was first stored against, so a change never
+re-scores Activities already stored. Zone history before the first observation
+is not reconstructed. The athlete's judgement is that their zones do not move enough
 for the distinction to be real, and the cost of being wrong is bounded: a zone
 change shifts the scale of historical time-in-zone figures, it does not
 invalidate the underlying Activities, and the seconds per zone as Garmin
@@ -50,8 +54,8 @@ recorded them are stored regardless.
 - **Open for step 4:** recent Activities take Garmin's precomputed seconds off
   the list, while backfilled ones are computed from the FIT series. The two
   methods overlap where the export meets the sync window and can disagree on
-  sampling and rounding. Holding one zone set removes scale from that
-  disagreement but not method; which source wins on a collision is still to be
+  sampling and rounding. Measuring both against the same current revision
+  removes scale from that disagreement but not method; which source wins on a collision is still to be
   decided.
 - Read the zone fields defensively at the ingest boundary. An absent
   `hrTimeInZone_N` is unknown, never zero seconds, and the numbered fields
