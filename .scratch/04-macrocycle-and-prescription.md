@@ -130,11 +130,37 @@ modality against the WeekOutline's allocation. The first is precise and comes
 free because the coach itself wrote the prescriptions; the second covers history
 that predates the coach.
 
-**Intensity analysis is deferred but anticipated.** The initial Adherence measure
-is completion, not intensity. Zone-based analysis — whether prescribed easy
-sessions were actually easy — is the more valuable answer and depends on the
-zone data captured in spec 03. It is built when real gaps in the simpler answer
-justify it, and the schema does not preclude it.
+**Intensity Adherence is defined but deferred.** The initial Adherence measure is
+completion. Its intensity dimension — whether the Activity that followed an easy
+prescription was actually easy — compares a cardio Activity's time in
+HeartRateZones against the prescribed intent: easy is zones 1–2, hard is 4–5,
+and zone 3 is the middle worth flagging. It applies only where a
+ScheduledWorkout stated an intent; a Freestyle or historical Activity shows its
+distribution and is never judged, because inferring intent is the confident
+guess user story 28 forbids. It is built once completion Adherence is live and
+shows drift; the zone data captured in spec 03 serves it either way.
+
+**Current form is shaped so the right reading is the only one expressible.** The
+production client learns only from tool descriptions and payloads, so the
+interpretation rules live in the response shape
+([ADR 0009](../docs/adr/0009-trainingload-has-two-axes.md)): wherever a trusted
+range exists, a field is a triple — status, value and the range — and a bare
+number never travels alone. TrainingLoad returns both axes, and the systemic
+ratio is worded as load progression, never injury risk. HRV is the weekly
+average against the athlete's baseline band, never a single night. Sleep is
+duration — last night and the 7-day average — read as an upper bound on a
+fragmented night; stage minutes, body battery and stress are stored but returned
+by no tool. TrainingReadiness returns as context for prescribing or revising a
+Microcycle and never gates a single day. VO2max returns as a four-to-six-week
+trend, expected to sit flat through strength-focused Mesocycles. Garmin's
+monthly load-focus buckets return with their target bands.
+
+**Strength progression is per Exercise, never combined.** The training summary
+carries each Exercise's EstimatedOneRepMax from the best working set, labelled
+an estimate, with the recorded top set and the rep scheme beside it, so a scheme
+change reads as a discontinuity rather than a strength change; an estimate from
+a set above ten repetitions is marked lower-confidence. Volume stays inside one
+Activity's StrengthDetail and is never summed across Activities into a load.
 
 **Tool surface.** This spec completes the eight-tool surface: read and update the
 AthleteProfile from spec 02, plus `get_macrocycle` and `set_macrocycle`, read a training
@@ -207,3 +233,7 @@ The Macrocycle in hand runs October to March, so the first genuinely useful
 prescription can be produced as soon as the Macrocycle is loaded and the sync has
 recent history. That makes this spec the point at which the project starts paying
 for itself.
+
+The current-form response shapes and the two-axis TrainingLoad follow
+[ADR 0009](../docs/adr/0009-trainingload-has-two-axes.md); the evidence behind
+them is recorded in [the literature pass](literature-pass-2026-10-07.md).

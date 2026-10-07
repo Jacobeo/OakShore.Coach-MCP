@@ -21,6 +21,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{9ADE9AEC-C3C
 		docs\adr\0006-garmin-token-file-location.md = docs\adr\0006-garmin-token-file-location.md
 		docs\adr\0007-prescription-needs-per-exerciseset-detail.md = docs\adr\0007-prescription-needs-per-exerciseset-detail.md
 		docs\adr\0008-one-heart-rate-zone-set.md = docs\adr\0008-one-heart-rate-zone-set.md
+		docs\adr\0009-trainingload-has-two-axes.md = docs\adr\0009-trainingload-has-two-axes.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "agents", "agents", "{B3BE0EBF-4AC1-4D9D-A26B-10AD35452E72}"
@@ -96,6 +97,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Specs", "Specs", "{297033D4
 		.scratch\03-garmin-sync.md = .scratch\03-garmin-sync.md
 		.scratch\04-macrocycle-and-prescription.md = .scratch\04-macrocycle-and-prescription.md
 		.scratch\05-garmin-writeback.md = .scratch\05-garmin-writeback.md
+		.scratch\literature-pass-2026-10-07.md = .scratch\literature-pass-2026-10-07.md
+		.scratch\metric-backtest-spike.md = .scratch\metric-backtest-spike.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "01-strength-data-spike", "01-strength-data-spike", "{F7931667-6C19-4EA8-B704-2DDF4249D295}"

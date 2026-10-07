@@ -144,14 +144,22 @@ _Avoid_: user, settings, preferences, context
 ### Form and load
 
 **TrainingLoad**:
-The accumulated physiological cost of recent Activities, measured over a short
-window (acute) and a long window (chronic).
-_Avoid_: stress, TSS, volume
+The accumulated cost of recent Activities, carried on two axes because no single
+instrument sees both: a systemic axis measured from heart rate, and a strength
+axis counted in working ExerciseSets. Each axis spans a short window (acute) and
+a long window (chronic).
+_Avoid_: stress, TSS, volume, workload
 
 **TrainingReadiness**:
 A daily assessment of how prepared an athlete is to absorb hard training,
 derived from sleep, recovery, HRV and recent TrainingLoad.
 _Avoid_: recovery score, freshness, form
+
+**EstimatedOneRepMax**:
+The heaviest single repetition a working ExerciseSet implies for its Exercise,
+estimated from repetitions and weight. Read as a trend within one rep scheme: a
+change of scheme steps the estimate without the strength changing.
+_Avoid_: 1RM, e1RM, one-rep max, PR
 
 **Adherence**:
 The degree to which the Activities in a date range match what was prescribed for

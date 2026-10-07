@@ -20,3 +20,7 @@ analysed and a ride is never compared against a run's zones.
   default SportProfile.
 - [ ] The Python seam asserts one boundary fetch per run regardless of Activity
   count; the .NET seam asserts the stored zone times and their SportProfile.
+
+The deferred intensity dimension of Adherence
+([spec 04](../../04-macrocycle-and-prescription.md)) consumes this data when it
+is built; nothing extra is captured for it.

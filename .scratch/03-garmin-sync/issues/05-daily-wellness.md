@@ -13,6 +13,13 @@ bounded and paced loop.
 
 - [ ] For each day within a run's bounds, sleep, HRV, body battery, stress and
   the daily summary are fetched and posted as part of that day's commit.
+- [ ] Sleep is stored with start, end, duration and the stage minutes. Stage
+  minutes are kept for later analysis and returned by no tool; duration reads as
+  an upper bound on a fragmented night
+  ([literature pass](../../literature-pass-2026-10-07.md)).
+- [ ] Nightly HRV is stored with Garmin's weekly average, baseline band and
+  status, never the nightly value alone.
+- [ ] Body battery and stress are stored and returned by no tool.
 - [ ] Wellness days obey the per-run ceiling and the most-recent-first ordering.
   A day is committed as a unit, so an interruption never leaves one half-stored.
 - [ ] Pacing applies between per-day calls. The Python seam asserts the number
