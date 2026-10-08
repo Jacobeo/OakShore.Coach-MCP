@@ -34,7 +34,7 @@ different reason ([ADR 0011](0011-this-watch-records-no-hrv.md)).
 ## What is kept
 
 Typed columns hold what CONTEXT.md names and what a tool or the analytics in
-build-order step 6 read: a SleepNight's start, end, duration and stage seconds;
+build-order step 6 read: a SleepNight's start, end, duration and stage minutes;
 the four BodyBattery figures; and StressLevel's average, maximum and the rest,
 low, medium and high durations. They are authoritative.
 

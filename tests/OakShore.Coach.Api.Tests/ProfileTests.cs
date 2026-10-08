@@ -1285,7 +1285,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     [InlineData("{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[]}")]
     [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[{\"calendarDate\":\"2026-09-22\",\"startTimeUtc\":\"2026-09-21T20:54:00Z\",\"endTimeUtc\":\"2026-09-22T04:08:00Z\"}],\"dailySummaries\":[]}")]
     [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[{\"calendarDate\":\"2026-09-21\",\"startTimeUtc\":\"2026-09-21T04:08:00Z\",\"endTimeUtc\":\"2026-09-20T20:54:00Z\"}],\"dailySummaries\":[]}")]
-    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[{\"calendarDate\":\"2026-09-21\",\"startTimeUtc\":\"2026-09-20T20:54:00Z\",\"endTimeUtc\":\"2026-09-21T04:08:00Z\",\"deepSleepSeconds\":-60}],\"dailySummaries\":[]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[{\"calendarDate\":\"2026-09-21\",\"startTimeUtc\":\"2026-09-20T20:54:00Z\",\"endTimeUtc\":\"2026-09-21T04:08:00Z\",\"deepSleepMinutes\":-1}],\"dailySummaries\":[]}")]
     [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\"},{\"calendarDate\":\"2026-09-21\"}]}")]
     [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\",\"bodyBattery\":{\"highest\":101}}]}")]
     [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\",\"stressLevel\":{\"average\":101}}]}")]
@@ -1325,7 +1325,11 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
             .Select(member => KeyValuePair.Create(member.Key, WithoutArrays(member.Value))))
         : node?.DeepClone();
 
-    // Mapped as the sync maps them: Garmin's GMT epoch milliseconds become UTC timestamps.
+    private static int? Minutes(JsonElement entry, string name) =>
+        Int(entry, name) is { } seconds ? (int)Math.Round(seconds / 60.0, MidpointRounding.ToEven) : null;
+
+    // Mapped as the sync maps them: Garmin's GMT epoch milliseconds become UTC timestamps
+    // and its seconds become whole minutes.
     private static object FixtureSleepNight(string date)
     {
         var text = Fixture($"wellness-service--dailySleepData__date-{date}.json");
@@ -1338,12 +1342,12 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
             calendarDate = date,
             startTimeUtc = Utc("sleepStartTimestampGMT"),
             endTimeUtc = Utc("sleepEndTimestampGMT"),
-            sleepSeconds = Int(sleep, "sleepTimeSeconds"),
-            deepSleepSeconds = Int(sleep, "deepSleepSeconds"),
-            lightSleepSeconds = Int(sleep, "lightSleepSeconds"),
-            remSleepSeconds = Int(sleep, "remSleepSeconds"),
-            awakeSleepSeconds = Int(sleep, "awakeSleepSeconds"),
-            unmeasurableSleepSeconds = Int(sleep, "unmeasurableSleepSeconds"),
+            sleepMinutes = Minutes(sleep, "sleepTimeSeconds"),
+            deepSleepMinutes = Minutes(sleep, "deepSleepSeconds"),
+            lightSleepMinutes = Minutes(sleep, "lightSleepSeconds"),
+            remSleepMinutes = Minutes(sleep, "remSleepSeconds"),
+            awakeSleepMinutes = Minutes(sleep, "awakeSleepSeconds"),
+            unmeasurableSleepMinutes = Minutes(sleep, "unmeasurableSleepSeconds"),
             garminResponse = WithoutArrays(JsonNode.Parse(text))
         };
     }

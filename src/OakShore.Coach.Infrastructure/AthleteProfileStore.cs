@@ -222,12 +222,12 @@ internal sealed class SleepNightRow
     public DateOnly CalendarDate { get; set; }
     public DateTimeOffset StartTimeUtc { get; set; }
     public DateTimeOffset EndTimeUtc { get; set; }
-    public int? SleepSeconds { get; set; }
-    public int? DeepSleepSeconds { get; set; }
-    public int? LightSleepSeconds { get; set; }
-    public int? RemSleepSeconds { get; set; }
-    public int? AwakeSleepSeconds { get; set; }
-    public int? UnmeasurableSleepSeconds { get; set; }
+    public int? SleepMinutes { get; set; }
+    public int? DeepSleepMinutes { get; set; }
+    public int? LightSleepMinutes { get; set; }
+    public int? RemSleepMinutes { get; set; }
+    public int? AwakeSleepMinutes { get; set; }
+    public int? UnmeasurableSleepMinutes { get; set; }
     // Archive only: never read by a tool or at query time (ADR 0010).
     public string? GarminResponse { get; set; }
 }

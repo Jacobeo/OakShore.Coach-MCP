@@ -433,7 +433,7 @@ Garmin held nothing for, not one never attempted. Version 2 batches carrying
 either list are rejected.
 
 ```json
-{"version":3,"activityRange":{"fromDate":"2026-09-21","toDate":"2026-09-21"},"activities":[],"sleepNights":[{"calendarDate":"2026-09-21","startTimeUtc":"2026-09-20T20:54:00Z","endTimeUtc":"2026-09-21T04:08:00Z","sleepSeconds":26040,"deepSleepSeconds":2760,"lightSleepSeconds":13620,"remSleepSeconds":9660,"awakeSleepSeconds":0,"unmeasurableSleepSeconds":0,"garminResponse":{"dailySleepDTO":{"calendarDate":"2026-09-21"}}}],"dailySummaries":[{"calendarDate":"2026-09-21","bodyBattery":{"charged":55,"drained":54,"highest":99,"lowest":37},"stressLevel":{"average":22,"maximum":92,"restSeconds":44100,"lowSeconds":16500,"mediumSeconds":1980,"highSeconds":660},"garminResponse":{"calendarDate":"2026-09-21"}}]}
+{"version":3,"activityRange":{"fromDate":"2026-09-21","toDate":"2026-09-21"},"activities":[],"sleepNights":[{"calendarDate":"2026-09-21","startTimeUtc":"2026-09-20T20:54:00Z","endTimeUtc":"2026-09-21T04:08:00Z","sleepMinutes":434,"deepSleepMinutes":46,"lightSleepMinutes":227,"remSleepMinutes":161,"awakeSleepMinutes":0,"unmeasurableSleepMinutes":0,"garminResponse":{"dailySleepDTO":{"calendarDate":"2026-09-21"}}}],"dailySummaries":[{"calendarDate":"2026-09-21","bodyBattery":{"charged":55,"drained":54,"highest":99,"lowest":37},"stressLevel":{"average":22,"maximum":92,"restSeconds":44100,"lowSeconds":16500,"mediumSeconds":1980,"highSeconds":660},"garminResponse":{"calendarDate":"2026-09-21"}}]}
 ```
 
 Daily wellness contract rules:
@@ -443,9 +443,10 @@ Daily wellness contract rules:
   and cannot contain null.
 - A SleepNight is dated by the morning it ends on. `startTimeUtc` and
   `endTimeUtc` are UTC with `Z`, the end no earlier than the start and within 48
-  hours of it. `sleepSeconds` is Garmin's sleep time, which excludes awake time;
-  it and the deep, light, REM, awake and unmeasurable stage seconds are optional,
-  from 0 to 172800.
+  hours of it. `sleepMinutes` is Garmin's sleep time, which excludes awake time;
+  it and the deep, light, REM, awake and unmeasurable stage minutes are optional,
+  whole minutes from 0 to 2880. The sync converts Garmin's seconds to minutes
+  before posting, so seconds never reach the store.
 - A DailySummary carries `bodyBattery` (`highest` and `lowest` from 0 to 100,
   `charged` and `drained` from 0 to 1000) and `stressLevel` (`average` and
   `maximum` from 0 to 100; `restSeconds`, `lowSeconds`, `mediumSeconds` and

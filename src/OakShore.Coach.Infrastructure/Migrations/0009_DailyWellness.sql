@@ -8,12 +8,12 @@ BEGIN
         CalendarDate DATE NOT NULL,
         StartTimeUtc DATETIMEOFFSET(7) NOT NULL,
         EndTimeUtc DATETIMEOFFSET(7) NOT NULL,
-        SleepSeconds INT NULL,
-        DeepSleepSeconds INT NULL,
-        LightSleepSeconds INT NULL,
-        RemSleepSeconds INT NULL,
-        AwakeSleepSeconds INT NULL,
-        UnmeasurableSleepSeconds INT NULL,
+        SleepMinutes INT NULL,
+        DeepSleepMinutes INT NULL,
+        LightSleepMinutes INT NULL,
+        RemSleepMinutes INT NULL,
+        AwakeSleepMinutes INT NULL,
+        UnmeasurableSleepMinutes INT NULL,
         GarminResponse NVARCHAR(MAX) NULL,
         CONSTRAINT PK_SleepNights PRIMARY KEY (UserId, CalendarDate)
     );

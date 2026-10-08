@@ -127,6 +127,11 @@ def utc_from_epoch_ms(value: int) -> str:
     return datetime.fromtimestamp(value / 1000, timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def whole_minutes(seconds: int | None) -> int | None:
+    # Sleep is read in minutes; Garmin's seconds are converted once, here.
+    return None if seconds is None else round(seconds / 60)
+
+
 def same_day(day: date, dated: Any, kind: str) -> None:
     if dated != day.isoformat():
         raise RuntimeError(f"Garmin {kind} for {day.isoformat()} was dated {dated}")
@@ -145,12 +150,12 @@ def sleep_night_from_garmin(day: date, payload: dict[str, Any] | None) -> dict[s
         "calendarDate": day.isoformat(),
         "startTimeUtc": utc_from_epoch_ms(start),
         "endTimeUtc": utc_from_epoch_ms(end),
-        "sleepSeconds": sleep.get("sleepTimeSeconds"),
-        "deepSleepSeconds": sleep.get("deepSleepSeconds"),
-        "lightSleepSeconds": sleep.get("lightSleepSeconds"),
-        "remSleepSeconds": sleep.get("remSleepSeconds"),
-        "awakeSleepSeconds": sleep.get("awakeSleepSeconds"),
-        "unmeasurableSleepSeconds": sleep.get("unmeasurableSleepSeconds"),
+        "sleepMinutes": whole_minutes(sleep.get("sleepTimeSeconds")),
+        "deepSleepMinutes": whole_minutes(sleep.get("deepSleepSeconds")),
+        "lightSleepMinutes": whole_minutes(sleep.get("lightSleepSeconds")),
+        "remSleepMinutes": whole_minutes(sleep.get("remSleepSeconds")),
+        "awakeSleepMinutes": whole_minutes(sleep.get("awakeSleepSeconds")),
+        "unmeasurableSleepMinutes": whole_minutes(sleep.get("unmeasurableSleepSeconds")),
         "garminResponse": without_arrays(payload),
     }
 

@@ -134,12 +134,12 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             }
             row.StartTimeUtc = night.StartTimeUtc;
             row.EndTimeUtc = night.EndTimeUtc;
-            row.SleepSeconds = night.SleepSeconds;
-            row.DeepSleepSeconds = night.DeepSleepSeconds;
-            row.LightSleepSeconds = night.LightSleepSeconds;
-            row.RemSleepSeconds = night.RemSleepSeconds;
-            row.AwakeSleepSeconds = night.AwakeSleepSeconds;
-            row.UnmeasurableSleepSeconds = night.UnmeasurableSleepSeconds;
+            row.SleepMinutes = night.SleepMinutes;
+            row.DeepSleepMinutes = night.DeepSleepMinutes;
+            row.LightSleepMinutes = night.LightSleepMinutes;
+            row.RemSleepMinutes = night.RemSleepMinutes;
+            row.AwakeSleepMinutes = night.AwakeSleepMinutes;
+            row.UnmeasurableSleepMinutes = night.UnmeasurableSleepMinutes;
             if (night.GarminResponse is not null)
                 row.GarminResponse = night.GarminResponse;
         }

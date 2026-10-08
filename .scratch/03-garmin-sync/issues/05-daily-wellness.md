@@ -63,11 +63,18 @@ DailySummary carries any of their figures, so "everything" and "sleep only" read
 apart. A re-sent day replaces its figures; a later batch that leaves a day's
 SleepNight out keeps the stored one, as Activities are kept, and an omitted
 `garminResponse` keeps the archived one. The SleepNight's duration is Garmin's
-`sleepTimeSeconds`, which excludes awake time; stage times are stored in seconds,
-Garmin's unit and the contract's for every duration, and include the
+`sleepTimeSeconds`, which excludes awake time; stage times include the
 unmeasurable bucket. A privacy-protected summary stops the run rather than
 completing the day empty, and so does a response dated for a different day than
 the one requested, rather than storing it under the wrong date. The display name both paths need costs one social
 profile call per run.
 
 The capture's probe of ticket 06's endpoints is recorded on that ticket.
+
+2026-10-08, after review: the athlete chose whole minutes for every SleepNight
+duration; the sync converts Garmin's seconds before posting, as it converts
+grams to kilograms. StressLevel durations stay in seconds. Accepted risk, for
+now: no tool returns the stored SleepNight minutes or the BodyBattery and
+StressLevel figures, so neither seam asserts those columns beyond `holds`, and
+a column written wrongly would pass every test until a tool or analysis reads
+them.

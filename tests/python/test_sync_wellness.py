@@ -127,12 +127,12 @@ class WellnessSyncTests(unittest.TestCase):
             "calendarDate": "2026-09-21",
             "startTimeUtc": "2026-09-20T20:54:00Z",
             "endTimeUtc": "2026-09-21T04:08:00Z",
-            "sleepSeconds": 26040,
-            "deepSleepSeconds": 2760,
-            "lightSleepSeconds": 13620,
-            "remSleepSeconds": 9660,
-            "awakeSleepSeconds": 0,
-            "unmeasurableSleepSeconds": 0,
+            "sleepMinutes": 434,
+            "deepSleepMinutes": 46,
+            "lightSleepMinutes": 227,
+            "remSleepMinutes": 161,
+            "awakeSleepMinutes": 0,
+            "unmeasurableSleepMinutes": 0,
         }, sleep_night_posted)
         # The payload is archived verbatim with every array-valued member removed (ADR 0010).
         self.assertTrue(no_lists(payload))
