@@ -412,10 +412,13 @@ $env:COACH_INGEST_URL = 'https://<app-host>/ingest'
 python src/sync/sync_activities.py --from-date 2026-09-21 --to-date 2026-09-22
 ```
 
-The sync lists only the requested dates, enriches each strength Activity with
-one further call for its exercise sets, waits at least three seconds between
-Garmin requests, and posts one Activities-only version 2 batch with weights converted to
-kilograms. Cardio Activities, including any unanticipated sport, cost no further
+The sync works through the requested dates one day at a time, most recent
+first, and posts each day as its own version 3 batch, described under Watermark
+runs below. It syncs days the Watermark has already completed, records each
+finished day in it, stops at the same `--max-days` ceiling, and refuses a
+`--to-date` after today. It enriches each strength Activity with one further
+call for its exercise sets, waits at least three seconds between Garmin
+requests, and converts weights to kilograms. Cardio Activities, including any unanticipated sport, cost no further
 call: their time in zones is read off the Activity list, and the zone
 boundaries are fetched at most once per run, only when an Activity carries
 time in zones. A 401, 403, or 429
@@ -486,7 +489,7 @@ neither the dedicated body battery and stress endpoints nor HRV are called
 are addressed by the athlete's display name, read from the social profile once
 per run. A day Garmin holds nothing for is posted with empty lists and
 completed like any other, so it is never fetched again; a privacy-protected
-summary stops the run instead. An explicit date range syncs Activities only.
+summary stops the run instead.
 The Watermark records a day once its batch is accepted, so an
 interrupted run keeps everything already fetched and the next run continues
 where it stopped. The current day is synced but never recorded as completed, so

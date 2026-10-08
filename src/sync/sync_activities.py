@@ -1,7 +1,7 @@
-"""Sync Activities and daily wellness: a run without dates continues from the
-Watermark, most recent day first, bounded per run, posting each day's Activities,
-SleepNight and DailySummary as one version 3 batch; an explicit inclusive date range
-syncs just that range's Activities as one version 2 batch. Each strength Activity
+"""Sync Activities and daily wellness, one day at a time, most recent first, bounded
+per run, posting each day's Activities, SleepNight and DailySummary as one version 3
+batch. A run without dates continues from the Watermark; an explicit inclusive date
+range syncs those days, including any already completed. Each strength Activity
 costs one further call for its ExerciseSets, posted with weight in kilograms. Cardio
 Activities carry time in zones off the list entry, and the zone boundaries behind
 them are fetched at most once per run (ADR 0008). A wellness day costs two calls,
@@ -13,7 +13,7 @@ import argparse
 import json
 import os
 import re
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError
@@ -190,21 +190,19 @@ def daily_summary_from_garmin(day: date, payload: dict[str, Any] | None) -> dict
 
 
 def activity_batch(
-    start: date,
-    end: date,
+    day: date,
     garmin: GarminActivityClient,
     sport_profiles: Callable[[], list[dict[str, Any]]],
 ) -> dict[str, Any]:
     activities = []
-    for entry in garmin.list_activities(start, end):
+    for entry in garmin.list_activities(day, day):
         activity = activity_from_garmin(entry)
         if activity["typeKey"] not in STRENGTH_TYPE_KEYS and (
                 time_in_heart_rate_zones := time_in_heart_rate_zones_from_garmin(entry)):
             activity["timeInHeartRateZones"] = time_in_heart_rate_zones
         activities.append(activity)
     batch: dict[str, Any] = {
-        "version": 2,
-        "activityRange": {"fromDate": start.isoformat(), "toDate": end.isoformat()},
+        "activityRange": {"fromDate": day.isoformat(), "toDate": day.isoformat()},
         "activities": activities,
     }
     if any("timeInHeartRateZones" in activity for activity in activities):
@@ -216,25 +214,12 @@ def activity_batch(
     return batch
 
 
-def run(
-    start: date,
-    end: date,
-    garmin: GarminActivityClient,
-    post: Callable[[dict[str, Any]], Any],
-) -> int:
-    if start > end:
-        raise ValueError("from date must be no later than to date")
-    batch = activity_batch(start, end, garmin, sport_profiles_once(garmin))
-    post(batch)
-    return len(batch["activities"])
-
-
 def day_batch(
     day: date,
     garmin: GarminActivityClient,
     sport_profiles: Callable[[], list[dict[str, Any]]],
 ) -> dict[str, Any]:
-    batch = activity_batch(day, day, garmin, sport_profiles)
+    batch = activity_batch(day, garmin, sport_profiles)
     sleep_night = sleep_night_from_garmin(day, garmin.get_sleep_night(day))
     daily_summary = daily_summary_from_garmin(day, garmin.get_daily_summary(day))
     # Version 3 states that every date in its range was synced, so empty lists record a
@@ -245,6 +230,49 @@ def day_batch(
     return batch
 
 
+def sync_days(
+    days: list[date],
+    today: date,
+    max_days: int,
+    watermark: Watermark,
+    garmin: GarminActivityClient,
+    post: Callable[[dict[str, Any]], Any],
+) -> tuple[int, int, int]:
+    """Sync days in the order given, up to the ceiling; returns (days, Activities, days left)."""
+    if max_days < 1:
+        raise ValueError("max_days must be positive")
+    sport_profiles = sport_profiles_once(garmin)
+    activity_count = 0
+    for day in days[:max_days]:
+        batch = day_batch(day, garmin, sport_profiles)
+        post(batch)
+        activity_count += len(batch["activities"])
+        # Today is synced but never completed, so the next run picks up the rest of it.
+        if day < today:
+            watermark.mark_completed(day)
+    days_synced = min(len(days), max_days)
+    return days_synced, activity_count, len(days) - days_synced
+
+
+def run(
+    start: date,
+    end: date,
+    today: date,
+    max_days: int,
+    watermark: Watermark,
+    garmin: GarminActivityClient,
+    post: Callable[[dict[str, Any]], Any],
+) -> tuple[int, int, int]:
+    """Sync an explicit inclusive range most recent first, completed days included."""
+    if start > end:
+        raise ValueError("from date must be no later than to date")
+    # A future day holds nothing yet, and completing it would skip it once it happened.
+    if end > today:
+        raise ValueError("to date must be no later than today")
+    days = [end - timedelta(days=offset) for offset in range((end - start).days + 1)]
+    return sync_days(days, today, max_days, watermark, garmin, post)
+
+
 def run_watermark(
     today: date,
     earliest: date,
@@ -253,21 +281,8 @@ def run_watermark(
     garmin: GarminActivityClient,
     post: Callable[[dict[str, Any]], Any],
 ) -> tuple[int, int, int]:
-    """Sync pending days most recent first; returns (days, Activities, days left)."""
-    if max_days < 1:
-        raise ValueError("max_days must be positive")
-    pending = watermark.pending_days(earliest, today)
-    sport_profiles = sport_profiles_once(garmin)
-    activity_count = 0
-    for day in pending[:max_days]:
-        batch = day_batch(day, garmin, sport_profiles)
-        post(batch)
-        activity_count += len(batch["activities"])
-        # Today is synced but never completed, so the next run picks up the rest of it.
-        if day < today:
-            watermark.mark_completed(day)
-    days_synced = min(len(pending), max_days)
-    return days_synced, activity_count, len(pending) - days_synced
+    """Sync the days the Watermark does not cover, most recent first."""
+    return sync_days(watermark.pending_days(earliest, today), today, max_days, watermark, garmin, post)
 
 
 def post_to_ingest(url: str, token: str, batch: dict[str, Any]) -> None:
@@ -318,6 +333,8 @@ def main() -> int:
         parser.error("--from-date and --to-date must be given together")
     if explicit and args.from_date > args.to_date:
         parser.error("--from-date must be no later than --to-date")
+    if explicit and args.to_date > date.today():
+        parser.error("--to-date must be no later than today")
     if not explicit and args.earliest_date is None:
         parser.error("--earliest-date or COACH_SYNC_EARLIEST_DATE is required"
                      " for a run without dates")
@@ -328,13 +345,13 @@ def main() -> int:
     def post(batch: dict[str, Any]) -> None:
         post_to_ingest(args.ingest_url, token, batch)
 
-    if explicit:
-        count = run(args.from_date, args.to_date, garmin, post)
-        print(f"Stored {count} Activities for {args.from_date} to {args.to_date}")
-        return 0
     watermark = Watermark(Path(args.watermark_file).expanduser())
-    days, count, left = run_watermark(date.today(), args.earliest_date, args.max_days,
-                                      watermark, garmin, post)
+    if explicit:
+        days, count, left = run(args.from_date, args.to_date, date.today(), args.max_days,
+                                watermark, garmin, post)
+    else:
+        days, count, left = run_watermark(date.today(), args.earliest_date, args.max_days,
+                                          watermark, garmin, post)
     print(f"Synced {days} days ({count} Activities); {left} days remaining")
     return 0
 

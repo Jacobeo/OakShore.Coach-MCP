@@ -56,9 +56,7 @@ archived with its arrays removed, read by no tool (ADR 0010). `get_sync_status`
 gained SleepNight and DailySummary collections and `latestWellnessDay`, the latest
 date a version 3 batch reached and which kinds of record it holds — no values.
 
-Judgment calls, each open to correction: an explicit `--from-date`/`--to-date`
-run stays Activities-only version 2, because it has no per-run ceiling to bound
-the wellness calls. `holds` lists BodyBattery and StressLevel when the
+Judgment calls, each open to correction: `holds` lists BodyBattery and StressLevel when the
 DailySummary carries any of their figures, so "everything" and "sleep only" read
 apart. A re-sent day replaces its figures; a later batch that leaves a day's
 SleepNight out keeps the stored one, as Activities are kept, and an omitted
@@ -78,3 +76,12 @@ now: no tool returns the stored SleepNight minutes or the BodyBattery and
 StressLevel figures, so neither seam asserts those columns beyond `holds`, and
 a column written wrongly would pass every test until a tool or analysis reads
 them.
+
+The athlete chose that an explicit `--from-date`/`--to-date` run gets the same
+per-day loop: each day its own version 3 batch with SleepNight and DailySummary,
+most recent first, bounded by `--max-days`, recorded in the Watermark, and
+refusing a `--to-date` after today, which would otherwise be completed before it
+happened. Days the Watermark already completed are synced again, because they
+were asked for. Making the Watermark write many times in quick succession
+exposed Windows briefly refusing to replace a file just written; the Watermark
+now retries that replace a few times before failing.

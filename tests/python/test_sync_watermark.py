@@ -1,16 +1,18 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
 from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src" / "sync"))
 
 from garmin_client import GarminAbort, GarminActivityClient  # noqa: E402
-from sync_activities import run_watermark  # noqa: E402
+from sync_activities import run, run_watermark  # noqa: E402
 from watermark import Watermark  # noqa: E402
 
 
@@ -197,6 +199,51 @@ class WatermarkRunTests(unittest.TestCase):
 
         self.assertEqual(["2026-09-21"], requested)
         self.assertEqual([first_posted[0]], reposted)
+
+    def dated(self, start, end, max_days, *results, today=TODAY):
+        session = Session(*results)
+        summary = run(start, end, today, max_days, Watermark(self.path), client(session), lambda batch: None)
+        return summary, requested_days(session)
+
+    def test_a_dated_run_is_bounded_by_the_ceiling_and_completes_the_days_it_syncs(self):
+        summary, requested = self.dated(date(2026, 9, 15), date(2026, 9, 20), 2, *empty_days(2))
+
+        self.assertEqual((2, 0, 4), summary)
+        self.assertEqual(["2026-09-20", "2026-09-19"], requested)
+        _, next_run, _ = self.sync(TODAY, date(2026, 9, 19), 30, *empty_days(1))
+        self.assertEqual(["2026-09-21"], next_run)
+
+    def test_a_dated_run_resyncs_days_the_watermark_has_completed(self):
+        self.sync(TODAY, date(2026, 9, 20), 30, *empty_days(2))
+
+        summary, requested = self.dated(date(2026, 9, 20), date(2026, 9, 20), 30, *empty_days(1))
+
+        self.assertEqual((1, 0, 0), summary)
+        self.assertEqual(["2026-09-20"], requested)
+
+    def test_a_dated_run_cannot_reach_past_today_or_run_backwards(self):
+        for start, end in ((TODAY, date(2026, 9, 22)), (date(2026, 9, 20), date(2026, 9, 19))):
+            with self.subTest(start=start, end=end):
+                with self.assertRaises(ValueError):
+                    self.dated(start, end, 30)
+        self.assertFalse(self.path.exists())
+
+    def test_a_briefly_locked_watermark_file_is_still_written(self):
+        replace = os.replace
+        attempts = []
+
+        def locked_once(source, target):
+            attempts.append(target)
+            if len(attempts) == 1:
+                raise PermissionError("locked")
+            replace(source, target)
+
+        with patch("watermark.os.replace", side_effect=locked_once):
+            self.watermark.mark_completed(date(2026, 9, 20))
+
+        self.assertEqual(2, len(attempts))
+
+        self.assertEqual([], Watermark(self.path).pending_days(date(2026, 9, 20), date(2026, 9, 20)))
 
     def test_unreadable_watermark_file_fails_rather_than_resyncing_everything(self):
         self.path.write_text("not json", encoding="utf-8")

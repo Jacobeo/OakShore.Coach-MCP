@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -32,7 +33,15 @@ class Watermark:
         # Write-then-replace so an interrupted run never tears the file.
         scratch = self._path.with_suffix(".tmp")
         scratch.write_text(content, encoding="utf-8")
-        os.replace(scratch, self._path)
+        # Windows briefly refuses the replace while a scanner holds a file just written.
+        for attempt in range(5):
+            try:
+                os.replace(scratch, self._path)
+                return
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
 
     def pending_days(self, earliest: date, today: date) -> list[date]:
         """Days in [earliest, today] not yet completed, most recent first."""

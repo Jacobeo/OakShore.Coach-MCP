@@ -206,9 +206,10 @@ _Avoid_: user summary, daily stats, wellness day
 ### Sync
 
 **ActivityRange**:
-An inclusive pair of calendar dates explicitly requested for a manual Activity
-sync. The range travels with its ingest batch so a successful empty range still
-has a recorded sync time.
+An inclusive pair of calendar dates an IngestBatch covers. The sync posts one
+day per batch, whether the Watermark chose the day or the athlete named it, and
+the range travels with its batch so a successful empty day still has a recorded
+sync time.
 _Avoid_: window, period, date span
 
 **IngestBatch**:
