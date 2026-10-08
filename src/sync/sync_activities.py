@@ -1,8 +1,11 @@
-"""Sync Activities: a run without dates continues from the Watermark, most recent
-day first, bounded per run; an explicit inclusive date range syncs just that range.
-Each strength Activity costs one further call for its ExerciseSets, posted with
-weight in kilograms. Cardio Activities carry time in zones off the list entry, and
-the zone boundaries behind them are fetched at most once per run (ADR 0008)."""
+"""Sync Activities and daily wellness: a run without dates continues from the
+Watermark, most recent day first, bounded per run, posting each day's Activities,
+SleepNight and DailySummary as one version 3 batch; an explicit inclusive date range
+syncs just that range's Activities as one version 2 batch. Each strength Activity
+costs one further call for its ExerciseSets, posted with weight in kilograms. Cardio
+Activities carry time in zones off the list entry, and the zone boundaries behind
+them are fetched at most once per run (ADR 0008). A wellness day costs two calls,
+sleep and the daily summary (ADR 0010, ADR 0011)."""
 
 from __future__ import annotations
 
@@ -113,16 +116,80 @@ def exercise_set_from_garmin(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run(
+def without_arrays(value: Any) -> Any:
+    # Intraday series are out of scope (spec 03); the scalars around them are archived.
+    if isinstance(value, dict):
+        return {key: without_arrays(item) for key, item in value.items() if not isinstance(item, list)}
+    return value
+
+
+def utc_from_epoch_ms(value: int) -> str:
+    return datetime.fromtimestamp(value / 1000, timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def same_day(day: date, dated: Any, kind: str) -> None:
+    if dated != day.isoformat():
+        raise RuntimeError(f"Garmin {kind} for {day.isoformat()} was dated {dated}")
+
+
+def sleep_night_from_garmin(day: date, payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    sleep = (payload or {}).get("dailySleepDTO") or {}
+    start, end = sleep.get("sleepStartTimestampGMT"), sleep.get("sleepEndTimestampGMT")
+    # Garmin answers a night it holds nothing for with a DTO of nulls.
+    if start is None and end is None:
+        return None
+    if start is None or end is None:
+        raise RuntimeError(f"Garmin sleep for {day.isoformat()} has a start or an end but not both")
+    same_day(day, sleep.get("calendarDate"), "sleep")
+    return {
+        "calendarDate": day.isoformat(),
+        "startTimeUtc": utc_from_epoch_ms(start),
+        "endTimeUtc": utc_from_epoch_ms(end),
+        "sleepSeconds": sleep.get("sleepTimeSeconds"),
+        "deepSleepSeconds": sleep.get("deepSleepSeconds"),
+        "lightSleepSeconds": sleep.get("lightSleepSeconds"),
+        "remSleepSeconds": sleep.get("remSleepSeconds"),
+        "awakeSleepSeconds": sleep.get("awakeSleepSeconds"),
+        "unmeasurableSleepSeconds": sleep.get("unmeasurableSleepSeconds"),
+        "garminResponse": without_arrays(payload),
+    }
+
+
+def daily_summary_from_garmin(day: date, payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    # Hidden data is not an empty day; completing it would never fetch it again.
+    if payload.get("privacyProtected") is True:
+        raise RuntimeError(f"Garmin daily summary for {day.isoformat()} is privacy protected")
+    if payload.get("includesWellnessData") is not True and payload.get("includesActivityData") is not True:
+        return None
+    same_day(day, payload.get("calendarDate"), "daily summary")
+    return {
+        "calendarDate": day.isoformat(),
+        "bodyBattery": {
+            "charged": payload.get("bodyBatteryChargedValue"),
+            "drained": payload.get("bodyBatteryDrainedValue"),
+            "highest": payload.get("bodyBatteryHighestValue"),
+            "lowest": payload.get("bodyBatteryLowestValue"),
+        },
+        "stressLevel": {
+            "average": payload.get("averageStressLevel"),
+            "maximum": payload.get("maxStressLevel"),
+            "restSeconds": payload.get("restStressDuration"),
+            "lowSeconds": payload.get("lowStressDuration"),
+            "mediumSeconds": payload.get("mediumStressDuration"),
+            "highSeconds": payload.get("highStressDuration"),
+        },
+        "garminResponse": without_arrays(payload),
+    }
+
+
+def activity_batch(
     start: date,
     end: date,
     garmin: GarminActivityClient,
-    post: Callable[[dict[str, Any]], Any],
-    sport_profiles: Callable[[], list[dict[str, Any]]] | None = None,
-) -> int:
-    if start > end:
-        raise ValueError("from date must be no later than to date")
-    sport_profiles = sport_profiles or sport_profiles_once(garmin)
+    sport_profiles: Callable[[], list[dict[str, Any]]],
+) -> dict[str, Any]:
     activities = []
     for entry in garmin.list_activities(start, end):
         activity = activity_from_garmin(entry)
@@ -141,8 +208,36 @@ def run(
         if activity["typeKey"] in STRENGTH_TYPE_KEYS:
             activity["exerciseSets"] = [exercise_set_from_garmin(item)
                                         for item in garmin.get_exercise_sets(activity["activityId"])]
+    return batch
+
+
+def run(
+    start: date,
+    end: date,
+    garmin: GarminActivityClient,
+    post: Callable[[dict[str, Any]], Any],
+) -> int:
+    if start > end:
+        raise ValueError("from date must be no later than to date")
+    batch = activity_batch(start, end, garmin, sport_profiles_once(garmin))
     post(batch)
-    return len(activities)
+    return len(batch["activities"])
+
+
+def day_batch(
+    day: date,
+    garmin: GarminActivityClient,
+    sport_profiles: Callable[[], list[dict[str, Any]]],
+) -> dict[str, Any]:
+    batch = activity_batch(day, day, garmin, sport_profiles)
+    sleep_night = sleep_night_from_garmin(day, garmin.get_sleep_night(day))
+    daily_summary = daily_summary_from_garmin(day, garmin.get_daily_summary(day))
+    # Version 3 states that every date in its range was synced, so empty lists record a
+    # day Garmin holds nothing for rather than a day never attempted.
+    batch["version"] = 3
+    batch["sleepNights"] = [] if sleep_night is None else [sleep_night]
+    batch["dailySummaries"] = [] if daily_summary is None else [daily_summary]
+    return batch
 
 
 def run_watermark(
@@ -160,7 +255,9 @@ def run_watermark(
     sport_profiles = sport_profiles_once(garmin)
     activity_count = 0
     for day in pending[:max_days]:
-        activity_count += run(day, day, garmin, post, sport_profiles)
+        batch = day_batch(day, garmin, sport_profiles)
+        post(batch)
+        activity_count += len(batch["activities"])
         # Today is synced but never completed, so the next run picks up the rest of it.
         if day < today:
             watermark.mark_completed(day)

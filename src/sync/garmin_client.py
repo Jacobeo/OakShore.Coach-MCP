@@ -9,6 +9,7 @@ import time
 from datetime import date
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import quote
 
 
 class GarminAbort(RuntimeError):
@@ -78,6 +79,7 @@ class GarminActivityClient:
         self._pace_seconds = pace_seconds
         self._sleep = sleep
         self._max_attempts = max_attempts
+        self._display_name: str | None = None
 
     @classmethod
     def from_login(cls, client: Any, pace_seconds: float = 4.0) -> GarminActivityClient:
@@ -109,6 +111,9 @@ class GarminActivityClient:
                 continue
             if status < 200 or status >= 300:
                 raise GarminAbort(status)
+            # Garmin answers some per-date reads for a day holding nothing with 204 and no body.
+            if status == 204:
+                return None
             return json.loads(response.content)
         raise AssertionError("unreachable")
 
@@ -126,6 +131,29 @@ class GarminActivityClient:
         if not isinstance(payload, list) or any(not isinstance(item, dict) for item in payload):
             raise RuntimeError("Garmin heart rate zones were not an array of objects")
         return payload
+
+    def _display_name_path(self) -> str:
+        # Sleep and the daily summary are addressed by display name, so it is read once per client.
+        if self._display_name is None:
+            profile = self._get("/userprofile-service/socialProfile", {})
+            if not isinstance(profile, dict) or not isinstance(profile.get("displayName"), str):
+                raise RuntimeError("Garmin social profile carried no display name")
+            self._display_name = quote(profile["displayName"], safe="")
+        return self._display_name
+
+    def _get_day(self, path: str, params: dict[str, str]) -> dict[str, Any] | None:
+        payload = self._get(path, params)
+        if payload is not None and not isinstance(payload, dict):
+            raise RuntimeError(f"Garmin {path} response was not an object")
+        return payload
+
+    def get_sleep_night(self, day: date) -> dict[str, Any] | None:
+        return self._get_day(f"/wellness-service/wellness/dailySleepData/{self._display_name_path()}",
+                             {"date": day.isoformat(), "nonSleepBufferMinutes": "60"})
+
+    def get_daily_summary(self, day: date) -> dict[str, Any] | None:
+        return self._get_day(f"/usersummary-service/usersummary/daily/{self._display_name_path()}",
+                             {"calendarDate": day.isoformat()})
 
     def list_activities(self, start: date, end: date) -> list[dict[str, Any]]:
         activities: list[dict[str, Any]] = []

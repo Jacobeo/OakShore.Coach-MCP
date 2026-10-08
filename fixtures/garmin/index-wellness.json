@@ -1,0 +1,137 @@
+[
+  {
+    "file": "wellness-service--dailySleepData__date-2026-09-21.json",
+    "endpoint": "/wellness-service/wellness/dailySleepData/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "date": "2026-09-21",
+      "nonSleepBufferMinutes": "60"
+    },
+    "status": 200,
+    "bytes": 101480,
+    "fetchedAtUtc": "2026-10-08T10:38:03+00:00"
+  },
+  {
+    "file": "hrv-service--hrv__date-2026-09-21.json",
+    "endpoint": "/hrv-service/hrv/2026-09-21",
+    "params": null,
+    "status": 204,
+    "bytes": 0,
+    "fetchedAtUtc": "2026-10-08T10:38:07+00:00"
+  },
+  {
+    "file": "usersummary-service--daily__date-2026-09-21.json",
+    "endpoint": "/usersummary-service/usersummary/daily/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "calendarDate": "2026-09-21"
+    },
+    "status": 200,
+    "bytes": 2688,
+    "fetchedAtUtc": "2026-10-08T10:38:11+00:00"
+  },
+  {
+    "file": "wellness-service--dailySleepData__date-2026-09-20.json",
+    "endpoint": "/wellness-service/wellness/dailySleepData/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "date": "2026-09-20",
+      "nonSleepBufferMinutes": "60"
+    },
+    "status": 200,
+    "bytes": 171390,
+    "fetchedAtUtc": "2026-10-08T10:38:16+00:00"
+  },
+  {
+    "file": "hrv-service--hrv__date-2026-09-20.json",
+    "endpoint": "/hrv-service/hrv/2026-09-20",
+    "params": null,
+    "status": 204,
+    "bytes": 0,
+    "fetchedAtUtc": "2026-10-08T10:38:20+00:00"
+  },
+  {
+    "file": "usersummary-service--daily__date-2026-09-20.json",
+    "endpoint": "/usersummary-service/usersummary/daily/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "calendarDate": "2026-09-20"
+    },
+    "status": 200,
+    "bytes": 2688,
+    "fetchedAtUtc": "2026-10-08T10:38:24+00:00"
+  },
+  {
+    "file": "wellness-service--dailySleepData__date-2026-09-19.json",
+    "endpoint": "/wellness-service/wellness/dailySleepData/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "date": "2026-09-19",
+      "nonSleepBufferMinutes": "60"
+    },
+    "status": 200,
+    "bytes": 200492,
+    "fetchedAtUtc": "2026-10-08T10:38:29+00:00"
+  },
+  {
+    "file": "hrv-service--hrv__date-2026-09-19.json",
+    "endpoint": "/hrv-service/hrv/2026-09-19",
+    "params": null,
+    "status": 204,
+    "bytes": 0,
+    "fetchedAtUtc": "2026-10-08T10:38:33+00:00"
+  },
+  {
+    "file": "usersummary-service--daily__date-2026-09-19.json",
+    "endpoint": "/usersummary-service/usersummary/daily/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "calendarDate": "2026-09-19"
+    },
+    "status": 200,
+    "bytes": 2688,
+    "fetchedAtUtc": "2026-10-08T10:38:37+00:00"
+  },
+  {
+    "file": "wellness-service--bodyBattery-reports-daily__date-2026-09-21.json",
+    "endpoint": "/wellness-service/wellness/bodyBattery/reports/daily",
+    "params": {
+      "startDate": "2026-09-21",
+      "endDate": "2026-09-21"
+    },
+    "status": 200,
+    "bytes": 575,
+    "fetchedAtUtc": "2026-10-08T10:38:41+00:00"
+  },
+  {
+    "file": "wellness-service--dailyStress__date-2026-09-21.json",
+    "endpoint": "/wellness-service/wellness/dailyStress/2026-09-21",
+    "params": null,
+    "status": 200,
+    "bytes": 23165,
+    "fetchedAtUtc": "2026-10-08T10:38:45+00:00"
+  },
+  {
+    "file": "wellness-service--dailySleepData__date-2010-01-01.json",
+    "endpoint": "/wellness-service/wellness/dailySleepData/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "date": "2010-01-01",
+      "nonSleepBufferMinutes": "60"
+    },
+    "status": 200,
+    "bytes": 653,
+    "fetchedAtUtc": "2026-10-08T10:38:49+00:00"
+  },
+  {
+    "file": "hrv-service--hrv__date-2010-01-01.json",
+    "endpoint": "/hrv-service/hrv/2010-01-01",
+    "params": null,
+    "status": 204,
+    "bytes": 0,
+    "fetchedAtUtc": "2026-10-08T10:38:54+00:00"
+  },
+  {
+    "file": "usersummary-service--daily__date-2010-01-01.json",
+    "endpoint": "/usersummary-service/usersummary/daily/00000000-0000-4000-8000-00000000000a",
+    "params": {
+      "calendarDate": "2010-01-01"
+    },
+    "status": 200,
+    "bytes": 2370,
+    "fetchedAtUtc": "2026-10-08T10:38:58+00:00"
+  }
+]

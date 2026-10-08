@@ -37,6 +37,31 @@ Read it rather than inferring provenance from file names.
 | `index.json` | the harness's index, not a Garmin response |
 | `exercise-set-cases.md` | which `exerciseSets` dump followed a Workout and which was freestyle, by Activity |
 
+### Daily wellness
+
+A second run, `20261008T103754Z`, captured by
+[`spikes/wellness-capture/`](../../spikes/wellness-capture/README.md) on
+2026-10-08 for 2026-09-19 to 2026-09-21, the last days of the window above, and
+for a 2010-01-01 sentinel from before the account existed — Garmin's answer for
+a day holding nothing.
+
+| File | Endpoint |
+| --- | --- |
+| `wellness-service--dailySleepData__date-<date>.json` | `/wellness-service/wellness/dailySleepData/<displayName>` — 4 files |
+| `usersummary-service--daily__date-<date>.json` | `/usersummary-service/usersummary/daily/<displayName>` — 4 files |
+| `wellness-service--bodyBattery-reports-daily__date-2026-09-21.json` | `/wellness-service/wellness/bodyBattery/reports/daily` — evidence for [ADR 0010](../../docs/adr/0010-wellness-reads-sleep-and-the-daily-summary.md); the sync does not call it |
+| `wellness-service--dailyStress__date-2026-09-21.json` | `/wellness-service/wellness/dailyStress` — the same |
+| `index-wellness.json` | that run's index, with each response's status; the four HRV 204s are recorded here and nowhere else ([ADR 0011](../../docs/adr/0011-this-watch-records-no-hrv.md)) |
+
+These carry the account id under `userProfilePK`, `userProfilePk`,
+`userProfileId` and `userDailySummaryId`, plus `displayName`, per-day `uuid`s
+and `deviceId`s, at any depth. [`scrub_wellness.py`](../../spikes/wellness-capture/scrub_wellness.py)
+replaces them with the placeholders the Activity list uses, refuses any file its
+rules do not name, and publishes nothing if a value from the athlete's social
+profile survives anywhere. The social profile itself is never published.
+Everything else, physiological figures and timestamps included, is as Garmin
+sent it, the same decision the Activity list made.
+
 What the payloads actually say, field by field, is in
 [findings.md](../../spikes/strength-data-spike/findings.md). Read that before
 writing code against these files — several fields do not mean what their names

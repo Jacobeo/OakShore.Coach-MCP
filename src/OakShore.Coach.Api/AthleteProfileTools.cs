@@ -11,7 +11,7 @@ public sealed class AthleteProfileTools(AthleteProfileService profiles, SyncStat
 {
     [McpServerTool(Name = "get_sync_status", ReadOnly = true, OpenWorld = false,
         UseStructuredContent = true, OutputSchemaType = typeof(SyncStatusResponse))]
-    [Description("Read stored record counts, last sync times, and the most recent Activity summary, including its stored ExerciseSets or HeartRateZone times.")]
+    [Description("Read stored record counts, last sync times, the most recent Activity summary including its stored ExerciseSets or HeartRateZone times, and which kinds of daily record the latest synced day holds.")]
     public async Task<CallToolResult> GetSyncStatus(CancellationToken cancellationToken)
     {
         var userId = context.HttpContext!.User.FindFirst("sub")!.Value;

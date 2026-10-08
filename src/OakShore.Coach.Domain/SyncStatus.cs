@@ -4,7 +4,28 @@ public sealed record CollectionSyncStatus(string Name, int Count, DateTimeOffset
 public sealed record SyncStatusResponse(
     IReadOnlyList<CollectionSyncStatus> Collections, Activity? LatestActivity,
     StrengthDetail? LatestActivityStrengthDetail, CardioDetail? LatestActivityCardioDetail,
-    DateTimeOffset? LastSyncedAt);
+    LatestWellnessDay? LatestWellnessDay, DateTimeOffset? LastSyncedAt);
+
+// The most recent date a version 3 batch synced, and which kinds of record it holds; an
+// empty list is a day Garmin held nothing for, not a day never attempted. Never values.
+public sealed record LatestWellnessDay(DateOnly CalendarDate, IReadOnlyList<string> Holds)
+{
+    public static LatestWellnessDay From(DateOnly calendarDate, bool holdsSleepNight, DailySummary? dailySummary)
+    {
+        var holds = new List<string>();
+        if (holdsSleepNight)
+            holds.Add(nameof(SleepNight));
+        if (dailySummary is not null)
+        {
+            holds.Add(nameof(DailySummary));
+            if (dailySummary.BodyBattery.HoldsFigures)
+                holds.Add(nameof(BodyBattery));
+            if (dailySummary.StressLevel.HoldsFigures)
+                holds.Add(nameof(StressLevel));
+        }
+        return new LatestWellnessDay(calendarDate, holds);
+    }
+}
 
 public interface ISyncStatusRepository
 {

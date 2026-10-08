@@ -10,8 +10,10 @@ Questions, each answerable from the store alone:
 
 - Did systemic TrainingLoad spikes precede the weeks that actually went badly —
   illness, injury Constraints, missed training?
-- Does the HRV weekly average leaving its baseline band flag those same weeks,
-  and with what lead time?
+- ~~Does the HRV weekly average leaving its baseline band flag those same weeks,
+  and with what lead time?~~ Blocked on hardware: this athlete's watch records
+  no HRV, so there is no weekly average or band to backtest
+  ([ADR 0011](../docs/adr/0011-this-watch-records-no-hrv.md)).
 - Does the per-Exercise EstimatedOneRepMax trend match remembered strength
   changes across old rep-scheme transitions?
 - Do the stored-but-never-exposed fields — sleep stages, body battery, stress —

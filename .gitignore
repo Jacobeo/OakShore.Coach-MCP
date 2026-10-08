@@ -11,3 +11,4 @@ TestResults/
 
 # Real training data, not committed. See spikes/strength-data-spike/README.md.
 spikes/strength-data-spike/dumps/
+spikes/wellness-capture/dumps/

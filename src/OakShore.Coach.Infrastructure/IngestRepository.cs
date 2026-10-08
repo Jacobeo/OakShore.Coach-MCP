@@ -10,6 +10,7 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
         ActivityRange range, IReadOnlyList<Activity> activities,
         IReadOnlyDictionary<long, IReadOnlyList<ExerciseSet>> exerciseSets,
         IReadOnlyList<SportProfile> sportProfiles, IReadOnlyDictionary<long, ActivityTimeInHeartRateZones> timeInHeartRateZones,
+        int version, IReadOnlyList<SleepNight> sleepNights, IReadOnlyList<DailySummary> dailySummaries,
         string batchHash, DateTimeOffset lastSyncedAt, CancellationToken cancellationToken)
     {
         await using var transaction = await store.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
@@ -99,6 +100,8 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             }
             store.TimeInHeartRateZones.RemoveRange(rows.Values);
         }
+        await SaveSleepNightsAsync(userId, sleepNights, cancellationToken);
+        await SaveDailySummariesAsync(userId, dailySummaries, cancellationToken);
         var dates = range.Validate();
         store.IngestBatches.Add(new IngestBatchRow
         {
@@ -106,10 +109,69 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             BatchHash = batchHash,
             FromDate = dates.From,
             ToDate = dates.To,
-            LastSyncedAt = lastSyncedAt
+            LastSyncedAt = lastSyncedAt,
+            Version = version
         });
         await store.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    // A delivered day replaces its stored figures; a day a batch leaves out keeps them, as an
+    // Activity left out of a later batch is kept. An omitted garminResponse keeps the archived one.
+    private async Task SaveSleepNightsAsync(string userId, IReadOnlyList<SleepNight> sleepNights, CancellationToken cancellationToken)
+    {
+        if (sleepNights.Count == 0)
+            return;
+        var calendarDates = sleepNights.Select(night => night.CalendarDate).ToArray();
+        var stored = await store.SleepNights.Where(row => row.UserId == userId && calendarDates.Contains(row.CalendarDate))
+            .ToDictionaryAsync(row => row.CalendarDate, cancellationToken);
+        foreach (var night in sleepNights)
+        {
+            if (!stored.TryGetValue(night.CalendarDate, out var row))
+            {
+                row = new SleepNightRow { UserId = userId, CalendarDate = night.CalendarDate };
+                store.SleepNights.Add(row);
+            }
+            row.StartTimeUtc = night.StartTimeUtc;
+            row.EndTimeUtc = night.EndTimeUtc;
+            row.SleepSeconds = night.SleepSeconds;
+            row.DeepSleepSeconds = night.DeepSleepSeconds;
+            row.LightSleepSeconds = night.LightSleepSeconds;
+            row.RemSleepSeconds = night.RemSleepSeconds;
+            row.AwakeSleepSeconds = night.AwakeSleepSeconds;
+            row.UnmeasurableSleepSeconds = night.UnmeasurableSleepSeconds;
+            if (night.GarminResponse is not null)
+                row.GarminResponse = night.GarminResponse;
+        }
+    }
+
+    private async Task SaveDailySummariesAsync(string userId, IReadOnlyList<DailySummary> dailySummaries, CancellationToken cancellationToken)
+    {
+        if (dailySummaries.Count == 0)
+            return;
+        var calendarDates = dailySummaries.Select(summary => summary.CalendarDate).ToArray();
+        var stored = await store.DailySummaries.Where(row => row.UserId == userId && calendarDates.Contains(row.CalendarDate))
+            .ToDictionaryAsync(row => row.CalendarDate, cancellationToken);
+        foreach (var summary in dailySummaries)
+        {
+            if (!stored.TryGetValue(summary.CalendarDate, out var row))
+            {
+                row = new DailySummaryRow { UserId = userId, CalendarDate = summary.CalendarDate };
+                store.DailySummaries.Add(row);
+            }
+            row.BodyBatteryCharged = summary.BodyBattery.Charged;
+            row.BodyBatteryDrained = summary.BodyBattery.Drained;
+            row.BodyBatteryHighest = summary.BodyBattery.Highest;
+            row.BodyBatteryLowest = summary.BodyBattery.Lowest;
+            row.StressLevelAverage = summary.StressLevel.Average;
+            row.StressLevelMaximum = summary.StressLevel.Maximum;
+            row.StressLevelRestSeconds = summary.StressLevel.RestSeconds;
+            row.StressLevelLowSeconds = summary.StressLevel.LowSeconds;
+            row.StressLevelMediumSeconds = summary.StressLevel.MediumSeconds;
+            row.StressLevelHighSeconds = summary.StressLevel.HighSeconds;
+            if (summary.GarminResponse is not null)
+                row.GarminResponse = summary.GarminResponse;
+        }
     }
 
     // Confirms each delivered SportProfile against its latest stored Revision, adding a

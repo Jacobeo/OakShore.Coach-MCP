@@ -95,3 +95,5 @@ Confirmed with one correction: **every positive trial used a smoothed HRV signal
 ### Conclusion (Q-D)
 
 "HRV weekly/rolling average vs an individual baseline band as weekly planning context, never a daily go/no-go gate" is well supported and is essentially the protocol the successful RCTs used (7-day rolling lnRMSSD vs ±0.5 SD SWC); expected benefit is modest at the group level (SMD ~0.2, often non-significant) but with a consistent direction and fewer non-responders, which fits its role as context rather than a primary driver. Implement it as: rolling 7-day lnRMSSD outside the baseline band → bias the coming days toward low intensity; inside the band → proceed as planned — and never cancel or green-light a session from one morning's number.
+
+**Not applicable to this athlete.** Their watch records no overnight HRV, so neither the rolling lnRMSSD nor the baseline band exists to compare, and the protocol above cannot be implemented ([ADR 0011](../docs/adr/0011-this-watch-records-no-hrv.md)). The conclusion stands for a watch that does.

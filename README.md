@@ -414,7 +414,7 @@ python src/sync/sync_activities.py --from-date 2026-09-21 --to-date 2026-09-22
 
 The sync lists only the requested dates, enriches each strength Activity with
 one further call for its exercise sets, waits at least three seconds between
-Garmin requests, and posts one version 2 batch with weights converted to
+Garmin requests, and posts one Activities-only version 2 batch with weights converted to
 kilograms. Cardio Activities, including any unanticipated sport, cost no further
 call: their time in zones is read off the Activity list, and the zone
 boundaries are fetched at most once per run, only when an Activity carries
@@ -423,6 +423,46 @@ stops it without retrying; network errors and 5xx responses retry up to three
 times with backoff. A missing or expired saved Garmin token requires the
 interactive login flow from the strength-data spike before this command runs.
 No automated test contacts Garmin.
+
+## Ingest version 3 and daily wellness
+
+Version 3 is version 2 plus the range's `sleepNights` and `dailySummaries`. Both
+lists are required and either may be empty: a version 3 batch states that every
+date in its `activityRange` was synced, so a date with neither record is one
+Garmin held nothing for, not one never attempted. Version 2 batches carrying
+either list are rejected.
+
+```json
+{"version":3,"activityRange":{"fromDate":"2026-09-21","toDate":"2026-09-21"},"activities":[],"sleepNights":[{"calendarDate":"2026-09-21","startTimeUtc":"2026-09-20T20:54:00Z","endTimeUtc":"2026-09-21T04:08:00Z","sleepSeconds":26040,"deepSleepSeconds":2760,"lightSleepSeconds":13620,"remSleepSeconds":9660,"awakeSleepSeconds":0,"unmeasurableSleepSeconds":0,"garminResponse":{"dailySleepDTO":{"calendarDate":"2026-09-21"}}}],"dailySummaries":[{"calendarDate":"2026-09-21","bodyBattery":{"charged":55,"drained":54,"highest":99,"lowest":37},"stressLevel":{"average":22,"maximum":92,"restSeconds":44100,"lowSeconds":16500,"mediumSeconds":1980,"highSeconds":660},"garminResponse":{"calendarDate":"2026-09-21"}}]}
+```
+
+Daily wellness contract rules:
+
+- Each entry's `calendarDate` (`YYYY-MM-DD`) falls within the `activityRange`,
+  and names a date at most once per list. Each list holds at most 1000 entries
+  and cannot contain null.
+- A SleepNight is dated by the morning it ends on. `startTimeUtc` and
+  `endTimeUtc` are UTC with `Z`, the end no earlier than the start and within 48
+  hours of it. `sleepSeconds` is Garmin's sleep time, which excludes awake time;
+  it and the deep, light, REM, awake and unmeasurable stage seconds are optional,
+  from 0 to 172800.
+- A DailySummary carries `bodyBattery` (`highest` and `lowest` from 0 to 100,
+  `charged` and `drained` from 0 to 1000) and `stressLevel` (`average` and
+  `maximum` from 0 to 100; `restSeconds`, `lowSeconds`, `mediumSeconds` and
+  `highSeconds` from 0 to 90000). Every figure is optional.
+- `garminResponse` is Garmin's response archived verbatim with every
+  array-valued member removed: a JSON object of at most 65536 characters, refused
+  if any member at any depth is an array. It is optional, and no tool ever reads
+  it ([ADR 0010](docs/adr/0010-wellness-reads-sleep-and-the-daily-summary.md)).
+- A re-sent date replaces that record's figures. A batch that leaves a date's
+  record out keeps the stored one, and an omitted `garminResponse` keeps the
+  archived one.
+- `get_sync_status` reports `SleepNight` and `DailySummary` collections — the
+  count of dates stored, and the time of the last version 3 batch — and
+  `latestWellnessDay`: the latest date a version 3 batch reached, with `holds`
+  listing which of `SleepNight`, `DailySummary`, `BodyBattery` and `StressLevel`
+  that date has. An empty `holds` is a date Garmin held nothing for. No tool
+  returns a wellness figure.
 
 ## Watermark runs
 
@@ -436,7 +476,17 @@ python src/sync/sync_activities.py
 ```
 
 Each pending day is fetched most recent first and posted as its own single-day
-version 2 batch. The Watermark records a day once its batch is accepted, so an
+version 3 batch: the day's Activities, its SleepNight and its DailySummary. A
+day costs the Activity list, sleep and the daily summary, plus the enrichment
+calls above; BodyBattery and StressLevel are read off the daily summary, and
+neither the dedicated body battery and stress endpoints nor HRV are called
+([ADR 0010](docs/adr/0010-wellness-reads-sleep-and-the-daily-summary.md),
+[ADR 0011](docs/adr/0011-this-watch-records-no-hrv.md)). Sleep and the summary
+are addressed by the athlete's display name, read from the social profile once
+per run. A day Garmin holds nothing for is posted with empty lists and
+completed like any other, so it is never fetched again; a privacy-protected
+summary stops the run instead. An explicit date range syncs Activities only.
+The Watermark records a day once its batch is accepted, so an
 interrupted run keeps everything already fetched and the next run continues
 where it stopped. The current day is synced but never recorded as completed, so
 an evening run picks up that day's session and the next run syncs the day again.

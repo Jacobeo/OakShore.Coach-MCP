@@ -65,8 +65,11 @@ Python, on your PC, per [ADR 0005](./adr/0005-bounded-resumable-sync.md):
   Activity for exercise sets. Time in zones is read off the list entry and the
   zone boundaries are fetched once per run, per
   [ADR 0008](./adr/0008-one-heart-rate-zone-set.md)
-- Wellness per day: sleep, HRV, body battery, stress, daily summary, training
-  status, training readiness
+- Wellness per day: sleep and the daily summary, which carries body battery and
+  stress, per [ADR 0010](./adr/0010-wellness-reads-sleep-and-the-daily-summary.md);
+  no HRV, which this watch does not record, per
+  [ADR 0011](./adr/0011-this-watch-records-no-hrv.md). Training status and
+  training readiness follow in the same loop
 - POSTs batches to the ingest endpoint. Never touches the database directly
 - ntfy notification on final failure
 - Windows Task Scheduler, daily, with "run as soon as possible after a missed
@@ -110,7 +113,8 @@ state which Mesocycle and WeekOutline you are in, including any recovery intent.
 
 - `get_training_summary(from, to)`: counts by modality, volume, strength detail,
   Adherence
-- `get_current_form`: TrainingLoad, ACWR, TrainingReadiness, HRV, VO2max, sleep
+- `get_current_form`: TrainingLoad, ACWR, TrainingReadiness, VO2max, sleep. No
+  HRV: this athlete's watch records none ([ADR 0011](./adr/0011-this-watch-records-no-hrv.md))
 - Every response carries its own data freshness
 
 **Done when** the agent answers "how much have I actually trained this month,

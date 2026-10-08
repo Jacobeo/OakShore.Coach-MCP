@@ -1172,6 +1172,210 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
     }
 
+    [Fact]
+    public async Task Version_three_stores_a_days_sleep_night_and_daily_summary_and_reports_only_counts_freshness_and_what_it_holds()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        using var activitiesOnly = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2, activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-21" }, activities = Array.Empty<object>()
+        });
+        Assert.Equal(HttpStatusCode.OK, activitiesOnly.StatusCode);
+        var before = await CallTool(client, "get_sync_status");
+        foreach (var name in new[] { "SleepNight", "DailySummary" })
+        {
+            Assert.Equal(0, Collection(before, name).GetProperty("count").GetInt32());
+            Assert.Equal(JsonValueKind.Null, Collection(before, name).GetProperty("lastSyncedAt").ValueKind);
+        }
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("latestWellnessDay").ValueKind);
+
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var earlier = await client.PostAsJsonAsync("/ingest",
+            WellnessBatch("2026-09-20", [FixtureSleepNight("2026-09-20")], [FixtureDailySummary("2026-09-20")]));
+        Assert.Equal(HttpStatusCode.OK, earlier.StatusCode);
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        var batch = WellnessBatch("2026-09-21", [FixtureSleepNight("2026-09-21")], [FixtureDailySummary("2026-09-21")]);
+        using var posted = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var saved = await CallTool(client, "get_sync_status");
+        foreach (var name in new[] { "SleepNight", "DailySummary" })
+        {
+            Assert.Equal(2, Collection(saved, name).GetProperty("count").GetInt32());
+            Assert.Equal(clock.GetUtcNow(), Collection(saved, name).GetProperty("lastSyncedAt").GetDateTimeOffset());
+        }
+        // A version 3 batch is also an Activity sync that found none.
+        Assert.Equal(clock.GetUtcNow(), Collection(saved, "Activity").GetProperty("lastSyncedAt").GetDateTimeOffset());
+        var latest = saved.GetProperty("latestWellnessDay");
+        Assert.Equal(new[] { "calendarDate", "holds" }, latest.EnumerateObject().Select(property => property.Name));
+        Assert.Equal("2026-09-21", latest.GetProperty("calendarDate").GetString());
+        Assert.Equal(new[] { "SleepNight", "DailySummary", "BodyBattery", "StressLevel" },
+            latest.GetProperty("holds").EnumerateArray().Select(item => item.GetString()));
+        // No wellness value is returned by any tool: what was stored shows only as counts and holds.
+        Assert.Equal(new[] { "collections", "latestActivity", "latestActivityStrengthDetail", "latestActivityCardioDetail",
+            "latestWellnessDay", "lastSyncedAt" }, saved.EnumerateObject().Select(property => property.Name));
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var replayed = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, replayed.StatusCode);
+        Assert.Equal(saved.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    [Fact]
+    public async Task A_day_garmin_holds_nothing_for_is_reported_as_the_latest_day_reached_holding_nothing()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        using var stored = await client.PostAsJsonAsync("/ingest",
+            WellnessBatch("2026-09-21", [FixtureSleepNight("2026-09-21")], [FixtureDailySummary("2026-09-21")]));
+        Assert.Equal(HttpStatusCode.OK, stored.StatusCode);
+
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var empty = await client.PostAsJsonAsync("/ingest", WellnessBatch("2026-09-22", [], []));
+        Assert.Equal(HttpStatusCode.OK, empty.StatusCode);
+
+        var reached = await CallTool(client, "get_sync_status");
+        foreach (var name in new[] { "SleepNight", "DailySummary" })
+        {
+            Assert.Equal(1, Collection(reached, name).GetProperty("count").GetInt32());
+            Assert.Equal(clock.GetUtcNow(), Collection(reached, name).GetProperty("lastSyncedAt").GetDateTimeOffset());
+        }
+        Assert.Equal("2026-09-22", reached.GetProperty("latestWellnessDay").GetProperty("calendarDate").GetString());
+        Assert.Empty(reached.GetProperty("latestWellnessDay").GetProperty("holds").EnumerateArray());
+
+        // A catch-up over an older day refreshes freshness but is not the latest day reached.
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var older = await client.PostAsJsonAsync("/ingest",
+            WellnessBatch("2026-09-20", [FixtureSleepNight("2026-09-20")], []));
+        Assert.Equal(HttpStatusCode.OK, older.StatusCode);
+        var caughtUp = await CallTool(client, "get_sync_status");
+        Assert.Equal(2, Collection(caughtUp, "SleepNight").GetProperty("count").GetInt32());
+        Assert.Equal(clock.GetUtcNow(), Collection(caughtUp, "DailySummary").GetProperty("lastSyncedAt").GetDateTimeOffset());
+        Assert.Equal(reached.GetProperty("latestWellnessDay").ToString(), caughtUp.GetProperty("latestWellnessDay").ToString());
+    }
+
+    [Fact]
+    public async Task Resending_a_day_replaces_its_figures_and_a_day_sent_empty_keeps_what_is_stored()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        using var first = await client.PostAsJsonAsync("/ingest",
+            WellnessBatch("2026-09-21", [FixtureSleepNight("2026-09-21")], [FixtureDailySummary("2026-09-21")]));
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var resent = await client.PostAsJsonAsync("/ingest", WellnessBatch("2026-09-21", [],
+            [new { calendarDate = "2026-09-21", stressLevel = new { average = 30, maximum = 95 } }]));
+        Assert.Equal(HttpStatusCode.OK, resent.StatusCode);
+
+        var status = await CallTool(client, "get_sync_status");
+        Assert.Equal(1, Collection(status, "SleepNight").GetProperty("count").GetInt32());
+        Assert.Equal(1, Collection(status, "DailySummary").GetProperty("count").GetInt32());
+        Assert.Equal(new[] { "SleepNight", "DailySummary", "StressLevel" },
+            status.GetProperty("latestWellnessDay").GetProperty("holds").EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Theory]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"dailySummaries\":[]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[]}")]
+    [InlineData("{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[{\"calendarDate\":\"2026-09-22\",\"startTimeUtc\":\"2026-09-21T20:54:00Z\",\"endTimeUtc\":\"2026-09-22T04:08:00Z\"}],\"dailySummaries\":[]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[{\"calendarDate\":\"2026-09-21\",\"startTimeUtc\":\"2026-09-21T04:08:00Z\",\"endTimeUtc\":\"2026-09-20T20:54:00Z\"}],\"dailySummaries\":[]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[{\"calendarDate\":\"2026-09-21\",\"startTimeUtc\":\"2026-09-20T20:54:00Z\",\"endTimeUtc\":\"2026-09-21T04:08:00Z\",\"deepSleepSeconds\":-60}],\"dailySummaries\":[]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\"},{\"calendarDate\":\"2026-09-21\"}]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\",\"bodyBattery\":{\"highest\":101}}]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\",\"stressLevel\":{\"average\":101}}]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\",\"garminResponse\":{\"stressValuesArray\":[[1789941600000,70]]}}]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\",\"garminResponse\":{\"rule\":{\"levels\":[1]}}}]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[{\"calendarDate\":\"2026-09-21\",\"garminResponse\":\"not an object\"}]}")]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[null],\"dailySummaries\":[]}")]
+    public async Task Invalid_version_three_input_keeps_all_collections_unchanged(string batch)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        using var content = new StringContent(batch, System.Text.Encoding.UTF8, "application/json");
+        using var rejected = await client.PostAsync("/ingest", content);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    private static object WellnessBatch(string date, object[] sleepNights, object[] dailySummaries) => new
+    {
+        version = 3,
+        activityRange = new { fromDate = date, toDate = date },
+        activities = Array.Empty<object>(),
+        sleepNights,
+        dailySummaries
+    };
+
+    private static string Fixture(string name) => File.ReadAllText(Path.GetFullPath(Path.Combine(
+        AppContext.BaseDirectory, $"../../../../../fixtures/garmin/{name}")));
+
+    private static int? Int(JsonElement entry, string name) =>
+        entry.GetProperty(name).ValueKind == JsonValueKind.Null ? null : entry.GetProperty(name).GetInt32();
+
+    // The archive keeps Garmin's scalars and drops every array-valued member, as the sync does.
+    private static JsonNode? WithoutArrays(JsonNode? node) => node is JsonObject members
+        ? new JsonObject(members.Where(member => member.Value is not JsonArray)
+            .Select(member => KeyValuePair.Create(member.Key, WithoutArrays(member.Value))))
+        : node?.DeepClone();
+
+    // Mapped as the sync maps them: Garmin's GMT epoch milliseconds become UTC timestamps.
+    private static object FixtureSleepNight(string date)
+    {
+        var text = Fixture($"wellness-service--dailySleepData__date-{date}.json");
+        using var fixture = JsonDocument.Parse(text);
+        var sleep = fixture.RootElement.GetProperty("dailySleepDTO");
+        string Utc(string name) => DateTimeOffset.FromUnixTimeMilliseconds(sleep.GetProperty(name).GetInt64())
+            .ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", System.Globalization.CultureInfo.InvariantCulture);
+        return new
+        {
+            calendarDate = date,
+            startTimeUtc = Utc("sleepStartTimestampGMT"),
+            endTimeUtc = Utc("sleepEndTimestampGMT"),
+            sleepSeconds = Int(sleep, "sleepTimeSeconds"),
+            deepSleepSeconds = Int(sleep, "deepSleepSeconds"),
+            lightSleepSeconds = Int(sleep, "lightSleepSeconds"),
+            remSleepSeconds = Int(sleep, "remSleepSeconds"),
+            awakeSleepSeconds = Int(sleep, "awakeSleepSeconds"),
+            unmeasurableSleepSeconds = Int(sleep, "unmeasurableSleepSeconds"),
+            garminResponse = WithoutArrays(JsonNode.Parse(text))
+        };
+    }
+
+    private static object FixtureDailySummary(string date)
+    {
+        var text = Fixture($"usersummary-service--daily__date-{date}.json");
+        using var fixture = JsonDocument.Parse(text);
+        var summary = fixture.RootElement;
+        return new
+        {
+            calendarDate = date,
+            bodyBattery = new
+            {
+                charged = Int(summary, "bodyBatteryChargedValue"),
+                drained = Int(summary, "bodyBatteryDrainedValue"),
+                highest = Int(summary, "bodyBatteryHighestValue"),
+                lowest = Int(summary, "bodyBatteryLowestValue")
+            },
+            stressLevel = new
+            {
+                average = Int(summary, "averageStressLevel"),
+                maximum = Int(summary, "maxStressLevel"),
+                restSeconds = Int(summary, "restStressDuration"),
+                lowSeconds = Int(summary, "lowStressDuration"),
+                mediumSeconds = Int(summary, "mediumStressDuration"),
+                highSeconds = Int(summary, "highStressDuration")
+            },
+            garminResponse = WithoutArrays(JsonNode.Parse(text))
+        };
+    }
+
     private sealed record HeartRateZoneInput(int ZoneNumber, int LowBoundaryBpm);
     private sealed record SportProfileInput(string Name, string? TrainingMethod, int? RestingHeartRateBpm,
         int? MaxHeartRateBpm, int? LactateThresholdHeartRateBpm, IReadOnlyList<HeartRateZoneInput> HeartRateZones);

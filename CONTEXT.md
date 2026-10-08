@@ -176,6 +176,33 @@ that range: measured against ScheduledWorkouts where they exist, and against the
 WeekOutline's modality allocation where they do not.
 _Avoid_: compliance, plan vs actual, completion
 
+### Daily wellness
+
+**SleepNight**:
+One night's recorded sleep, attributed to the calendar date it ends on, so a
+night beginning on the evening of the 6th belongs to the 7th. Carries start,
+end, duration and the minutes in each stage. Duration reads as an upper bound on
+a fragmented night.
+_Avoid_: sleep, sleep session, sleep record, sleep day
+
+**BodyBattery**:
+The day's energy reserve as Garmin models it — charged, drained, highest and
+lowest. Carried on the DailySummary rather than fetched on its own, because the
+dedicated endpoint adds only an intraday series.
+_Avoid_: energy, battery, reserves
+
+**StressLevel**:
+The day's autonomic stress as Garmin models it — average, maximum and the
+durations at each level. Carried on the DailySummary, for the same reason as
+BodyBattery.
+_Avoid_: stress, strain, load
+
+**DailySummary**:
+Garmin's per-day rollup for one calendar date, carrying BodyBattery and
+StressLevel among its figures. One call per day, and the reason the dedicated
+body battery and stress calls are not made.
+_Avoid_: user summary, daily stats, wellness day
+
 ### Sync
 
 **ActivityRange**:
@@ -186,13 +213,18 @@ _Avoid_: window, period, date span
 
 **IngestBatch**:
 A versioned, atomic delivery to the store. Version 2 carries one ActivityRange,
-its Activities (possibly none), and optional AthleteProfile changes. Replaying
-identical content is the same delivery and does not advance freshness.
+its Activities (possibly none), and optional AthleteProfile changes. Version 3
+adds the range's SleepNights and DailySummaries, either possibly none, and states
+that every date in the range was synced, so a date with neither is one Garmin
+held nothing for rather than one never attempted. Replaying identical content is
+the same delivery and does not advance freshness.
 _Avoid_: upload, payload
 
 **SyncStatus**:
 The stored record count and last successful sync time for each collection, plus
-the most recent Activity summary when one is stored.
+the most recent Activity summary when one is stored, and the latest date a
+version 3 IngestBatch reached with the kinds of record that date holds — none,
+for a date Garmin held nothing for.
 A null time means the collection has never been synced; a non-null time with zero
 records means a completed sync found none.
 _Avoid_: sync health, sync state

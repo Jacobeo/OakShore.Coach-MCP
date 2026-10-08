@@ -14,6 +14,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
     internal DbSet<SportProfileRow> SportProfiles => Set<SportProfileRow>();
     internal DbSet<HeartRateZoneRow> HeartRateZones => Set<HeartRateZoneRow>();
     internal DbSet<TimeInHeartRateZoneRow> TimeInHeartRateZones => Set<TimeInHeartRateZoneRow>();
+    internal DbSet<SleepNightRow> SleepNights => Set<SleepNightRow>();
+    internal DbSet<DailySummaryRow> DailySummaries => Set<DailySummaryRow>();
     internal DbSet<IngestBatchRow> IngestBatches => Set<IngestBatchRow>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options) =>
@@ -79,6 +81,18 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         timeInZone.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
         timeInZone.HasOne<ActivityRow>().WithMany().HasForeignKey(row => new { row.UserId, row.ActivityId });
 
+        var sleepNight = modelBuilder.Entity<SleepNightRow>();
+        sleepNight.ToTable("SleepNights");
+        sleepNight.HasKey(row => new { row.UserId, row.CalendarDate });
+        sleepNight.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        sleepNight.Property(row => row.CalendarDate).HasColumnType("date");
+
+        var dailySummary = modelBuilder.Entity<DailySummaryRow>();
+        dailySummary.ToTable("DailySummaries");
+        dailySummary.HasKey(row => new { row.UserId, row.CalendarDate });
+        dailySummary.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        dailySummary.Property(row => row.CalendarDate).HasColumnType("date");
+
         var batch = modelBuilder.Entity<IngestBatchRow>();
         batch.ToTable("IngestBatches");
         batch.HasKey(row => new { row.UserId, row.BatchHash });
@@ -99,7 +113,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
             "OakShore.Coach.Infrastructure.Migrations.0005_Activities.sql",
             "OakShore.Coach.Infrastructure.Migrations.0006_ActivityName.sql",
             "OakShore.Coach.Infrastructure.Migrations.0007_ExerciseSets.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0008_HeartRateZones.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0008_HeartRateZones.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0009_DailyWellness.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -201,6 +216,40 @@ internal sealed class TimeInHeartRateZoneRow
     public double Seconds { get; set; }
 }
 
+internal sealed class SleepNightRow
+{
+    public string UserId { get; set; } = "";
+    public DateOnly CalendarDate { get; set; }
+    public DateTimeOffset StartTimeUtc { get; set; }
+    public DateTimeOffset EndTimeUtc { get; set; }
+    public int? SleepSeconds { get; set; }
+    public int? DeepSleepSeconds { get; set; }
+    public int? LightSleepSeconds { get; set; }
+    public int? RemSleepSeconds { get; set; }
+    public int? AwakeSleepSeconds { get; set; }
+    public int? UnmeasurableSleepSeconds { get; set; }
+    // Archive only: never read by a tool or at query time (ADR 0010).
+    public string? GarminResponse { get; set; }
+}
+
+internal sealed class DailySummaryRow
+{
+    public string UserId { get; set; } = "";
+    public DateOnly CalendarDate { get; set; }
+    public int? BodyBatteryCharged { get; set; }
+    public int? BodyBatteryDrained { get; set; }
+    public int? BodyBatteryHighest { get; set; }
+    public int? BodyBatteryLowest { get; set; }
+    public int? StressLevelAverage { get; set; }
+    public int? StressLevelMaximum { get; set; }
+    public int? StressLevelRestSeconds { get; set; }
+    public int? StressLevelLowSeconds { get; set; }
+    public int? StressLevelMediumSeconds { get; set; }
+    public int? StressLevelHighSeconds { get; set; }
+    // Archive only: never read by a tool or at query time (ADR 0010).
+    public string? GarminResponse { get; set; }
+}
+
 internal sealed class IngestBatchRow
 {
     public string UserId { get; set; } = "";
@@ -208,6 +257,7 @@ internal sealed class IngestBatchRow
     public DateOnly FromDate { get; set; }
     public DateOnly ToDate { get; set; }
     public DateTimeOffset LastSyncedAt { get; set; }
+    public int Version { get; set; }
 }
 
 public sealed class AthleteProfileRepository(AthleteProfileStore store, TimeProvider clock) : IAthleteProfileRepository

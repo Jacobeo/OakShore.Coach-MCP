@@ -63,6 +63,26 @@ public sealed class SyncStatusRepository(AthleteProfileStore store) : ISyncStatu
             .Where(row => row.UserId == userId)
             .Select(row => (DateTimeOffset?)row.LastSyncedAt)
             .MaxAsync(cancellationToken);
+        var wellnessBatches = store.IngestBatches.AsNoTracking().Where(row => row.UserId == userId && row.Version >= 3);
+        var wellnessLastSyncedAt = await wellnessBatches.Select(row => (DateTimeOffset?)row.LastSyncedAt).MaxAsync(cancellationToken);
+        var latestWellnessDate = await wellnessBatches.Select(row => (DateOnly?)row.ToDate).MaxAsync(cancellationToken);
+        var sleepNightCount = await store.SleepNights.AsNoTracking().CountAsync(row => row.UserId == userId, cancellationToken);
+        var dailySummaryCount = await store.DailySummaries.AsNoTracking().CountAsync(row => row.UserId == userId, cancellationToken);
+        LatestWellnessDay? latestWellnessDay = null;
+        if (latestWellnessDate is { } calendarDate)
+        {
+            var holdsSleepNight = await store.SleepNights.AsNoTracking()
+                .AnyAsync(row => row.UserId == userId && row.CalendarDate == calendarDate, cancellationToken);
+            var dailySummary = await store.DailySummaries.AsNoTracking()
+                .Where(row => row.UserId == userId && row.CalendarDate == calendarDate)
+                .Select(row => new DailySummary(row.CalendarDate,
+                    new BodyBattery(row.BodyBatteryCharged, row.BodyBatteryDrained, row.BodyBatteryHighest, row.BodyBatteryLowest),
+                    new StressLevel(row.StressLevelAverage, row.StressLevelMaximum, row.StressLevelRestSeconds,
+                        row.StressLevelLowSeconds, row.StressLevelMediumSeconds, row.StressLevelHighSeconds),
+                    null))
+                .SingleOrDefaultAsync(cancellationToken);
+            latestWellnessDay = LatestWellnessDay.From(calendarDate, holdsSleepNight, dailySummary);
+        }
         return new SyncStatusResponse([
             new CollectionSyncStatus("AthleteProfile", profile is null ? 0 : 1, profile),
             new CollectionSyncStatus("Activity", activityCount, activityLastSyncedAt),
@@ -71,8 +91,12 @@ public sealed class SyncStatusRepository(AthleteProfileStore store) : ISyncStatu
             new CollectionSyncStatus("ExerciseSet", exerciseSetCount, activityLastSyncedAt),
             // Boundaries arrive only with Activities that carry time in zones, so they keep
             // their own time: the last batch that delivered them.
-            new CollectionSyncStatus("SportProfile", sportProfileCount, sportProfileLastSyncedAt)
-        ], latestActivity, StrengthDetail.From(latestExerciseSets), latestCardioDetail,
+            new CollectionSyncStatus("SportProfile", sportProfileCount, sportProfileLastSyncedAt),
+            // Version 3 batches deliver both for every date in their range, so both share the
+            // last such batch's time: a zero count with a time means Garmin held none.
+            new CollectionSyncStatus(nameof(SleepNight), sleepNightCount, wellnessLastSyncedAt),
+            new CollectionSyncStatus(nameof(DailySummary), dailySummaryCount, wellnessLastSyncedAt)
+        ], latestActivity, StrengthDetail.From(latestExerciseSets), latestCardioDetail, latestWellnessDay,
             profile is null ? activityLastSyncedAt : activityLastSyncedAt is null ? profile
             : (profile > activityLastSyncedAt ? profile : activityLastSyncedAt));
     }

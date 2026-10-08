@@ -9,7 +9,9 @@ public sealed record IngestBatch(
     IReadOnlyList<AthleteProfileChange?>? AthleteProfiles,
     ActivityRange? ActivityRange = null,
     IReadOnlyList<ActivityInput?>? Activities = null,
-    IReadOnlyList<SportProfileInput?>? SportProfiles = null);
+    IReadOnlyList<SportProfileInput?>? SportProfiles = null,
+    IReadOnlyList<SleepNightInput?>? SleepNights = null,
+    IReadOnlyList<DailySummaryInput?>? DailySummaries = null);
 
 public interface IIngestRepository
 {
@@ -17,6 +19,7 @@ public interface IIngestRepository
         ActivityRange range, IReadOnlyList<Activity> activities,
         IReadOnlyDictionary<long, IReadOnlyList<ExerciseSet>> exerciseSets,
         IReadOnlyList<SportProfile> sportProfiles, IReadOnlyDictionary<long, ActivityTimeInHeartRateZones> timeInHeartRateZones,
+        int version, IReadOnlyList<SleepNight> sleepNights, IReadOnlyList<DailySummary> dailySummaries,
         string batchHash, DateTimeOffset lastSyncedAt, CancellationToken cancellationToken);
 }
 
@@ -25,12 +28,13 @@ public sealed class IngestService(
 {
     public async Task<object> IngestAsync(string userId, IngestBatch batch, CancellationToken cancellationToken)
     {
-        if (batch.Version is not (1 or 2))
-            throw new ArgumentException("Only ingest versions 1 and 2 are supported.");
+        if (batch.Version is not (1 or 2 or 3))
+            throw new ArgumentException("Only ingest versions 1, 2 and 3 are supported.");
         var now = clock.GetUtcNow();
         if (batch.Version == 1)
         {
-            if (batch.ActivityRange is not null || batch.Activities is not null || batch.SportProfiles is not null)
+            if (batch.ActivityRange is not null || batch.Activities is not null || batch.SportProfiles is not null
+                || batch.SleepNights is not null || batch.DailySummaries is not null)
                 throw new ArgumentException("Version 1 accepts AthleteProfile changes only.");
             if (batch.AthleteProfiles is not { Count: > 0 and <= 100 })
                 throw new ArgumentException("Supply between 1 and 100 AthleteProfile changes.");
@@ -41,8 +45,26 @@ public sealed class IngestService(
 
         if (batch.ActivityRange is null || batch.Activities is not { Count: <= 5000 }
             || batch.AthleteProfiles is { Count: > 100 })
-            throw new ArgumentException("Version 2 requires an ActivityRange and 0 to 5000 Activities, with at most 100 AthleteProfile changes.");
-        batch.ActivityRange.Validate();
+            throw new ArgumentException("Versions 2 and 3 require an ActivityRange and 0 to 5000 Activities, with at most 100 AthleteProfile changes.");
+        var (from, to) = batch.ActivityRange.Validate();
+        IReadOnlyList<SleepNight> sleepNights = [];
+        IReadOnlyList<DailySummary> dailySummaries = [];
+        if (batch.Version == 2 && (batch.SleepNights is not null || batch.DailySummaries is not null))
+            throw new ArgumentException("Version 2 carries no SleepNights or DailySummaries; version 3 does.");
+        if (batch.Version == 3)
+        {
+            // Version 3 states that every date in its range was synced, so both lists are
+            // required and an empty one records a day Garmin held nothing for.
+            if (batch.SleepNights is not { Count: <= 1000 } || batch.DailySummaries is not { Count: <= 1000 })
+                throw new ArgumentException("Version 3 requires sleepNights and dailySummaries, each with 0 to 1000 entries.");
+            sleepNights = batch.SleepNights.Select(input => (input
+                ?? throw new ArgumentException("SleepNights cannot contain null.")).ToSleepNight(from, to)).ToArray();
+            dailySummaries = batch.DailySummaries.Select(input => (input
+                ?? throw new ArgumentException("DailySummaries cannot contain null.")).ToDailySummary(from, to)).ToArray();
+            if (sleepNights.DistinctBy(night => night.CalendarDate).Count() != sleepNights.Count
+                || dailySummaries.DistinctBy(summary => summary.CalendarDate).Count() != dailySummaries.Count)
+                throw new ArgumentException("SleepNights and DailySummaries in one batch name each calendarDate once.");
+        }
         foreach (var change in batch.AthleteProfiles ?? [])
             AthleteProfileChange.Validate(change, now);
         var activities = batch.Activities.Select(input => input?.ToActivity()
@@ -84,7 +106,8 @@ public sealed class IngestService(
         }
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(batch))));
         await ingest.SaveAsync(userId, (batch.AthleteProfiles ?? []).Select(change => change!).ToArray(),
-            batch.ActivityRange, activities, exerciseSets, sportProfiles, timeInHeartRateZones, hash, now, cancellationToken);
+            batch.ActivityRange, activities, exerciseSets, sportProfiles, timeInHeartRateZones,
+            batch.Version, sleepNights, dailySummaries, hash, now, cancellationToken);
         return await status.GetAsync(userId, cancellationToken);
     }
 }
