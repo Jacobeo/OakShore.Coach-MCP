@@ -68,8 +68,9 @@ Python, on your PC, per [ADR 0005](./adr/0005-bounded-resumable-sync.md):
 - Wellness per day: sleep and the daily summary, which carries body battery and
   stress, per [ADR 0010](./adr/0010-wellness-reads-sleep-and-the-daily-summary.md);
   no HRV, which this watch does not record, per
-  [ADR 0011](./adr/0011-this-watch-records-no-hrv.md). Training status and
-  training readiness follow in the same loop
+  [ADR 0011](./adr/0011-this-watch-records-no-hrv.md). Training status follows
+  in the same loop, one call per day, per
+  [ADR 0012](./adr/0012-daily-form-is-one-training-status-call.md)
 - POSTs batches to the ingest endpoint. Never touches the database directly
 - ntfy notification on final failure
 - Windows Task Scheduler, daily, with "run as soon as possible after a missed
@@ -113,8 +114,10 @@ state which Mesocycle and WeekOutline you are in, including any recovery intent.
 
 - `get_training_summary(from, to)`: counts by modality, volume, strength detail,
   Adherence
-- `get_current_form`: TrainingLoad, ACWR, TrainingReadiness, VO2max, sleep. No
-  HRV: this athlete's watch records none ([ADR 0011](./adr/0011-this-watch-records-no-hrv.md))
+- `get_current_form`: TrainingLoad (weekly load against its tunnel), VO2max,
+  sleep. No HRV, TrainingReadiness or ACWR: this athlete's watch produces none
+  ([ADR 0011](./adr/0011-this-watch-records-no-hrv.md),
+  [ADR 0012](./adr/0012-daily-form-is-one-training-status-call.md))
 - Every response carries its own data freshness
 
 **Done when** the agent answers "how much have I actually trained this month,

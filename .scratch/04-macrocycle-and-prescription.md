@@ -146,14 +146,17 @@ interpretation rules live in the response shape
 ([ADR 0009](../docs/adr/0009-trainingload-has-two-axes.md)): wherever a trusted
 range exists, a field is a triple — status, value and the range — and a bare
 number never travels alone. TrainingLoad returns both axes, and the systemic
-ratio is worded as load progression, never injury risk. HRV is the weekly
-average against the athlete's baseline band, never a single night. Sleep is
-duration — last night and the 7-day average — read as an upper bound on a
-fragmented night; stage minutes, body battery and stress are stored but returned
-by no tool. TrainingReadiness returns as context for prescribing or revising a
-Microcycle and never gates a single day. VO2max returns as a four-to-six-week
-trend, expected to sit flat through strength-focused Mesocycles. Garmin's
-monthly load-focus buckets return with their target bands.
+axis — weekly load against Garmin's load tunnel — is worded as load progression,
+never a target and never injury risk. Sleep is duration — last night and the
+7-day average — read as an upper bound on a fragmented night; stage minutes, body
+battery and stress are stored but returned by no tool. VO2max returns as a
+four-to-six-week trend, expected to sit flat through strength-focused
+Mesocycles. This athlete's watch records no HRV and produces no
+TrainingReadiness, acute:chronic ratio or load-focus buckets
+([ADR 0011](../docs/adr/0011-this-watch-records-no-hrv.md),
+[ADR 0012](../docs/adr/0012-daily-form-is-one-training-status-call.md)), so none
+of them returns; where the intensity distribution comes from instead is decided
+when this spec is refined.
 
 **Strength progression is per Exercise, never combined.** The training summary
 carries each Exercise's EstimatedOneRepMax from the best working set, labelled

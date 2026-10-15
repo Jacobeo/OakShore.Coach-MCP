@@ -155,14 +155,18 @@ _Avoid_: user, settings, preferences, context
 **TrainingLoad**:
 The accumulated cost of recent Activities, carried on two axes because no single
 instrument sees both: a systemic axis measured from heart rate, and a strength
-axis counted in working ExerciseSets. Each axis spans a short window (acute) and
-a long window (chronic).
+axis counted in working ExerciseSets. The systemic axis is Garmin's weekly
+training load — seven days of heart-rate-derived recovery cost — against its load
+tunnel, the range Garmin's own model judges optimal for the athlete's recent
+fitness and training. Read as load progression, never as a target. The strength
+axis compares a short window (acute) against a long one (chronic).
 _Avoid_: stress, TSS, volume, workload
 
-**TrainingReadiness**:
-A daily assessment of how prepared an athlete is to absorb hard training,
-derived from sleep, recovery, HRV and recent TrainingLoad.
-_Avoid_: recovery score, freshness, form
+**VO2max**:
+Garmin's estimate of the athlete's maximal oxygen uptake in ml/kg/min, one per
+sport (generic from running, and cycling), dated by the day Garmin computed it
+rather than read daily. Read as a trend over weeks.
+_Avoid_: fitness, VO2, aerobic capacity
 
 **EstimatedOneRepMax**:
 The heaviest single repetition a working ExerciseSet implies for its Exercise,
@@ -217,14 +221,17 @@ A versioned, atomic delivery to the store. Version 2 carries one ActivityRange,
 its Activities (possibly none), and optional AthleteProfile changes. Version 3
 adds the range's SleepNights and DailySummaries, either possibly none, and states
 that every date in the range was synced, so a date with neither is one Garmin
-held nothing for rather than one never attempted. Replaying identical content is
-the same delivery and does not advance freshness.
+held nothing for rather than one never attempted. Version 4 adds each date's
+systemic TrainingLoad and the VO2max estimates delivered with it, and states that
+every date was synced for those as well; a VO2max estimate keeps the date Garmin
+computed it, which may precede the range. Replaying identical content is the
+same delivery and does not advance freshness.
 _Avoid_: upload, payload
 
 **SyncStatus**:
 The stored record count and last successful sync time for each collection, plus
 the most recent Activity summary when one is stored, and the latest date a
-version 3 IngestBatch reached with the kinds of record that date holds — none,
+version 3 or later IngestBatch reached with the kinds of record that date holds — none,
 for a date Garmin held nothing for.
 A null time means the collection has never been synced; a non-null time with zero
 records means a completed sync found none.

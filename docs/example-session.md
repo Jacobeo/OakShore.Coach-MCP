@@ -3,6 +3,13 @@
 Worked examples of the intended interaction, used to sanity-check the tool
 surface. Terminology follows [CONTEXT.md](../CONTEXT.md).
 
+> This athlete's watch produces no HRV, TrainingReadiness, acute or chronic
+> load, ACWR or load-focus buckets
+> ([ADR 0011](adr/0011-this-watch-records-no-hrv.md),
+> [ADR 0012](adr/0012-daily-form-is-one-training-status-call.md)). The figures
+> below still show them: read them as the style of a response, not as data the
+> store holds.
+
 ## Tool surface
 
 | Tool | Purpose |

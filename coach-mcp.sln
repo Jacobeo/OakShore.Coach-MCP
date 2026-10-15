@@ -24,6 +24,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{9ADE9AEC-C3C
 		docs\adr\0009-trainingload-has-two-axes.md = docs\adr\0009-trainingload-has-two-axes.md
 		docs\adr\0010-wellness-reads-sleep-and-the-daily-summary.md = docs\adr\0010-wellness-reads-sleep-and-the-daily-summary.md
 		docs\adr\0011-this-watch-records-no-hrv.md = docs\adr\0011-this-watch-records-no-hrv.md
+		docs\adr\0012-daily-form-is-one-training-status-call.md = docs\adr\0012-daily-form-is-one-training-status-call.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "agents", "agents", "{B3BE0EBF-4AC1-4D9D-A26B-10AD35452E72}"
