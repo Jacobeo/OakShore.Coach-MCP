@@ -1,11 +1,12 @@
-"""Sync Activities and daily wellness, one day at a time, most recent first, bounded
-per run, posting each day's Activities, SleepNight and DailySummary as one version 3
-batch. A run without dates continues from the Watermark; an explicit inclusive date
-range syncs those days, including any already completed. Each strength Activity
-costs one further call for its ExerciseSets, posted with weight in kilograms. Cardio
-Activities carry time in zones off the list entry, and the zone boundaries behind
-them are fetched at most once per run (ADR 0008). A wellness day costs two calls,
-sleep and the daily summary (ADR 0010, ADR 0011)."""
+"""Sync Activities, daily wellness and daily form, one day at a time, most recent
+first, bounded per run, posting each day's Activities, SleepNight, DailySummary,
+TrainingLoad and VO2max estimates as one version 4 batch. A run without dates
+continues from the Watermark; an explicit inclusive date range syncs those days,
+including any already completed. Each strength Activity costs one further call for
+its ExerciseSets, posted with weight in kilograms. Cardio Activities carry time in
+zones off the list entry, and the zone boundaries behind them are fetched at most
+once per run (ADR 0008). A day costs three calls beyond the Activity list: sleep,
+the daily summary and training status (ADR 0010, ADR 0011, ADR 0012)."""
 
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ from watermark import Watermark
 
 # Cardio is the complement of strength, so an unanticipated sport is posted unenriched.
 STRENGTH_TYPE_KEYS = frozenset({"strength_training"})
+VO2MAX_SPORTS = ("generic", "cycling")
 TIME_IN_HEART_RATE_ZONE_FIELD = re.compile(r"hrTimeInZone_(\d+)")
 HEART_RATE_ZONE_FLOOR_FIELD = re.compile(r"zone(\d+)Floor")
 
@@ -137,6 +139,12 @@ def same_day(day: date, dated: Any, kind: str) -> None:
         raise RuntimeError(f"Garmin {kind} for {day.isoformat()} was dated {dated}")
 
 
+def no_later_than(day: date, dated: Any, kind: str) -> date:
+    if not isinstance(dated, str) or date.fromisoformat(dated) > day:
+        raise RuntimeError(f"Garmin {kind} for {day.isoformat()} was dated {dated}")
+    return date.fromisoformat(dated)
+
+
 def sleep_night_from_garmin(day: date, payload: dict[str, Any] | None) -> dict[str, Any] | None:
     sleep = (payload or {}).get("dailySleepDTO") or {}
     start, end = sleep.get("sleepStartTimestampGMT"), sleep.get("sleepEndTimestampGMT")
@@ -189,6 +197,38 @@ def daily_summary_from_garmin(day: date, payload: dict[str, Any] | None) -> dict
     }
 
 
+def training_load_from_garmin(day: date, payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    by_device = ((payload or {}).get("mostRecentTrainingStatus") or {}).get("latestTrainingStatusData") or {}
+    # Choosing one watch's figures over another's would be a guess at which to trust.
+    if len(by_device) > 1:
+        raise RuntimeError(f"Garmin training status for {day.isoformat()} holds {len(by_device)} devices;"
+                           " the sync stores one watch's TrainingLoad and will not choose between them")
+    if not by_device:
+        return None
+    (status,) = by_device.values()
+    # An earlier date is the last status Garmin holds, not one of this day's own.
+    if no_later_than(day, status.get("calendarDate"), "training status") < day:
+        return None
+    figures = {key: status.get(key) for key in ("weeklyTrainingLoad", "loadTunnelMin", "loadTunnelMax")}
+    if all(value is None for value in figures.values()):
+        return None
+    return {"calendarDate": day.isoformat(), **figures, "garminResponse": without_arrays(payload)}
+
+
+def vo2max_estimates_from_garmin(day: date, payload: dict[str, Any] | None) -> list[dict[str, Any]]:
+    by_sport = (payload or {}).get("mostRecentVO2Max") or {}
+    estimates = []
+    for sport in VO2MAX_SPORTS:
+        estimate = by_sport.get(sport) or {}
+        if estimate.get("vo2MaxPreciseValue") is None:
+            continue
+        # Dated by when Garmin computed it, so it may precede the day read but never follow it.
+        dated = no_later_than(day, estimate.get("calendarDate"), f"{sport} VO2max read")
+        estimates.append({"sport": sport, "calendarDate": dated.isoformat(),
+                          "mlPerKgMin": estimate["vo2MaxPreciseValue"]})
+    return estimates
+
+
 def activity_batch(
     day: date,
     garmin: GarminActivityClient,
@@ -222,11 +262,15 @@ def day_batch(
     batch = activity_batch(day, garmin, sport_profiles)
     sleep_night = sleep_night_from_garmin(day, garmin.get_sleep_night(day))
     daily_summary = daily_summary_from_garmin(day, garmin.get_daily_summary(day))
-    # Version 3 states that every date in its range was synced, so empty lists record a
+    training_status = garmin.get_training_status(day)
+    training_load = training_load_from_garmin(day, training_status)
+    # Version 4 states that every date in its range was synced, so empty lists record a
     # day Garmin holds nothing for rather than a day never attempted.
-    batch["version"] = 3
+    batch["version"] = 4
     batch["sleepNights"] = [] if sleep_night is None else [sleep_night]
     batch["dailySummaries"] = [] if daily_summary is None else [daily_summary]
+    batch["trainingLoads"] = [] if training_load is None else [training_load]
+    batch["vo2maxEstimates"] = vo2max_estimates_from_garmin(day, training_status)
     return batch
 
 

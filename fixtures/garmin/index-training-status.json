@@ -1,0 +1,34 @@
+[
+  {
+    "file": "metrics-service--trainingstatus-aggregated__date-2026-09-21.json",
+    "endpoint": "/metrics-service/metrics/trainingstatus/aggregated/2026-09-21",
+    "params": null,
+    "status": 200,
+    "bytes": 1270,
+    "fetchedAtUtc": "2026-10-15T07:06:44+00:00"
+  },
+  {
+    "file": "metrics-service--trainingstatus-aggregated__date-2026-09-20.json",
+    "endpoint": "/metrics-service/metrics/trainingstatus/aggregated/2026-09-20",
+    "params": null,
+    "status": 200,
+    "bytes": 1270,
+    "fetchedAtUtc": "2026-10-15T07:06:48+00:00"
+  },
+  {
+    "file": "metrics-service--trainingstatus-aggregated__date-2026-09-19.json",
+    "endpoint": "/metrics-service/metrics/trainingstatus/aggregated/2026-09-19",
+    "params": null,
+    "status": 200,
+    "bytes": 1270,
+    "fetchedAtUtc": "2026-10-15T07:06:52+00:00"
+  },
+  {
+    "file": "metrics-service--trainingstatus-aggregated__date-2010-01-01.json",
+    "endpoint": "/metrics-service/metrics/trainingstatus/aggregated/2010-01-01",
+    "params": null,
+    "status": 200,
+    "bytes": 147,
+    "fetchedAtUtc": "2026-10-15T07:06:56+00:00"
+  }
+]

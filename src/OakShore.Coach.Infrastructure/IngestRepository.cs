@@ -11,6 +11,7 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
         IReadOnlyDictionary<long, IReadOnlyList<ExerciseSet>> exerciseSets,
         IReadOnlyList<SportProfile> sportProfiles, IReadOnlyDictionary<long, ActivityTimeInHeartRateZones> timeInHeartRateZones,
         int version, IReadOnlyList<SleepNight> sleepNights, IReadOnlyList<DailySummary> dailySummaries,
+        IReadOnlyList<TrainingLoad> trainingLoads, IReadOnlyList<VO2max> vo2maxEstimates,
         string batchHash, DateTimeOffset lastSyncedAt, CancellationToken cancellationToken)
     {
         await using var transaction = await store.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, cancellationToken);
@@ -102,6 +103,8 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
         }
         await SaveSleepNightsAsync(userId, sleepNights, cancellationToken);
         await SaveDailySummariesAsync(userId, dailySummaries, cancellationToken);
+        await SaveTrainingLoadsAsync(userId, trainingLoads, cancellationToken);
+        await SaveVO2maxEstimatesAsync(userId, vo2maxEstimates, cancellationToken);
         var dates = range.Validate();
         store.IngestBatches.Add(new IngestBatchRow
         {
@@ -171,6 +174,46 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             row.StressLevelHighSeconds = summary.StressLevel.HighSeconds;
             if (summary.GarminResponse is not null)
                 row.GarminResponse = summary.GarminResponse;
+        }
+    }
+
+    private async Task SaveTrainingLoadsAsync(string userId, IReadOnlyList<TrainingLoad> trainingLoads, CancellationToken cancellationToken)
+    {
+        if (trainingLoads.Count == 0)
+            return;
+        var calendarDates = trainingLoads.Select(load => load.CalendarDate).ToArray();
+        var stored = await store.TrainingLoads.Where(row => row.UserId == userId && calendarDates.Contains(row.CalendarDate))
+            .ToDictionaryAsync(row => row.CalendarDate, cancellationToken);
+        foreach (var load in trainingLoads)
+        {
+            if (!stored.TryGetValue(load.CalendarDate, out var row))
+            {
+                row = new TrainingLoadRow { UserId = userId, CalendarDate = load.CalendarDate };
+                store.TrainingLoads.Add(row);
+            }
+            row.WeeklyTrainingLoad = load.WeeklyTrainingLoad;
+            row.LoadTunnelMin = load.LoadTunnelMin;
+            row.LoadTunnelMax = load.LoadTunnelMax;
+            if (load.GarminResponse is not null)
+                row.GarminResponse = load.GarminResponse;
+        }
+    }
+
+    private async Task SaveVO2maxEstimatesAsync(string userId, IReadOnlyList<VO2max> vo2maxEstimates, CancellationToken cancellationToken)
+    {
+        if (vo2maxEstimates.Count == 0)
+            return;
+        var calendarDates = vo2maxEstimates.Select(estimate => estimate.CalendarDate).Distinct().ToArray();
+        var stored = await store.VO2maxEstimates.Where(row => row.UserId == userId && calendarDates.Contains(row.CalendarDate))
+            .ToDictionaryAsync(row => (row.Sport, row.CalendarDate), cancellationToken);
+        foreach (var estimate in vo2maxEstimates)
+        {
+            if (!stored.TryGetValue((estimate.Sport, estimate.CalendarDate), out var row))
+            {
+                row = new VO2maxEstimateRow { UserId = userId, Sport = estimate.Sport, CalendarDate = estimate.CalendarDate };
+                store.VO2maxEstimates.Add(row);
+            }
+            row.MlPerKgMin = estimate.MlPerKgMin;
         }
     }
 

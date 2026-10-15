@@ -16,6 +16,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
     internal DbSet<TimeInHeartRateZoneRow> TimeInHeartRateZones => Set<TimeInHeartRateZoneRow>();
     internal DbSet<SleepNightRow> SleepNights => Set<SleepNightRow>();
     internal DbSet<DailySummaryRow> DailySummaries => Set<DailySummaryRow>();
+    internal DbSet<TrainingLoadRow> TrainingLoads => Set<TrainingLoadRow>();
+    internal DbSet<VO2maxEstimateRow> VO2maxEstimates => Set<VO2maxEstimateRow>();
     internal DbSet<IngestBatchRow> IngestBatches => Set<IngestBatchRow>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder options) =>
@@ -93,6 +95,19 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         dailySummary.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
         dailySummary.Property(row => row.CalendarDate).HasColumnType("date");
 
+        var trainingLoad = modelBuilder.Entity<TrainingLoadRow>();
+        trainingLoad.ToTable("TrainingLoads");
+        trainingLoad.HasKey(row => new { row.UserId, row.CalendarDate });
+        trainingLoad.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        trainingLoad.Property(row => row.CalendarDate).HasColumnType("date");
+
+        var vo2maxEstimate = modelBuilder.Entity<VO2maxEstimateRow>();
+        vo2maxEstimate.ToTable("VO2maxEstimates");
+        vo2maxEstimate.HasKey(row => new { row.UserId, row.Sport, row.CalendarDate });
+        vo2maxEstimate.Property(row => row.UserId).HasMaxLength(255).UseCollation("Latin1_General_100_BIN2");
+        vo2maxEstimate.Property(row => row.Sport).HasMaxLength(20).UseCollation("Latin1_General_100_BIN2");
+        vo2maxEstimate.Property(row => row.CalendarDate).HasColumnType("date");
+
         var batch = modelBuilder.Entity<IngestBatchRow>();
         batch.ToTable("IngestBatches");
         batch.HasKey(row => new { row.UserId, row.BatchHash });
@@ -114,7 +129,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
             "OakShore.Coach.Infrastructure.Migrations.0006_ActivityName.sql",
             "OakShore.Coach.Infrastructure.Migrations.0007_ExerciseSets.sql",
             "OakShore.Coach.Infrastructure.Migrations.0008_HeartRateZones.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0009_DailyWellness.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0009_DailyWellness.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0010_DailyForm.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -248,6 +264,25 @@ internal sealed class DailySummaryRow
     public int? StressLevelHighSeconds { get; set; }
     // Archive only: never read by a tool or at query time (ADR 0010).
     public string? GarminResponse { get; set; }
+}
+
+internal sealed class TrainingLoadRow
+{
+    public string UserId { get; set; } = "";
+    public DateOnly CalendarDate { get; set; }
+    public int? WeeklyTrainingLoad { get; set; }
+    public int? LoadTunnelMin { get; set; }
+    public int? LoadTunnelMax { get; set; }
+    // Archive only: never read by a tool or at query time (ADR 0010).
+    public string? GarminResponse { get; set; }
+}
+
+internal sealed class VO2maxEstimateRow
+{
+    public string UserId { get; set; } = "";
+    public string Sport { get; set; } = "";
+    public DateOnly CalendarDate { get; set; }
+    public double MlPerKgMin { get; set; }
 }
 
 internal sealed class IngestBatchRow

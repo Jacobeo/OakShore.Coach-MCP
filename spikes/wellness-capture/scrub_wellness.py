@@ -1,16 +1,18 @@
 #!/usr/bin/env python
-"""Turn one raw `capture_wellness.py --plan wellness` run into committed fixtures.
+"""Turn one raw `capture_wellness.py` run, `--plan wellness` or `--plan training-status`,
+into committed fixtures.
 
-The wellness payloads carry the account id under four key names, a display name,
-per-day UUIDs and device ids, at any depth. Every other value is a physiological
-figure or a timestamp and is kept, the same decision the Activity corpus made
+The payloads carry the account id under five key names, a display name, per-day
+UUIDs and device ids, at any depth; training status also keys its latest data by
+device id. Every other value is a physiological figure or a timestamp and is
+kept, the same decision the Activity corpus made
 (spikes/strength-data-spike/findings.md, "What was scrubbed").
 
     python scrub_wellness.py dumps/20261008T103754Z ../../fixtures/garmin
 
-Nothing is published unless every file is a kind named below and no value from
-the athlete's social profile, nor any raw value a rule replaced, survives
-anywhere in the staged output.
+Nothing is published unless every file is a kind named below and no raw value a
+rule replaced, nor any value from the athlete's social profile when the run
+fetched it, survives anywhere in the staged output.
 """
 
 from __future__ import annotations
@@ -30,12 +32,14 @@ PLACEHOLDER_DEVICE_ID = 1
 PLACEHOLDER_DISPLAY_NAME = "00000000-0000-4000-8000-00000000000a"
 
 PROFILE_NAME = "userprofile-service--socialProfile.json"
-PUBLISHED = (
+WELLNESS = (
     re.compile(r"^wellness-service--dailySleepData__date-\d{4}-\d{2}-\d{2}\.json$"),
     re.compile(r"^usersummary-service--daily__date-\d{4}-\d{2}-\d{2}\.json$"),
     re.compile(r"^wellness-service--bodyBattery-reports-daily__date-\d{4}-\d{2}-\d{2}\.json$"),
     re.compile(r"^wellness-service--dailyStress__date-\d{4}-\d{2}-\d{2}\.json$"),
 )
+TRAINING_STATUS = re.compile(r"^metrics-service--trainingstatus-aggregated__date-\d{4}-\d{2}-\d{2}\.json$")
+PUBLISHED = (*WELLNESS, TRAINING_STATUS)
 # The profile is the census of what must not leak, never a fixture. HRV answered 204
 # with no body on every date, and the sync does not call it (ADR 0011); the run's
 # index keeps that evidence.
@@ -44,9 +48,11 @@ NOT_PUBLISHED = (
     re.compile(r"^hrv-service--hrv__date-\d{4}-\d{2}-\d{2}\.json$"),
 )
 INDEX_NAME = "index.json"
-PUBLISHED_INDEX_NAME = "index-wellness.json"
+WELLNESS_INDEX_NAME = "index-wellness.json"
+TRAINING_STATUS_INDEX_NAME = "index-training-status.json"
 
-OWNER_ID_KEYS = frozenset({"userProfilePK", "userProfilePk", "userProfileId", "userDailySummaryId"})
+OWNER_ID_KEYS = frozenset({"userProfilePK", "userProfilePk", "userProfileId", "userDailySummaryId", "userId"})
+DEVICE_KEYED = "latestTrainingStatusData"
 # Profile fields too short or too generic to search for without false matches.
 MIN_SWEEPABLE_LENGTH = 6
 
@@ -72,6 +78,9 @@ class Scrubber:
             return value
         scrubbed = {}
         for key, raw in value.items():
+            if key == DEVICE_KEYED and isinstance(raw, dict):
+                scrubbed[key] = self._by_placeholder_device(raw)
+                continue
             # Null stays null and 0 stays 0, so no shape is invented that Garmin did not send.
             if raw is None or isinstance(raw, (dict, list)):
                 scrubbed[key] = self.scrub(raw)
@@ -89,6 +98,13 @@ class Scrubber:
                 continue
             self.replaced.add(str(raw))
         return scrubbed
+
+    def _by_placeholder_device(self, by_device: dict[str, Any]) -> dict[str, Any]:
+        if len(by_device) > 1:
+            raise LeakError(f"{DEVICE_KEYED} holds {len(by_device)} devices, which would share one placeholder;"
+                            " nothing published")
+        self.replaced.update(by_device)
+        return {str(PLACEHOLDER_DEVICE_ID): self.scrub(entry) for entry in by_device.values()}
 
 
 def profile_values(profile: dict[str, Any]) -> set[str]:
@@ -117,10 +133,15 @@ def scrub_run(run_dir: Path, out_dir: Path) -> list[str]:
                and not any(rule.match(name) for rule in PUBLISHED + NOT_PUBLISHED)]
     if unknown:
         raise LeakError(f"No rule covers {unknown}; nothing published")
-    if PROFILE_NAME not in names or INDEX_NAME not in names:
-        raise LeakError("A run needs its social profile and index to check against; nothing published")
-    profile = json.loads((run_dir / PROFILE_NAME).read_text(encoding="utf-8"))
-    display_name = quote(profile["displayName"], safe="")
+    wellness = any(rule.match(name) for name in names for rule in WELLNESS)
+    if INDEX_NAME not in names or (wellness and PROFILE_NAME not in names):
+        raise LeakError("A run needs its index, and a wellness run its social profile, to check against;"
+                        " nothing published")
+    if wellness and any(TRAINING_STATUS.match(name) for name in names):
+        raise LeakError("A run is either wellness or training status, never both; nothing published")
+    # Only a wellness run fetches the profile, and only its paths carry the display name.
+    profile = json.loads((run_dir / PROFILE_NAME).read_text(encoding="utf-8")) if PROFILE_NAME in names else {}
+    display_name = quote(profile["displayName"], safe="") if profile else None
     scrubber = Scrubber()
     staged: dict[str, str] = {}
     for name in names:
@@ -129,8 +150,9 @@ def scrub_run(run_dir: Path, out_dir: Path) -> list[str]:
             staged[name] = json.dumps(scrubber.scrub(payload), separators=(",", ":"))
     index = json.loads((run_dir / INDEX_NAME).read_text(encoding="utf-8"))
     for entry in index:
-        entry["endpoint"] = entry["endpoint"].replace(display_name, PLACEHOLDER_DISPLAY_NAME)
-    staged[PUBLISHED_INDEX_NAME] = json.dumps(
+        if display_name:
+            entry["endpoint"] = entry["endpoint"].replace(display_name, PLACEHOLDER_DISPLAY_NAME)
+    staged[WELLNESS_INDEX_NAME if wellness else TRAINING_STATUS_INDEX_NAME] = json.dumps(
         [entry for entry in index if entry["file"] != PROFILE_NAME], indent=2) + "\n"
 
     forbidden = profile_values(profile) | {value for value in scrubber.replaced

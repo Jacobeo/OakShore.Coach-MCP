@@ -6,11 +6,12 @@ public sealed record SyncStatusResponse(
     StrengthDetail? LatestActivityStrengthDetail, CardioDetail? LatestActivityCardioDetail,
     LatestWellnessDay? LatestWellnessDay, DateTimeOffset? LastSyncedAt);
 
-// The most recent date a version 3 batch synced, and which kinds of record it holds; an
-// empty list is a day Garmin held nothing for, not a day never attempted. Never values.
+// The most recent date a version 3 or later batch synced, and which kinds of record it holds;
+// an empty list is a day Garmin held nothing for, not a day never attempted. Never values.
 public sealed record LatestWellnessDay(DateOnly CalendarDate, IReadOnlyList<string> Holds)
 {
-    public static LatestWellnessDay From(DateOnly calendarDate, bool holdsSleepNight, DailySummary? dailySummary)
+    public static LatestWellnessDay From(DateOnly calendarDate, bool holdsSleepNight, DailySummary? dailySummary,
+        bool holdsTrainingLoad)
     {
         var holds = new List<string>();
         if (holdsSleepNight)
@@ -23,6 +24,8 @@ public sealed record LatestWellnessDay(DateOnly CalendarDate, IReadOnlyList<stri
             if (dailySummary.StressLevel.HoldsFigures)
                 holds.Add(nameof(StressLevel));
         }
+        if (holdsTrainingLoad)
+            holds.Add(nameof(TrainingLoad));
         return new LatestWellnessDay(calendarDate, holds);
     }
 }

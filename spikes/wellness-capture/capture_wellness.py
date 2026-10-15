@@ -17,6 +17,10 @@ first network act.
 PREMISE_DAY, and the latest cycling FTP, to learn whether this watch produces
 them before ticket 06 is planned.
 
+`--plan training-status` (ticket 06): training status for each day in DAYS,
+then for EMPTY_DAY, to confirm a past date returns that date's figures
+(ADR 0012) and to learn Garmin's answer for a day holding nothing.
+
 Any status other than 200 or 204 stops the run without retrying (ADR 0005).
 
     python capture_wellness.py --plan wellness
@@ -70,11 +74,16 @@ def premise_requests(day: date) -> list[tuple[str, str, dict[str, str] | None]]:
     ]
 
 
+def training_status_request(day: date) -> tuple[str, str, dict[str, str] | None]:
+    iso = day.isoformat()
+    return (f"metrics-service--trainingstatus-aggregated__date-{iso}",
+            f"/metrics-service/metrics/trainingstatus/aggregated/{iso}", None)
+
+
 def form_requests(day: date) -> list[tuple[str, str, dict[str, str] | None]]:
     iso = day.isoformat()
     return [
-        (f"metrics-service--trainingstatus-aggregated__date-{iso}",
-         f"/metrics-service/metrics/trainingstatus/aggregated/{iso}", None),
+        training_status_request(day),
         (f"metrics-service--trainingreadiness__date-{iso}", f"/metrics-service/metrics/trainingreadiness/{iso}", None),
         (f"metrics-service--maxmet-daily__date-{iso}", f"/metrics-service/metrics/maxmet/daily/{iso}/{iso}", None),
         ("biometric-service--latestFunctionalThresholdPower-CYCLING",
@@ -112,7 +121,7 @@ class PacedReader:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--plan", choices=("wellness", "form"), required=True)
+    parser.add_argument("--plan", choices=("wellness", "form", "training-status"), required=True)
     parser.add_argument("--token-dir", help="overrides GARMINTOKENS and ~/.garminconnect")
     parser.add_argument("--pace", type=float, default=4.0)
     parser.add_argument("--out", default=str(Path(__file__).with_name("dumps")))
@@ -120,7 +129,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.pace < GarminActivityClient.MIN_PACE_SECONDS:
         parser.error("Garmin requests must be paced at least 3 seconds apart")
 
-    planned = 1 + 3 * (len(DAYS) + 1) + 2 if args.plan == "wellness" else len(form_requests(PREMISE_DAY))
+    planned = {"wellness": 1 + 3 * (len(DAYS) + 1) + 2, "form": len(form_requests(PREMISE_DAY)),
+               "training-status": len(DAYS) + 1}[args.plan]
     print(f"Plan: token refresh if due, then {planned} paced GETs at {args.pace}s")
     try:
         client = load_token_client(args.token_dir, args.pace)
@@ -146,6 +156,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.plan == "form":
             for request in form_requests(PREMISE_DAY):
                 fetch(*request)
+            return 0
+        if args.plan == "training-status":
+            for day in (*DAYS, EMPTY_DAY):
+                fetch(*training_status_request(day))
             return 0
         profile = json.loads(fetch(*PROFILE))
         display_name = quote(profile["displayName"], safe="")

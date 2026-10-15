@@ -1304,6 +1304,130 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
     }
 
+    [Fact]
+    public async Task Version_four_stores_a_days_training_load_and_vo2max_estimates_and_reports_only_counts_freshness_and_what_it_holds()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        using var wellnessOnly = await client.PostAsJsonAsync("/ingest",
+            WellnessBatch("2026-09-19", [FixtureSleepNight("2026-09-19")], [FixtureDailySummary("2026-09-19")]));
+        Assert.Equal(HttpStatusCode.OK, wellnessOnly.StatusCode);
+        var before = await CallTool(client, "get_sync_status");
+        foreach (var name in new[] { "TrainingLoad", "VO2max" })
+        {
+            Assert.Equal(0, Collection(before, name).GetProperty("count").GetInt32());
+            Assert.Equal(JsonValueKind.Null, Collection(before, name).GetProperty("lastSyncedAt").ValueKind);
+        }
+
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var earlier = await client.PostAsJsonAsync("/ingest", DailyFormBatch("2026-09-20"));
+        Assert.Equal(HttpStatusCode.OK, earlier.StatusCode);
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        var batch = DailyFormBatch("2026-09-21");
+        using var posted = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var saved = await CallTool(client, "get_sync_status");
+        Assert.Equal(2, Collection(saved, "TrainingLoad").GetProperty("count").GetInt32());
+        // Both days re-read the same generic and cycling estimates, kept under the dates Garmin computed them.
+        Assert.Equal(2, Collection(saved, "VO2max").GetProperty("count").GetInt32());
+        foreach (var name in new[] { "TrainingLoad", "VO2max", "SleepNight", "DailySummary", "Activity" })
+            Assert.Equal(clock.GetUtcNow(), Collection(saved, name).GetProperty("lastSyncedAt").GetDateTimeOffset());
+        var latest = saved.GetProperty("latestWellnessDay");
+        Assert.Equal("2026-09-21", latest.GetProperty("calendarDate").GetString());
+        Assert.Equal(new[] { "SleepNight", "DailySummary", "BodyBattery", "StressLevel", "TrainingLoad" },
+            latest.GetProperty("holds").EnumerateArray().Select(item => item.GetString()));
+        // No daily form value is returned by any tool: what was stored shows only as counts and holds.
+        Assert.Equal(new[] { "collections", "latestActivity", "latestActivityStrengthDetail", "latestActivityCardioDetail",
+            "latestWellnessDay", "lastSyncedAt" }, saved.EnumerateObject().Select(property => property.Name));
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        using var replayed = await client.PostAsJsonAsync("/ingest", batch);
+        Assert.Equal(HttpStatusCode.OK, replayed.StatusCode);
+        Assert.Equal(saved.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    [Fact]
+    public async Task A_day_without_training_status_is_told_apart_from_a_zero_load_and_a_new_estimate_adds_one()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        using var stored = await client.PostAsJsonAsync("/ingest", DailyFormBatch("2026-09-21"));
+        Assert.Equal(HttpStatusCode.OK, stored.StatusCode);
+
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var nothing = await client.PostAsJsonAsync("/ingest", DailyFormBatch("2026-09-22", [], []));
+        Assert.Equal(HttpStatusCode.OK, nothing.StatusCode);
+        var absent = await CallTool(client, "get_sync_status");
+        Assert.Equal(1, Collection(absent, "TrainingLoad").GetProperty("count").GetInt32());
+        Assert.Equal(2, Collection(absent, "VO2max").GetProperty("count").GetInt32());
+        Assert.Equal(clock.GetUtcNow(), Collection(absent, "TrainingLoad").GetProperty("lastSyncedAt").GetDateTimeOffset());
+        Assert.DoesNotContain("TrainingLoad", absent.GetProperty("latestWellnessDay").GetProperty("holds")
+            .EnumerateArray().Select(item => item.GetString()));
+
+        // A week of rest is a zero load, stored, even on a day carrying no VO2max.
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var rested = await client.PostAsJsonAsync("/ingest", DailyFormBatch("2026-09-23",
+            [new { calendarDate = "2026-09-23", weeklyTrainingLoad = 0, loadTunnelMin = 67, loadTunnelMax = 218 }], []));
+        Assert.Equal(HttpStatusCode.OK, rested.StatusCode);
+        var zero = await CallTool(client, "get_sync_status");
+        Assert.Equal(2, Collection(zero, "TrainingLoad").GetProperty("count").GetInt32());
+        Assert.Equal(2, Collection(zero, "VO2max").GetProperty("count").GetInt32());
+        Assert.Contains("TrainingLoad", zero.GetProperty("latestWellnessDay").GetProperty("holds")
+            .EnumerateArray().Select(item => item.GetString()));
+
+        clock.Set(clock.GetUtcNow().AddHours(1));
+        using var recomputed = await client.PostAsJsonAsync("/ingest", DailyFormBatch("2026-09-24", [],
+            [new { sport = "generic", calendarDate = "2026-09-24", mlPerKgMin = 39.6 }]));
+        Assert.Equal(HttpStatusCode.OK, recomputed.StatusCode);
+        Assert.Equal(3, Collection(await CallTool(client, "get_sync_status"), "VO2max").GetProperty("count").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("\"trainingLoads\":[]")]
+    [InlineData("\"vo2maxEstimates\":[]")]
+    [InlineData("\"trainingLoads\":[null],\"vo2maxEstimates\":[]")]
+    [InlineData("\"trainingLoads\":[{\"calendarDate\":\"2026-09-22\",\"weeklyTrainingLoad\":140}],\"vo2maxEstimates\":[]")]
+    [InlineData("\"trainingLoads\":[{\"calendarDate\":\"2026-09-21\"},{\"calendarDate\":\"2026-09-21\"}],\"vo2maxEstimates\":[]")]
+    [InlineData("\"trainingLoads\":[{\"calendarDate\":\"2026-09-21\",\"weeklyTrainingLoad\":-1}],\"vo2maxEstimates\":[]")]
+    [InlineData("\"trainingLoads\":[{\"calendarDate\":\"2026-09-21\",\"garminResponse\":{\"recordedDevices\":[]}}],\"vo2maxEstimates\":[]")]
+    [InlineData("\"trainingLoads\":[],\"vo2maxEstimates\":[null]")]
+    [InlineData("\"trainingLoads\":[],\"vo2maxEstimates\":[{\"sport\":\"generic\",\"calendarDate\":\"2026-09-22\",\"mlPerKgMin\":39.3}]")]
+    [InlineData("\"trainingLoads\":[],\"vo2maxEstimates\":[{\"sport\":\"running\",\"calendarDate\":\"2026-09-02\",\"mlPerKgMin\":39.3}]")]
+    [InlineData("\"trainingLoads\":[],\"vo2maxEstimates\":[{\"sport\":\"generic\",\"calendarDate\":\"2026-09-02\",\"mlPerKgMin\":0}]")]
+    [InlineData("\"trainingLoads\":[],\"vo2maxEstimates\":[{\"sport\":\"generic\",\"calendarDate\":\"2026-09-02\"}]")]
+    [InlineData("\"trainingLoads\":[],\"vo2maxEstimates\":[{\"sport\":\"generic\",\"calendarDate\":\"2026-09-02\",\"mlPerKgMin\":39.3},{\"sport\":\"generic\",\"calendarDate\":\"2026-09-02\",\"mlPerKgMin\":39.0}]")]
+    public async Task Invalid_version_four_input_keeps_all_collections_unchanged(string dailyForm)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        var batch = "{\"version\":4,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},"
+            + "\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[]," + dailyForm + "}";
+        using var content = new StringContent(batch, System.Text.Encoding.UTF8, "application/json");
+        using var rejected = await client.PostAsync("/ingest", content);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    [Theory]
+    [InlineData("{\"version\":3,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[],\"trainingLoads\":[],\"vo2maxEstimates\":[]}")]
+    [InlineData("{\"version\":2,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"vo2maxEstimates\":[]}")]
+    [InlineData("{\"version\":1,\"athleteProfiles\":[{\"bodyWeightKg\":65}],\"trainingLoads\":[]}")]
+    [InlineData("{\"version\":4,\"activityRange\":{\"fromDate\":\"2026-09-21\",\"toDate\":\"2026-09-21\"},\"activities\":[],\"trainingLoads\":[],\"vo2maxEstimates\":[]}")]
+    public async Task Daily_form_travels_only_in_version_four_beside_the_days_wellness(string batch)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+        using var content = new StringContent(batch, System.Text.Encoding.UTF8, "application/json");
+        using var rejected = await client.PostAsync("/ingest", content);
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
     private static object WellnessBatch(string date, object[] sleepNights, object[] dailySummaries) => new
     {
         version = 3,
@@ -1378,6 +1502,52 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
             },
             garminResponse = WithoutArrays(JsonNode.Parse(text))
         };
+    }
+
+    // A fixture day as the sync posts it.
+    private static object DailyFormBatch(string date) => DailyFormBatch(date, [FixtureTrainingLoad(date)],
+        FixtureVO2maxEstimates(date), [FixtureSleepNight(date)], [FixtureDailySummary(date)]);
+
+    private static object DailyFormBatch(string date, object[] trainingLoads, object[] vo2maxEstimates,
+        object[]? sleepNights = null, object[]? dailySummaries = null) => new
+    {
+        version = 4,
+        activityRange = new { fromDate = date, toDate = date },
+        activities = Array.Empty<object>(),
+        sleepNights = sleepNights ?? [],
+        dailySummaries = dailySummaries ?? [],
+        trainingLoads,
+        vo2maxEstimates
+    };
+
+    // Mapped as the sync maps it: the one device's weekly load and tunnel verbatim, the
+    // payload archived with its arrays removed.
+    private static object FixtureTrainingLoad(string date)
+    {
+        var text = Fixture($"metrics-service--trainingstatus-aggregated__date-{date}.json");
+        using var fixture = JsonDocument.Parse(text);
+        var status = fixture.RootElement.GetProperty("mostRecentTrainingStatus").GetProperty("latestTrainingStatusData")
+            .EnumerateObject().Single().Value;
+        return new
+        {
+            calendarDate = date,
+            weeklyTrainingLoad = Int(status, "weeklyTrainingLoad"),
+            loadTunnelMin = Int(status, "loadTunnelMin"),
+            loadTunnelMax = Int(status, "loadTunnelMax"),
+            garminResponse = WithoutArrays(JsonNode.Parse(text))
+        };
+    }
+
+    private static object[] FixtureVO2maxEstimates(string date)
+    {
+        using var fixture = JsonDocument.Parse(Fixture($"metrics-service--trainingstatus-aggregated__date-{date}.json"));
+        var bySport = fixture.RootElement.GetProperty("mostRecentVO2Max");
+        return new[] { "generic", "cycling" }.Select(sport => (object)new
+        {
+            sport,
+            calendarDate = bySport.GetProperty(sport).GetProperty("calendarDate").GetString(),
+            mlPerKgMin = bySport.GetProperty(sport).GetProperty("vo2MaxPreciseValue").GetDouble()
+        }).ToArray();
     }
 
     private sealed record HeartRateZoneInput(int ZoneNumber, int LowBoundaryBpm);

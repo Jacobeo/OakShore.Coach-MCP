@@ -57,7 +57,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "garmin", "garmin", "{C10CB2
 		fixtures\garmin\biometric-service--heartRateZones.json = fixtures\garmin\biometric-service--heartRateZones.json
 		fixtures\garmin\exercise-set-cases.md = fixtures\garmin\exercise-set-cases.md
 		fixtures\garmin\index.json = fixtures\garmin\index.json
+		fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2010-01-01.json = fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2010-01-01.json
+		fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2026-09-19.json = fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2026-09-19.json
+		fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2026-09-20.json = fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2026-09-20.json
+		fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2026-09-21.json = fixtures\garmin\metrics-service--trainingstatus-aggregated__date-2026-09-21.json
 		fixtures\garmin\README.md = fixtures\garmin\README.md
+		fixtures\garmin\index-training-status.json = fixtures\garmin\index-training-status.json
 		fixtures\garmin\index-wellness.json = fixtures\garmin\index-wellness.json
 		fixtures\garmin\usersummary-service--daily__date-2010-01-01.json = fixtures\garmin\usersummary-service--daily__date-2010-01-01.json
 		fixtures\garmin\usersummary-service--daily__date-2026-09-19.json = fixtures\garmin\usersummary-service--daily__date-2026-09-19.json
@@ -194,6 +199,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Python tests", "Python tests", "{C6DA51B4-D77B-4FD2-B64B-E19D60C0045A}"
 	ProjectSection(SolutionItems) = preProject
 		tests\python\test_sync_activities.py = tests\python\test_sync_activities.py
+		tests\python\test_sync_daily_form.py = tests\python\test_sync_daily_form.py
 		tests\python\test_sync_watermark.py = tests\python\test_sync_watermark.py
 		tests\python\test_sync_wellness.py = tests\python\test_sync_wellness.py
 	EndProjectSection

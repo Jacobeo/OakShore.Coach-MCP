@@ -62,6 +62,28 @@ profile survives anywhere. The social profile itself is never published.
 Everything else, physiological figures and timestamps included, is as Garmin
 sent it, the same decision the Activity list made.
 
+### Daily form
+
+A third run, `20261015T070639Z`, by the same capture with `--plan
+training-status` on 2026-10-15: the training status payload for 2026-09-19 to
+2026-09-21 and the 2010-01-01 sentinel. Each of the three days is dated to the
+day requested, with its own weekly load and timestamp, which is what
+[ADR 0012](../../docs/adr/0012-daily-form-is-one-training-status-call.md)'s
+past-date reading rests on. The sentinel is Garmin's answer for a day holding
+nothing: 200, with every member null but the account id.
+
+| File | Endpoint |
+| --- | --- |
+| `metrics-service--trainingstatus-aggregated__date-<date>.json` | `/metrics-service/metrics/trainingstatus/aggregated/<date>` — 4 files |
+| `index-training-status.json` | that run's index |
+
+These carry the account id under `userId` and the device id under `deviceId`
+and as the key of `latestTrainingStatusData`. The scrubber replaces all three
+with placeholder 1, and publishes nothing if the payload names more than one
+device, which would collapse two watches onto one placeholder. No social
+profile is fetched for this run, so the raw values the rules replaced are what
+it sweeps for.
+
 What the payloads actually say, field by field, is in
 [findings.md](../../spikes/strength-data-spike/findings.md). Read that before
 writing code against these files — several fields do not mean what their names

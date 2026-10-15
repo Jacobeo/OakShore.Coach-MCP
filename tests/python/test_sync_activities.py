@@ -34,8 +34,8 @@ def exercise_set_fixture(activity_id):
     return (FIXTURES / f"activity-service--exerciseSets__activity-{activity_id}.json").read_bytes()
 
 
-def wellness(first):
-    return [Response(200, PROFILE)] * first + [Response(204, b""), Response(204, b"")]
+def daily_records(first):
+    return [Response(200, PROFILE)] * first + [Response(204, b""), Response(204, b""), Response(204, b"")]
 
 
 def corpus_responses():
@@ -53,7 +53,7 @@ def corpus_responses():
             zones_fetched = True
         results += [Response(200, exercise_set_fixture(entry["activityId"])) for entry in entries
                     if entry["activityType"]["typeKey"] == "strength_training"]
-        results += wellness(offset == 0)
+        results += daily_records(offset == 0)
     return results
 
 
@@ -101,9 +101,9 @@ class ActivitySyncTests(unittest.TestCase):
 
         summary, posted = sync_range(session, sleeps)
 
-        # Per day a list call and two wellness calls; once per run the boundaries and the
-        # profile; once per strength Activity its exercise sets.
-        calls = 3 * DAYS + 2 + len(STRENGTH_IDS)
+        # Per day a list call, two wellness calls and training status; once per run the
+        # boundaries and the profile; once per strength Activity its exercise sets.
+        calls = 4 * DAYS + 2 + len(STRENGTH_IDS)
         self.assertEqual((DAYS, 15, 0), summary)
         self.assertEqual([4.0] * calls, sleeps)
         self.assertEqual(calls, len(session.calls))
@@ -119,7 +119,7 @@ class ActivitySyncTests(unittest.TestCase):
         self.assertEqual(DAYS, len(posted))
         for offset, batch in enumerate(posted):
             day = (END - timedelta(days=offset)).isoformat()
-            self.assertEqual(3, batch["version"])
+            self.assertEqual(4, batch["version"])
             self.assertEqual({"fromDate": day, "toDate": day}, batch["activityRange"])
         activities = posted_activities(posted)
         self.assertEqual(15, len(activities))
@@ -245,7 +245,7 @@ class ActivitySyncTests(unittest.TestCase):
                   "zone2Floor": None, "zone3Floor": 140, "zone6Floor": 190},
                  {"sport": "CYCLING", "zone1Floor": 110}]
         session = Session(Response(200, json.dumps(entries).encode("utf-8")),
-                          Response(200, json.dumps(zones).encode("utf-8")), *wellness(True))
+                          Response(200, json.dumps(zones).encode("utf-8")), *daily_records(True))
 
         _, posted = sync_range(session, start=DAY, end=DAY)
 
@@ -260,7 +260,7 @@ class ActivitySyncTests(unittest.TestCase):
 
     def test_a_run_without_time_in_zones_makes_no_boundary_call(self):
         session = Session(Response(200, json.dumps([LIST_ENTRIES[0]]).encode("utf-8")),
-                          Response(200, exercise_set_fixture(24444892080)), *wellness(True))
+                          Response(200, exercise_set_fixture(24444892080)), *daily_records(True))
 
         _, posted = sync_range(session, start=DAY, end=DAY)
 
@@ -270,7 +270,7 @@ class ActivitySyncTests(unittest.TestCase):
     def test_an_unanticipated_sport_is_cardio_so_it_is_posted_but_never_enriched(self):
         entries = [{"activityId": 99, "activityName": None, "startTimeGMT": "2026-09-21 10:00:00",
                     "activityType": {"typeKey": "underwater_hockey"}, "duration": 600.0}]
-        session = Session(Response(200, json.dumps(entries).encode("utf-8")), *wellness(True))
+        session = Session(Response(200, json.dumps(entries).encode("utf-8")), *daily_records(True))
 
         (_, count, _), posted = sync_range(session, start=DAY, end=DAY)
 
@@ -290,10 +290,10 @@ class ActivitySyncTests(unittest.TestCase):
             self.assertEqual(2, len(session.calls))
         with self.subTest("5xx retries with backoff"):
             session = Session(strength_list, Response(503),
-                              Response(200, exercise_set_fixture(24444892080)), *wellness(True))
+                              Response(200, exercise_set_fixture(24444892080)), *daily_records(True))
             sleeps = []
             _, posted = sync_range(session, sleeps, start=DAY, end=DAY)
-            self.assertEqual([4.0, 4.0, 1, 4.0] + [4.0] * 3, sleeps)
+            self.assertEqual([4.0, 4.0, 1, 4.0] + [4.0] * 4, sleeps)
             self.assertEqual(28, len(posted[0]["activities"][0]["exerciseSets"]))
         with self.subTest("a response in an unexpected shape stops the run"):
             session = Session(strength_list, Response(200, b"[]"))
@@ -320,7 +320,7 @@ class ActivitySyncTests(unittest.TestCase):
                 sync_range(session, start=DAY, end=DAY)
 
     def test_an_empty_day_still_posts_a_batch(self):
-        _, posted = sync_range(Session(Response(200), *wellness(True)), start=DAY, end=DAY)
+        _, posted = sync_range(Session(Response(200), *daily_records(True)), start=DAY, end=DAY)
         self.assertEqual([], posted[0]["activities"])
 
     def test_auth_challenge_and_rate_limit_abort_without_retry_or_post(self):
@@ -338,7 +338,7 @@ class ActivitySyncTests(unittest.TestCase):
                 session = Session(failure, *corpus_responses())
                 sleeps = []
                 _, posted = sync_range(session, sleeps)
-                calls = 3 * DAYS + 2 + len(STRENGTH_IDS)
+                calls = 4 * DAYS + 2 + len(STRENGTH_IDS)
                 self.assertEqual([4.0, 1] + [4.0] * calls, sleeps)
                 self.assertEqual(calls + 1, len(session.calls))
                 self.assertEqual(15, len(posted_activities(posted)))

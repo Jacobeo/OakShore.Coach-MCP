@@ -155,6 +155,9 @@ class GarminActivityClient:
         return self._get_day(f"/usersummary-service/usersummary/daily/{self._display_name_path()}",
                              {"calendarDate": day.isoformat()})
 
+    def get_training_status(self, day: date) -> dict[str, Any] | None:
+        return self._get_day(f"/metrics-service/metrics/trainingstatus/aggregated/{day.isoformat()}", {})
+
     def list_activities(self, start: date, end: date) -> list[dict[str, Any]]:
         activities: list[dict[str, Any]] = []
         for page in range(self.MAX_PAGES):

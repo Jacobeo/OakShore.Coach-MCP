@@ -47,6 +47,10 @@ archives wellness. TrainingReadiness leaves the glossary: no concept, no term.
   VO2max" answer needs the intensity signal from somewhere else, such as the
   time in each HeartRateZone already stored per Cardio Activity, which spec 04
   decides.
-- The past-date reading rests on one date; ticket 06's capture confirms it over
-  several before anything is built on it.
+- The past-date reading held over three consecutive dates in ticket 06's
+  capture (run `20261015T070639Z`, indexed in
+  [`fixtures/garmin/index-training-status.json`](../../fixtures/garmin/index-training-status.json)):
+  each response carries the date requested and its own weekly load. A day the
+  watch recorded nothing is unobserved; the sync treats a status Garmin dates
+  earlier than the day requested as no status for that day.
 - A new watch means re-running the capture spike and revisiting this decision.

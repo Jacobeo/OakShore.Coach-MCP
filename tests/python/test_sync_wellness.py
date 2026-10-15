@@ -55,6 +55,10 @@ def daily_summary(day):
     return fixture(f"usersummary-service--daily__date-{day}.json")
 
 
+def training_status(day):
+    return fixture(f"metrics-service--trainingstatus-aggregated__date-{day}.json")
+
+
 def activities(day):
     entries = [entry for entry in LIST_ENTRIES if entry["startTimeGMT"].startswith(day)]
     results = [Response(200, json.dumps(entries).encode("utf-8"))]
@@ -92,8 +96,9 @@ class WellnessSyncTests(unittest.TestCase):
     def test_each_day_fetches_sleep_and_the_daily_summary_after_its_activities_paced_within_the_ceiling(self):
         summary, _ = self.sync(date(2026, 9, 21), date(2026, 9, 19), 2,
                                *activities("2026-09-21"), Response(200, PROFILE),
-                               sleep_night("2026-09-21"), daily_summary("2026-09-21"),
-                               *activities("2026-09-20"), sleep_night("2026-09-20"), daily_summary("2026-09-20"))
+                               sleep_night("2026-09-21"), daily_summary("2026-09-21"), training_status("2026-09-21"),
+                               *activities("2026-09-20"), sleep_night("2026-09-20"), daily_summary("2026-09-20"),
+                               training_status("2026-09-20"))
 
         self.assertEqual((2, 1, 1), summary)
         day_list = "/activitylist-service/activities/search/activities"
@@ -104,21 +109,23 @@ class WellnessSyncTests(unittest.TestCase):
             (f"/wellness-service/wellness/dailySleepData/{DISPLAY_NAME}",
              {"date": "2026-09-21", "nonSleepBufferMinutes": "60"}),
             (f"/usersummary-service/usersummary/daily/{DISPLAY_NAME}", {"calendarDate": "2026-09-21"}),
+            ("/metrics-service/metrics/trainingstatus/aggregated/2026-09-21", {}),
             (day_list, {"startDate": "2026-09-20", "endDate": "2026-09-20", "start": "0", "limit": "20"}),
             (f"/wellness-service/wellness/dailySleepData/{DISPLAY_NAME}",
              {"date": "2026-09-20", "nonSleepBufferMinutes": "60"}),
             (f"/usersummary-service/usersummary/daily/{DISPLAY_NAME}", {"calendarDate": "2026-09-20"}),
+            ("/metrics-service/metrics/trainingstatus/aggregated/2026-09-20", {}),
         ], self.requests())
-        self.assertEqual([4.0] * 8, self.sleeps)
+        self.assertEqual([4.0] * 10, self.sleeps)
 
-    def test_a_day_commits_its_activities_sleep_night_and_daily_summary_as_one_version_3_batch(self):
+    def test_a_day_commits_its_activities_sleep_night_and_daily_summary_as_one_batch(self):
         _, posted = self.sync(date(2026, 9, 21), date(2026, 9, 21), 1,
                               *activities("2026-09-21"), Response(200, PROFILE),
-                              sleep_night("2026-09-21"), daily_summary("2026-09-21"))
+                              sleep_night("2026-09-21"), daily_summary("2026-09-21"), training_status("2026-09-21"))
 
         self.assertEqual(1, len(posted))
         batch = posted[0]
-        self.assertEqual(3, batch["version"])
+        self.assertEqual(4, batch["version"])
         self.assertEqual({"fromDate": "2026-09-21", "toDate": "2026-09-21"}, batch["activityRange"])
         self.assertEqual([24444892080], [activity["activityId"] for activity in batch["activities"]])
         sleep_night_posted = dict(batch["sleepNights"][0])
@@ -153,15 +160,18 @@ class WellnessSyncTests(unittest.TestCase):
 
         _, posted = self.sync(today, empty_day, 30,
                               Response(200), Response(200, PROFILE), Response(204, b""), Response(204, b""),
-                              Response(200), sleep_night("2010-01-01"), daily_summary("2010-01-01"))
+                              Response(204, b""),
+                              Response(200), sleep_night("2010-01-01"), daily_summary("2010-01-01"),
+                              training_status("2010-01-01"))
 
         self.assertEqual(["2010-01-02", "2010-01-01"], [batch["activityRange"]["fromDate"] for batch in posted])
         for batch in posted:
-            self.assertEqual(3, batch["version"])
+            self.assertEqual(4, batch["version"])
             self.assertEqual(([], [], []), (batch["activities"], batch["sleepNights"], batch["dailySummaries"]))
 
         summary, reposted = self.sync(today, empty_day, 30,
-                                      Response(200), Response(200, PROFILE), Response(204, b""), Response(204, b""))
+                                      Response(200), Response(200, PROFILE), Response(204, b""), Response(204, b""),
+                                      Response(204, b""))
 
         self.assertEqual((1, 0, 0), summary)
         self.assertEqual(["2010-01-02"], [batch["activityRange"]["fromDate"] for batch in reposted])
@@ -170,15 +180,17 @@ class WellnessSyncTests(unittest.TestCase):
         with self.assertRaises(GarminAbort):
             self.sync(date(2026, 9, 21), date(2026, 9, 20), 30,
                       *activities("2026-09-21"), Response(200, PROFILE),
-                      sleep_night("2026-09-21"), daily_summary("2026-09-21"),
-                      *activities("2026-09-20"), sleep_night("2026-09-20"), Response(429))
+                      sleep_night("2026-09-21"), daily_summary("2026-09-21"), training_status("2026-09-21"),
+                      *activities("2026-09-20"), sleep_night("2026-09-20"), daily_summary("2026-09-20"),
+                      Response(429))
 
         self.assertEqual(["2026-09-21"], [batch["activityRange"]["fromDate"] for batch in self.posted])
 
         _, posted = self.sync(date(2026, 9, 21), date(2026, 9, 20), 30,
                               *activities("2026-09-21"), Response(200, PROFILE),
-                              sleep_night("2026-09-21"), daily_summary("2026-09-21"),
-                              *activities("2026-09-20"), sleep_night("2026-09-20"), daily_summary("2026-09-20"))
+                              sleep_night("2026-09-21"), daily_summary("2026-09-21"), training_status("2026-09-21"),
+                              *activities("2026-09-20"), sleep_night("2026-09-20"), daily_summary("2026-09-20"),
+                              training_status("2026-09-20"))
 
         self.assertEqual(["2026-09-21", "2026-09-20"], [batch["activityRange"]["fromDate"] for batch in posted])
         self.assertEqual(["2026-09-20"], [night["calendarDate"] for night in posted[1]["sleepNights"]])
@@ -189,7 +201,7 @@ class WellnessSyncTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "privacy"):
             self.sync(date(2026, 9, 21), date(2026, 9, 20), 30,
                       Response(200), Response(200, PROFILE), Response(204, b""), Response(204, b""),
-                      Response(200), Response(204, b""), Response(200, protected))
+                      Response(204, b""), Response(200), Response(204, b""), Response(200, protected))
 
         self.assertEqual([date(2026, 9, 21), date(2026, 9, 20)],
                          Watermark(self.path).pending_days(date(2026, 9, 20), date(2026, 9, 21)))

@@ -7,10 +7,12 @@ internal static class IngestValidation
 {
     private const int MaxArchivedResponseLength = 64 * 1024;
 
+    public static bool TryParseDate(string? value, out DateOnly date) =>
+        DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+
     public static DateOnly CalendarDate(string? value, DateOnly from, DateOnly to, string kind)
     {
-        if (!DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
-            || date < from || date > to)
+        if (!TryParseDate(value, out var date) || date < from || date > to)
             throw new ArgumentException($"A {kind} needs a YYYY-MM-DD calendarDate within the batch's ActivityRange.");
         return date;
     }

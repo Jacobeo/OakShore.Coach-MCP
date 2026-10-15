@@ -50,7 +50,7 @@ def client(session):
 def day_results(day, zones=False, first=False):
     """The list response for one day, the zone boundaries when this is the run's first day
     to need them, one enrichment response per strength Activity, the social profile on the
-    run's first day, then sleep and the daily summary, both holding nothing."""
+    run's first day, then sleep, the daily summary and training status, all holding nothing."""
     entries = [entry for entry in FIXTURE_ENTRIES
                if entry["startTimeGMT"].startswith(day.isoformat())]
     results = [Response(200, json.dumps(entries).encode("utf-8"))]
@@ -62,15 +62,15 @@ def day_results(day, zones=False, first=False):
             results.append(Response(200, (ROOT / "fixtures" / "garmin" /
                                           f"activity-service--exerciseSets__activity-"
                                           f"{entry['activityId']}.json").read_bytes()))
-    return results + wellness_results(first)
+    return results + daily_results(first)
 
 
-def wellness_results(first):
-    return [Response(200, PROFILE)] * first + [Response(204, b""), Response(204, b"")]
+def daily_results(first):
+    return [Response(200, PROFILE)] * first + [Response(204, b""), Response(204, b""), Response(204, b"")]
 
 
 def empty_days(count):
-    return [result for index in range(count) for result in [Response(200), *wellness_results(index == 0)]]
+    return [result for index in range(count) for result in [Response(200), *daily_results(index == 0)]]
 
 
 def requested_days(session):
@@ -111,7 +111,7 @@ class WatermarkRunTests(unittest.TestCase):
         self.assertEqual((5, 2, 0), summary)
         self.assertEqual([day.isoformat() for day in days], requested)
         for batch, day in zip(posted, days):
-            self.assertEqual(3, batch["version"])
+            self.assertEqual(4, batch["version"])
             self.assertEqual({"fromDate": day.isoformat(), "toDate": day.isoformat()},
                              batch["activityRange"])
         self.assertEqual([24444892080], [a["activityId"] for a in posted[0]["activities"]])

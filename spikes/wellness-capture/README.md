@@ -4,10 +4,11 @@ Throwaway capture for tickets 05 and 06 of
 [spec 03](../../.scratch/03-garmin-sync.md). It fetches Garmin's per-date
 endpoints once, paced and read-only, so their real responses can be read and
 replayed, and so what this athlete's watch produces is known before a ticket is
-planned around it. Its durable output is the wellness part of
-[`fixtures/garmin/`](../../fixtures/garmin/README.md) and two ADRs:
-[0010](../../docs/adr/0010-wellness-reads-sleep-and-the-daily-summary.md) and
-[0011](../../docs/adr/0011-this-watch-records-no-hrv.md). Never imported.
+planned around it. Its durable output is the wellness and daily form parts of
+[`fixtures/garmin/`](../../fixtures/garmin/README.md) and three ADRs:
+[0010](../../docs/adr/0010-wellness-reads-sleep-and-the-daily-summary.md),
+[0011](../../docs/adr/0011-this-watch-records-no-hrv.md) and
+[0012](../../docs/adr/0012-daily-form-is-one-training-status-call.md). Never imported.
 
 ## Running it
 
@@ -30,10 +31,12 @@ hand. Any status other than 200 or 204 stops the run without retrying
 | --- | --- | --- |
 | `wellness` | 15 | social profile; sleep, HRV and daily summary for three days and a 2010-01-01 sentinel; dedicated body battery and stress for one day |
 | `form` | 4 | training status, TrainingReadiness and VO2max for one day; the latest cycling FTP |
+| `training-status` | 4 | training status for the same three days and the 2010-01-01 sentinel |
 
 Raw responses land in the gitignored `dumps/`, one directory per run. Only
 `scrub_wellness.py` moves anything into the corpus, and only from a `wellness`
-run; `python -m unittest test_scrub_wellness` covers its refusals.
+or `training-status` run; `python -m unittest test_scrub_wellness` covers its
+refusals.
 
 ## When to run it again
 

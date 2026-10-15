@@ -413,7 +413,7 @@ python src/sync/sync_activities.py --from-date 2026-09-21 --to-date 2026-09-22
 ```
 
 The sync works through the requested dates one day at a time, most recent
-first, and posts each day as its own version 3 batch, described under Watermark
+first, and posts each day as its own version 4 batch, described under Watermark
 runs below. It syncs days the Watermark has already completed, records each
 finished day in it, stops at the same `--max-days` ceiling, and refuses a
 `--to-date` after today. It enriches each strength Activity with one further
@@ -462,11 +462,47 @@ Daily wellness contract rules:
   record out keeps the stored one, and an omitted `garminResponse` keeps the
   archived one.
 - `get_sync_status` reports `SleepNight` and `DailySummary` collections — the
-  count of dates stored, and the time of the last version 3 batch — and
-  `latestWellnessDay`: the latest date a version 3 batch reached, with `holds`
-  listing which of `SleepNight`, `DailySummary`, `BodyBattery` and `StressLevel`
-  that date has. An empty `holds` is a date Garmin held nothing for. No tool
-  returns a wellness figure.
+  count of dates stored, and the time of the last version 3 or 4 batch — and
+  `latestWellnessDay`: the latest date a version 3 or 4 batch reached, with
+  `holds` listing which of `SleepNight`, `DailySummary`, `BodyBattery`,
+  `StressLevel` and `TrainingLoad` that date has. An empty `holds` is a date
+  Garmin held nothing for. No tool returns a wellness figure.
+
+## Ingest version 4 and daily form
+
+Version 4 is version 3 plus the range's `trainingLoads` and the
+`vo2maxEstimates` read with them. Both lists are required and either may be
+empty: a version 4 batch states that every date in its `activityRange` was
+synced for daily form as well as wellness. Version 1 to 3 batches carrying
+either list are rejected.
+
+```json
+{"version":4,"activityRange":{"fromDate":"2026-09-21","toDate":"2026-09-21"},"activities":[],"sleepNights":[],"dailySummaries":[],"trainingLoads":[{"calendarDate":"2026-09-21","weeklyTrainingLoad":140,"loadTunnelMin":67,"loadTunnelMax":218,"garminResponse":{"mostRecentTrainingStatus":{"latestTrainingStatusData":{"1":{"calendarDate":"2026-09-21","trainingStatus":0}}}}}],"vo2maxEstimates":[{"sport":"generic","calendarDate":"2026-09-02","mlPerKgMin":39.3},{"sport":"cycling","calendarDate":"2026-08-30","mlPerKgMin":32.0}]}
+```
+
+Daily form contract rules:
+
+- A TrainingLoad is the systemic axis only: Garmin's `weeklyTrainingLoad`
+  against its load tunnel, `loadTunnelMin` to `loadTunnelMax`, as Garmin sent
+  them ([ADR 0009](docs/adr/0009-trainingload-has-two-axes.md)). Each figure is
+  optional, a whole number from 0 to 100000. Its `calendarDate` falls within
+  the `activityRange` and names a date at most once per batch. Nothing is recomputed. A weekly load
+  of 0 is stored; a date without a TrainingLoad stores nothing.
+- `garminResponse` archives the training status payload as the version 3
+  archives do, and is read by no tool. Garmin's `trainingStatus`,
+  `loadLevelTrend` and `fitnessTrend` codes live only there until their
+  meaning is known.
+- A VO2max estimate names its `sport`, `generic` or `cycling`, the
+  `calendarDate` Garmin computed it on, and `mlPerKgMin`, greater than 0 and at
+  most 100. Its date may precede the `activityRange` but never follow it. One is
+  stored per sport and date, so the same estimate read on later days adds
+  nothing and a re-sent one replaces its value; a day carrying none stores none,
+  never a zero.
+- At most 1000 entries per list, none null.
+- `get_sync_status` reports `TrainingLoad` (dates stored) and `VO2max`
+  (estimates stored) collections, both timed by the last version 4 batch. No
+  tool returns a TrainingLoad or VO2max figure; `get_current_form` in build
+  step 6 is where they first appear.
 
 ## Watermark runs
 
@@ -480,16 +516,23 @@ python src/sync/sync_activities.py
 ```
 
 Each pending day is fetched most recent first and posted as its own single-day
-version 3 batch: the day's Activities, its SleepNight and its DailySummary. A
-day costs the Activity list, sleep and the daily summary, plus the enrichment
-calls above; BodyBattery and StressLevel are read off the daily summary, and
-neither the dedicated body battery and stress endpoints nor HRV are called
-([ADR 0010](docs/adr/0010-wellness-reads-sleep-and-the-daily-summary.md),
-[ADR 0011](docs/adr/0011-this-watch-records-no-hrv.md)). Sleep and the summary
-are addressed by the athlete's display name, read from the social profile once
-per run. A day Garmin holds nothing for is posted with empty lists and
-completed like any other, so it is never fetched again; a privacy-protected
-summary stops the run instead.
+version 4 batch: the day's Activities, its SleepNight, its DailySummary, its
+TrainingLoad and the VO2max estimates read with it. A day costs four calls, the
+Activity list, sleep, the daily summary and training status, plus the
+enrichment calls above; BodyBattery and StressLevel are read off the daily
+summary, and neither the dedicated body battery and stress endpoints nor HRV
+are called ([ADR 0010](docs/adr/0010-wellness-reads-sleep-and-the-daily-summary.md),
+[ADR 0011](docs/adr/0011-this-watch-records-no-hrv.md)). Training status
+carries both the weekly load against its tunnel and the VO2max estimates, so no
+TrainingReadiness, VO2max, load-focus or FTP call is made
+([ADR 0012](docs/adr/0012-daily-form-is-one-training-status-call.md)). Sleep and
+the summary are addressed by the athlete's display name, read from the social
+profile once per run. A day Garmin holds nothing for is posted with empty lists
+and completed like any other, so it is never fetched again; so is a day whose
+training status Garmin dates earlier, which is the last status it holds rather
+than one of that day's own. A privacy-protected summary, a training status
+dated after the day requested, a VO2max estimate dated after it, or a training
+status from more than one device stops the run instead.
 The Watermark records a day once its batch is accepted, so an
 interrupted run keeps everything already fetched and the next run continues
 where it stopped. The current day is synced but never recorded as completed, so
