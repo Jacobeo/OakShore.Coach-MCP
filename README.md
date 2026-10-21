@@ -546,6 +546,55 @@ Watermark lives at `~/.coach-sync/watermark.json` (`--watermark-file`, or
 resyncing everything. Re-running over an already-synced period re-posts only the
 current day's identical batch, which the store treats as the same delivery.
 
+## Failure notifications
+
+A run that gives up sends one push notification to the athlete's phone through
+[ntfy](https://ntfy.sh), from the home machine. Azure sends nothing: it cannot
+tell a failed sync from a machine that is switched off
+([ADR 0001](docs/adr/0001-sync-runs-at-home.md)). The agent-facing signal is
+separate, and is the freshness time every MCP response already carries.
+
+```powershell
+$env:COACH_NTFY_TOPIC = '<your-topic>'
+```
+
+| Variable | Value |
+| --- | --- |
+| `COACH_NTFY_TOPIC` | The ntfy topic to publish to. Treat it as a secret: anyone holding it can read your notifications and send you their own. Required for a run to reach a phone |
+| `COACH_NTFY_SERVER` | Base URL of the ntfy server, HTTPS only. Defaults to `https://ntfy.sh` |
+| `COACH_NTFY_TOKEN` | Bearer token, for a topic reserved on an account or a self-hosted server. Optional |
+
+Two messages, kept distinct so one is never mistaken for the other:
+
+- **"Garmin sync failed"**, at high priority, names what stopped the run and
+  when. A 403 bot challenge, a 429 rate limit, a network error or 5xx that
+  outlived its three retries, an ingest rejection, or an unusable Garmin payload
+  all produce this one.
+- **"Garmin sync needs its annual login"**, at urgent priority, says the saved
+  token is gone or refused and the roughly annual interactive login is due. It
+  is sent when no token file is saved, when the saved token is not
+  authenticated, when Garmin rejects its refresh with a 401, and when a 401
+  answers a read. A 403 is a bot challenge rather than an expired login
+  (spec 03) and never produces this message.
+
+A transient failure that succeeds on retry sends nothing, because the run did
+not give up. Both messages are also written to stderr, so a run on a machine
+whose notification settings are missing or unusable still records why it
+stopped. Such a run warns at startup and syncs as normal rather than refusing to
+start: training data is worth more than a message the run may never need to
+send. A notification that cannot
+be delivered never masks the failure that caused it: the run still exits
+non-zero with the original error.
+
+The topic is held only in the home machine's environment. It is never written to
+this repository, never printed, and never appears in an error message — anything
+the notification service says about a failed send has the topic replaced with
+`<topic>` before it is reported, because the URL it is quoted in carries the
+topic. The server must be HTTPS for the same reason.
+
+Every case above is asserted at the Python seam against a fake sender, so no
+automated test sends a real message or contacts a notification service.
+
 ## Project boundaries
 
 `OakShore.Coach.Domain` owns profile rules and repository/gateway interfaces and uses

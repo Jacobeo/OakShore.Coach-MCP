@@ -13,9 +13,18 @@ from urllib.parse import quote
 
 
 class GarminAbort(RuntimeError):
-    def __init__(self, status: int) -> None:
-        super().__init__(f"Garmin returned HTTP {status}; sync stopped")
+    def __init__(self, status: int, reason: str | None = None) -> None:
+        super().__init__(reason or f"Garmin returned HTTP {status}; sync stopped")
         self.status = status
+
+
+class GarminReauthRequired(GarminAbort):
+    """Garmin no longer accepts the saved token, so the roughly annual interactive
+    login is due. An abort like any other, named apart because only this one waits
+    on the athlete rather than on Garmin."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(401, reason)
 
 
 def load_token_client(
@@ -30,12 +39,12 @@ def load_token_client(
         raise ValueError("Garmin requests must be paced at least 3 seconds apart")
     location = Path(token_dir or os.environ.get("GARMINTOKENS") or "~/.garminconnect").expanduser()
     if not token_file_path(str(location)).is_file():
-        raise RuntimeError(f"No saved Garmin token at {location}; complete interactive login first")
+        raise GarminReauthRequired(f"No Garmin token is saved at {location}")
     client = Garmin()
     # Token loading is local; Garmin.login also fetches profile and settings.
     client.client.load(str(location))
     if not client.client.is_authenticated:
-        raise RuntimeError("Saved Garmin token is not authenticated")
+        raise GarminReauthRequired("The saved Garmin token is not authenticated")
     if client.client._token_expires_soon():
         for attempt in range(3):
             sleep(pace_seconds)
@@ -49,6 +58,8 @@ def load_token_client(
             except Exception as error:
                 match = re.search(r"(?:failed: |HTTP )(\d{3})", str(error))
                 status = int(match.group(1)) if match else None
+                if status == 401:
+                    raise GarminReauthRequired("Garmin rejected the saved token's refresh") from None
                 if status not in range(500, 600) or attempt == 2:
                     raise
             sleep(2 ** attempt)
@@ -102,7 +113,9 @@ class GarminActivityClient:
                 self._sleep(2 ** attempt)
                 continue
             status = response.status_code
-            if status in (401, 403, 429):
+            if status == 401:
+                raise GarminReauthRequired("Garmin refused the saved token")
+            if status in (403, 429):
                 raise GarminAbort(status)
             if status >= 500:
                 if attempt + 1 == self._max_attempts:

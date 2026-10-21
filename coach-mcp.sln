@@ -191,6 +191,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sync", "Sync", "{C235129B-A641-43ED-941A-F524366EA99A}"
 	ProjectSection(SolutionItems) = preProject
 		src\sync\garmin_client.py = src\sync\garmin_client.py
+		src\sync\notify.py = src\sync\notify.py
 		src\sync\requirements.txt = src\sync\requirements.txt
 		src\sync\sync_activities.py = src\sync\sync_activities.py
 		src\sync\watermark.py = src\sync\watermark.py
@@ -200,6 +201,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Python tests", "Python test
 	ProjectSection(SolutionItems) = preProject
 		tests\python\test_sync_activities.py = tests\python\test_sync_activities.py
 		tests\python\test_sync_daily_form.py = tests\python\test_sync_daily_form.py
+		tests\python\test_sync_notifications.py = tests\python\test_sync_notifications.py
 		tests\python\test_sync_watermark.py = tests\python\test_sync_watermark.py
 		tests\python\test_sync_wellness.py = tests\python\test_sync_wellness.py
 	EndProjectSection

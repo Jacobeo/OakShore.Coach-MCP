@@ -21,6 +21,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from garmin_client import GarminActivityClient, load_token_client
+from notify import notifier_from_environment, run_notifying_failures
 from watermark import Watermark
 
 
@@ -384,20 +385,27 @@ def main() -> int:
                      " for a run without dates")
     if args.max_days < 1:
         parser.error("--max-days must be at least 1")
-    garmin = GarminActivityClient.from_login(load_token_client(args.token_dir, args.pace), args.pace)
+    # A bad command line is the athlete's own doing and has already been reported, so
+    # only what happens from the token onwards is worth a notification.
+    notify = notifier_from_environment()
 
-    def post(batch: dict[str, Any]) -> None:
-        post_to_ingest(args.ingest_url, token, batch)
+    def sync() -> None:
+        garmin = GarminActivityClient.from_login(load_token_client(args.token_dir, args.pace),
+                                                 args.pace)
 
-    watermark = Watermark(Path(args.watermark_file).expanduser())
-    if explicit:
-        days, count, left = run(args.from_date, args.to_date, date.today(), args.max_days,
-                                watermark, garmin, post)
-    else:
-        days, count, left = run_watermark(date.today(), args.earliest_date, args.max_days,
-                                          watermark, garmin, post)
-    print(f"Synced {days} days ({count} Activities); {left} days remaining")
-    return 0
+        def post(batch: dict[str, Any]) -> None:
+            post_to_ingest(args.ingest_url, token, batch)
+
+        watermark = Watermark(Path(args.watermark_file).expanduser())
+        if explicit:
+            days, count, left = run(args.from_date, args.to_date, date.today(), args.max_days,
+                                    watermark, garmin, post)
+        else:
+            days, count, left = run_watermark(date.today(), args.earliest_date, args.max_days,
+                                              watermark, garmin, post)
+        print(f"Synced {days} days ({count} Activities); {left} days remaining")
+
+    return run_notifying_failures(sync, notify)
 
 
 if __name__ == "__main__":

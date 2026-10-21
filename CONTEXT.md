@@ -228,6 +228,15 @@ computed it, which may precede the range. Replaying identical content is the
 same delivery and does not advance freshness.
 _Avoid_: upload, payload
 
+**SyncAlert**:
+One push notification about a run that gave up, sent from the home machine to the
+athlete's phone (ADR 0001). Two kinds, deliberately distinct: a failure, naming
+what stopped the run and when, and the roughly annual interactive login, naming
+what the athlete must sit down and do. A fault that healed on retry is neither.
+Azure never sends one, because it cannot tell a failed sync from a machine that
+is switched off.
+_Avoid_: alert, error, push, warning, reminder
+
 **SyncStatus**:
 The stored record count and last successful sync time for each collection, plus
 the most recent Activity summary when one is stored, and the latest date a
