@@ -230,9 +230,11 @@ _Avoid_: upload, payload
 
 **SyncAlert**:
 One push notification about a run that gave up, sent from the home machine to the
-athlete's phone (ADR 0001). Two kinds, deliberately distinct: a failure, naming
-what stopped the run and when, and the roughly annual interactive login, naming
-what the athlete must sit down and do. A fault that healed on retry is neither.
+athlete's phone (ADR 0001). Three kinds, deliberately distinct: a failure, naming
+what stopped the run and when, and one for each sign-in that can fall due — Garmin's
+roughly annual interactive login and the SyncSignIn — each naming what the athlete
+must sit down and do, and where. A fault that healed on retry is none of them, and
+nor is a run turned away because another holds the SyncSlot.
 Azure never sends one, because it cannot tell a failed sync from a machine that
 is switched off.
 _Avoid_: alert, error, push, warning, reminder
@@ -253,3 +255,18 @@ synced but never completed, so the next run syncs it again. A run without dates
 works most recent first through the days, from a configured earliest date to
 today, that the Watermark does not cover, and stops at a per-run ceiling.
 _Avoid_: checkpoint, cursor, last-run time, high-water mark
+
+**SyncSlot**:
+The home machine's permission to run one sync at a time, held for the length of a
+run. A run that cannot take it stops without fetching anything, because the run
+already holding it covers the same days. It is an operating-system lock, so it is
+released however a run ends.
+_Avoid_: mutex, semaphore, pid file, guard, singleton
+
+**SyncSignIn**:
+The home machine's own saved sign-in to the service that issues ingest access
+tokens, obtained interactively once per machine and kept as a refresh token the
+sync exchanges for as many short-lived access tokens as a run needs (ADR 0013).
+Distinct from the athlete's Garmin login and from a chat client's connection: it
+falls due separately and is renewed in a different place.
+_Avoid_: API key, service account, machine token, credentials

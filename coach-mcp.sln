@@ -25,6 +25,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{9ADE9AEC-C3C
 		docs\adr\0010-wellness-reads-sleep-and-the-daily-summary.md = docs\adr\0010-wellness-reads-sleep-and-the-daily-summary.md
 		docs\adr\0011-this-watch-records-no-hrv.md = docs\adr\0011-this-watch-records-no-hrv.md
 		docs\adr\0012-daily-form-is-one-training-status-call.md = docs\adr\0012-daily-form-is-one-training-status-call.md
+		docs\adr\0013-the-sync-holds-its-own-workos-sign-in.md = docs\adr\0013-the-sync-holds-its-own-workos-sign-in.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "agents", "agents", "{B3BE0EBF-4AC1-4D9D-A26B-10AD35452E72}"
@@ -190,10 +191,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Migrations", "Migrations", 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sync", "Sync", "{C235129B-A641-43ED-941A-F524366EA99A}"
 	ProjectSection(SolutionItems) = preProject
+		src\sync\atomic_file.py = src\sync\atomic_file.py
 		src\sync\garmin_client.py = src\sync\garmin_client.py
 		src\sync\notify.py = src\sync\notify.py
+		src\sync\register-scheduled-task.ps1 = src\sync\register-scheduled-task.ps1
 		src\sync\requirements.txt = src\sync\requirements.txt
+		src\sync\run-sync.ps1 = src\sync\run-sync.ps1
 		src\sync\sync_activities.py = src\sync\sync_activities.py
+		src\sync\sync_sign_in.py = src\sync\sync_sign_in.py
+		src\sync\sync_slot.py = src\sync\sync_slot.py
 		src\sync\watermark.py = src\sync\watermark.py
 	EndProjectSection
 EndProject
@@ -202,6 +208,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Python tests", "Python test
 		tests\python\test_sync_activities.py = tests\python\test_sync_activities.py
 		tests\python\test_sync_daily_form.py = tests\python\test_sync_daily_form.py
 		tests\python\test_sync_notifications.py = tests\python\test_sync_notifications.py
+		tests\python\test_sync_sign_in.py = tests\python\test_sync_sign_in.py
+		tests\python\test_sync_slot.py = tests\python\test_sync_slot.py
 		tests\python\test_sync_watermark.py = tests\python\test_sync_watermark.py
 		tests\python\test_sync_wellness.py = tests\python\test_sync_wellness.py
 	EndProjectSection

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src" / "sync"))
 
 from garmin_client import GarminActivityClient, load_token_client  # noqa: E402
+from sync_sign_in import SyncSignInRequired  # noqa: E402
 from notify import NtfyNotifier, notifier_from_environment, run_notifying_failures  # noqa: E402
 from sync_activities import run  # noqa: E402
 from watermark import Watermark  # noqa: E402
@@ -88,6 +89,24 @@ class ReauthenticationTests(unittest.TestCase):
         self.assertIn("429", alert.body)
         self.assertIn("2026-10-20 19:04", alert.body)
         self.assertNotIn("login", alert.body)
+
+    def test_a_spent_coach_sign_in_is_its_own_message_and_never_the_garmin_one(self):
+        # Two sign-ins fall due independently; a message naming the wrong one sends
+        # the athlete to the wrong machine.
+        alerts = []
+
+        def sync():
+            raise SyncSignInRequired("WorkOS no longer accepts the saved sign in")
+
+        exit_code = run_notifying_failures(sync, alerts.append, now=lambda: WHEN)
+
+        self.assertEqual(1, exit_code)
+        (alert,) = alerts
+        self.assertEqual("Coach sign-in needs renewing", alert.title)
+        self.assertNotIn("Garmin", alert.title)
+        self.assertNotIn("Garmin", alert.body)
+        self.assertEqual("urgent", alert.priority)
+        self.assertIn("2026-10-20 19:04", alert.body)
 
 
 class TransientFailureTests(unittest.TestCase):

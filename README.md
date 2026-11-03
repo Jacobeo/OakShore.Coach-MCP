@@ -564,7 +564,7 @@ $env:COACH_NTFY_TOPIC = '<your-topic>'
 | `COACH_NTFY_SERVER` | Base URL of the ntfy server, HTTPS only. Defaults to `https://ntfy.sh` |
 | `COACH_NTFY_TOKEN` | Bearer token, for a topic reserved on an account or a self-hosted server. Optional |
 
-Two messages, kept distinct so one is never mistaken for the other:
+Three messages, kept distinct so one is never mistaken for another:
 
 - **"Garmin sync failed"**, at high priority, names what stopped the run and
   when. A 403 bot challenge, a 429 rate limit, a network error or 5xx that
@@ -576,6 +576,16 @@ Two messages, kept distinct so one is never mistaken for the other:
   authenticated, when Garmin rejects its refresh with a 401, and when a 401
   answers a read. A 403 is a bot challenge rather than an expired login
   (spec 03) and never produces this message.
+- **"Coach sign-in needs renewing"**, at urgent priority, says the saved WorkOS
+  sign-in is spent and `--login` is due. It is sent when no sign-in is saved on
+  the machine and when WorkOS answers a refresh with `invalid_grant`. Any other
+  answer from the sign-in service is a fault and produces the failure message
+  instead. This is a different credential from Garmin's, renewed in a different
+  place, so it never borrows the Garmin wording.
+
+A run turned away because another is already going sends nothing and exits zero:
+an overlap is the design working, and paging the athlete for it would teach them
+to ignore the one message that matters.
 
 A transient failure that succeeds on retry sends nothing, because the run did
 not give up. Both messages are also written to stderr, so a run on a machine
@@ -594,6 +604,136 @@ topic. The server must be HTTPS for the same reason.
 
 Every case above is asserted at the Python seam against a fake sender, so no
 automated test sends a real message or contacts a notification service.
+
+## Scheduled and manual runs
+
+The sync runs itself each evening on the home machine, catches up on its own
+after the machine has been off, and can be triggered by hand straight after an
+Activity.
+
+### Sign in once, so a run needs nobody
+
+An access token for the ingest audience lasts minutes, so one obtained by hand
+cannot drive a scheduled run and would expire part-way through a long catch-up.
+The athlete signs in through WorkOS once per machine; the rotating refresh token
+that produces lets every later run issue its own access tokens.
+
+Register the sync as an OAuth client in WorkOS first — **Applications →
+Configuration** — allowing the authorization code grant with PKCE, offline
+access, and the loopback redirect `http://127.0.0.1:8765/callback`. Then:
+
+```powershell
+$env:COACH_INGEST_AUTHORITY = 'https://proficient-steam-61-staging.authkit.app'
+$env:COACH_INGEST_CLIENT_ID = '<the sync client id>'
+python src/sync/sync_activities.py --login
+```
+
+That opens the WorkOS sign-in page, catches the redirect on the loopback
+address, and saves the refresh token to `~/.coach-sync/workos_tokens.json`
+(`--sign-in-file`, or `COACH_SYNC_SIGNIN`). Nothing else is stored. The file is
+a credential and lives in the user profile for the reasons in
+[ADR 0006](docs/adr/0006-garmin-token-file-location.md): outside the working
+tree, protected by the Windows account, never in this repository.
+
+| Variable | Value |
+| --- | --- |
+| `COACH_INGEST_AUTHORITY` | The WorkOS issuer that signs ingest access tokens. Public configuration, not a secret |
+| `COACH_INGEST_CLIENT_ID` | The OAuth client the sync signs in as. Public |
+| `COACH_INGEST_RESOURCE` | Resource indicator, only when the issuer's default is not the ingest audience. Optional |
+| `COACH_INGEST_REDIRECT_PORT` | Loopback port the sign-in redirect returns to. Defaults to `8765`; must match the registered redirect URI |
+| `COACH_SYNC_SIGNIN` | Where the saved sign-in is kept. Defaults to `~/.coach-sync/workos_tokens.json` |
+
+A run without dates also requires `COACH_SYNC_EARLIEST_DATE` (see
+[Watermark runs](#watermark-runs)) and `COACH_INGEST_URL`. Both must be set as
+user environment variables before the task is registered: without them a
+scheduled run exits 2 having fetched nothing, and nobody is there to see why.
+
+Each run exchanges the saved refresh token for an access token and asks for a
+new one whenever the current one is within a minute of expiring, so a catch-up
+of many days is not cut short by a token's lifetime. WorkOS retires a refresh
+token as it is used, so the replacement is written back before the access token
+is handed out; losing it would cost an interactive sign-in. Setting
+`COACH_ACCESS_TOKEN` overrides all of this with one static token, which is the
+escape hatch for a one-off manual run, never for a scheduled one.
+
+### Register the daily task
+
+```powershell
+.\src\sync\register-scheduled-task.ps1
+```
+
+That registers a task named **Coach Garmin sync** which runs
+[run-sync.ps1](src/sync/run-sync.ps1) daily at 21:30. Pass `-At 22:15` for a
+different time, `-TaskName` for a different name, or `-Unregister` to remove it.
+Running the script again replaces the task, so it is safe to re-run after
+changing the time or moving the repository.
+
+The task is registered with **start as soon as possible after a missed start**,
+which is what makes an evening schedule survive a machine that is off: a day
+missed while the machine was down runs when it next comes up, rather than
+waiting for the athlete. Windows coalesces several missed occurrences into one
+run, so a fortnight away produces a single catch-up rather than fourteen. The
+sync does not depend on that — its Watermark and per-run ceiling make the number
+of runs irrelevant — but it is why a long absence cannot produce a burst of
+traffic.
+
+The task is registered with no restart-on-failure. A run that aborts on a 401,
+403 or 429 exits non-zero, and restarting it would contact Garmin again inside
+the block it was told to back off from, which is what the circuit breaker exists
+to prevent ([ADR 0005](docs/adr/0005-bounded-resumable-sync.md)). A failed run
+waits for tomorrow, and the Watermark means it loses nothing by waiting.
+
+The task runs as the current user, interactive, with no stored password. It
+therefore inherits that user's environment variables and reaches the saved
+sign-in and the Garmin token in the user profile. Set the `COACH_*` variables
+above as **user** environment variables so a scheduled run sees them; no secret
+is written into the task definition, which is readable on the machine.
+
+### Run it by hand
+
+The scheduler and the athlete use the same entry point, so a manual run cannot
+differ from a scheduled one in some way nobody notices until a scheduled run
+fails:
+
+```powershell
+.\src\sync\run-sync.ps1
+```
+
+A run with no arguments is driven by the Watermark and is bounded, so it is safe
+at any time of day: with nothing new to fetch it posts nothing and changes
+nothing. Arguments are passed through, so `.\src\sync\run-sync.ps1 --from-date
+2026-10-01 --to-date 2026-10-07` re-syncs an explicit range. The scheduled task
+can also be started on demand with
+`Start-ScheduledTask -TaskName 'Coach Garmin sync'`.
+
+### Two runs at once
+
+A manual run straight after an Activity can land on top of the evening
+catch-up.
+Both write the same Watermark and post the same days, so only one may proceed:
+the second takes no work, says so on stderr and exits zero, leaving the
+Watermark and the store untouched. The run already going covers the same days.
+
+The slot is an operating-system lock on `~/.coach-sync/sync.lock` (`--slot-file`,
+or `COACH_SYNC_SLOT`) rather than a flag written into a file: the system drops it
+when the process ends, however it ends, so a run killed part-way cannot lock the
+machine out until a reboot. The scheduled task is registered with
+`-MultipleInstances IgnoreNew` as well, so the scheduler does not start a second
+copy of its own either. `--login` takes the slot too: signing in writes the same
+file a running sync rotates, so it waits for the machine rather than racing it.
+
+### Confirm the last successful run from a chat client
+
+Ask the connected chat client "when was my training data last synced?". The
+`get_sync_status` tool answers with the last sync time and what the store holds,
+and every other response carries its own freshness time
+([ADR 0002](docs/adr/0002-own-datastore-is-the-system-of-record.md)), so the
+agent can qualify an answer rather than reasoning confidently over a gap. That
+is the agent-facing signal; the push notification is the athlete-facing one.
+
+On the machine itself, `Get-ScheduledTaskInfo -TaskName 'Coach Garmin sync'`
+reports the last run time and its result, and the run prints how many days it
+synced and how many remain.
 
 ## Project boundaries
 

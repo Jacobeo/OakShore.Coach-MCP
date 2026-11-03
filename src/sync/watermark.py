@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
-import time
 from datetime import date, timedelta
 from pathlib import Path
+
+from atomic_file import write_replacing
 
 
 class Watermark:
@@ -26,22 +26,9 @@ class Watermark:
                 f"Watermark file {self._path} is unreadable; fix or remove it") from error
 
     def _save(self) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        content = json.dumps({"completedDays": [
+        write_replacing(self._path, json.dumps({"completedDays": [
             {"from": start.isoformat(), "to": end.isoformat()} for start, end in self._completed
-        ]})
-        # Write-then-replace so an interrupted run never tears the file.
-        scratch = self._path.with_suffix(".tmp")
-        scratch.write_text(content, encoding="utf-8")
-        # Windows briefly refuses the replace while a scanner holds a file just written.
-        for attempt in range(5):
-            try:
-                os.replace(scratch, self._path)
-                return
-            except PermissionError:
-                if attempt == 4:
-                    raise
-                time.sleep(0.05 * (attempt + 1))
+        ]}))
 
     def pending_days(self, earliest: date, today: date) -> list[date]:
         """Days in [earliest, today] not yet completed, most recent first."""

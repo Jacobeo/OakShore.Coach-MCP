@@ -14,14 +14,17 @@ import argparse
 import json
 import os
 import re
+import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+import sync_sign_in
 from garmin_client import GarminActivityClient, load_token_client
 from notify import notifier_from_environment, run_notifying_failures
+from sync_slot import AlreadyRunning, sync_slot
 from watermark import Watermark
 
 
@@ -330,12 +333,33 @@ def run_watermark(
     return sync_days(watermark.pending_days(earliest, today), today, max_days, watermark, garmin, post)
 
 
-def post_to_ingest(url: str, token: str, batch: dict[str, Any]) -> None:
+def run_unless_already_running(
+    slot_file: Path,
+    sync: Callable[[], Any],
+    notify: Callable[[Any], None],
+    warn: Callable[[str], None] = lambda text: print(text, file=sys.stderr),
+) -> int:
+    """Run the sync unless another one holds the machine's slot; returns an exit code.
+
+    The slot is taken outside the notification wrapper, so an overlap is logged and
+    nothing else: the run already going covers the same days, and a message about it
+    would be noise beside the one that means the athlete must act.
+    """
+    try:
+        with sync_slot(slot_file):
+            return run_notifying_failures(sync, notify)
+    except AlreadyRunning as held:
+        warn(f"{held}; it already covers these days, so this run stops here.")
+        return 0
+
+
+def post_to_ingest(url: str, token: Callable[[], str], batch: dict[str, Any]) -> None:
     if not url.startswith("https://"):
         raise ValueError("ingest URL must use HTTPS")
+    # Asked for per batch, not per run: a catch-up of many days outlives one token.
     request = Request(
         url, data=json.dumps(batch).encode("utf-8"), method="POST",
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token()}"},
     )
     try:
         with urlopen(request, timeout=60) as response:
@@ -367,12 +391,50 @@ def main() -> int:
     parser.add_argument("--token-dir", help="overrides GARMINTOKENS and ~/.garminconnect")
     parser.add_argument("--pace", type=float, default=4.0)
     parser.add_argument("--ingest-url", default=os.environ.get("COACH_INGEST_URL"))
+    parser.add_argument("--slot-file", default=os.environ.get("COACH_SYNC_SLOT")
+                        or "~/.coach-sync/sync.lock",
+                        help="the machine's one sync slot; a second run stops rather"
+                             " than posting the same day twice")
+    parser.add_argument("--sign-in-file", default=os.environ.get("COACH_SYNC_SIGNIN")
+                        or sync_sign_in.DEFAULT_TOKEN_FILE,
+                        help="where the sync's saved WorkOS sign-in is kept")
+    parser.add_argument("--authority", default=os.environ.get("COACH_INGEST_AUTHORITY"),
+                        help="the WorkOS issuer that signs ingest access tokens")
+    parser.add_argument("--client-id", default=os.environ.get("COACH_INGEST_CLIENT_ID"),
+                        help="the OAuth client this sync signs in as")
+    parser.add_argument("--resource", default=os.environ.get("COACH_INGEST_RESOURCE"),
+                        help="resource indicator, when the issuer's default is not"
+                             " the ingest audience")
+    parser.add_argument("--redirect-port", type=int,
+                        default=int(os.environ.get("COACH_INGEST_REDIRECT_PORT")
+                                    or sync_sign_in.DEFAULT_REDIRECT_PORT),
+                        help="loopback port the sign-in redirect returns to")
+    parser.add_argument("--login", action="store_true",
+                        help="sign in interactively once, then exit; every later run"
+                             " is unattended")
     args = parser.parse_args()
+    sign_in_file = Path(args.sign_in_file).expanduser()
+    slot_file = Path(args.slot_file).expanduser()
+    if args.login:
+        if not args.authority or not args.client_id:
+            parser.error("--authority and --client-id are required to sign in")
+        # Signing in writes the same file a running sync rotates, so it takes the
+        # SyncSlot too rather than racing that write.
+        try:
+            with sync_slot(slot_file):
+                sync_sign_in.sign_in(sign_in_file, args.authority, args.client_id,
+                                    args.resource, args.redirect_port)
+        except AlreadyRunning as held:
+            print(f"{held}; wait for it to finish before signing in.", file=sys.stderr)
+            return 1
+        return 0
     if not args.ingest_url:
         parser.error("--ingest-url or COACH_INGEST_URL is required")
-    token = os.environ.get("COACH_ACCESS_TOKEN")
-    if not token:
-        parser.error("COACH_ACCESS_TOKEN is required")
+    # A token in the environment is the manual escape hatch; everything scheduled uses
+    # the saved sign-in, because a token obtained by hand expires within minutes.
+    static_token = os.environ.get("COACH_ACCESS_TOKEN")
+    if not static_token and not (args.authority and args.client_id):
+        parser.error("--authority and --client-id (or COACH_ACCESS_TOKEN) are required")
     explicit = args.from_date is not None or args.to_date is not None
     if explicit and (args.from_date is None or args.to_date is None):
         parser.error("--from-date and --to-date must be given together")
@@ -388,6 +450,12 @@ def main() -> int:
     # A bad command line is the athlete's own doing and has already been reported, so
     # only what happens from the token onwards is worth a notification.
     notify = notifier_from_environment()
+
+    if static_token:
+        token: Callable[[], str] = lambda: static_token
+    else:
+        token = sync_sign_in.SyncSignIn(sign_in_file, args.authority, args.client_id,
+                                             args.resource).access_token
 
     def sync() -> None:
         garmin = GarminActivityClient.from_login(load_token_client(args.token_dir, args.pace),
@@ -405,7 +473,7 @@ def main() -> int:
                                               watermark, garmin, post)
         print(f"Synced {days} days ({count} Activities); {left} days remaining")
 
-    return run_notifying_failures(sync, notify)
+    return run_unless_already_running(slot_file, sync, notify)
 
 
 if __name__ == "__main__":

@@ -238,7 +238,7 @@ class WatermarkRunTests(unittest.TestCase):
                 raise PermissionError("locked")
             replace(source, target)
 
-        with patch("watermark.os.replace", side_effect=locked_once):
+        with patch("atomic_file.os.replace", side_effect=locked_once):
             self.watermark.mark_completed(date(2026, 9, 20))
 
         self.assertEqual(2, len(attempts))

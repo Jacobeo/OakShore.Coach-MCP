@@ -15,9 +15,11 @@ from typing import Any, Callable
 from urllib.request import Request, urlopen
 
 from garmin_client import GarminReauthRequired
+from sync_sign_in import SyncSignInRequired
 
 
 REAUTH_TITLE = "Garmin sync needs its annual login"
+COACH_REAUTH_TITLE = "Coach sign-in needs renewing"
 FAILURE_TITLE = "Garmin sync failed"
 DEFAULT_SERVER = "https://ntfy.sh"
 
@@ -42,6 +44,14 @@ def alert_for(error: BaseException, when: datetime) -> SyncAlert:
             f"{error}, so the roughly annual interactive login is due. Complete it on the"
             f" home machine; the sync stays stopped until you do.\nFound {local_time(when)}.",
             # Only this one waits on the athlete, so only this one interrupts them.
+            priority="urgent", tags="key")
+    if isinstance(error, SyncSignInRequired):
+        # The two sign-ins fall due independently and are renewed differently, so the
+        # message names which one rather than sending the athlete to the wrong place.
+        return SyncAlert(
+            COACH_REAUTH_TITLE,
+            f"{error}. Run the sync's sign-in on the home machine; nothing reaches the"
+            f" coach until you do.\nFound {local_time(when)}.",
             priority="urgent", tags="key")
     return SyncAlert(FAILURE_TITLE, f"{error}\nStopped {local_time(when)}.",
                      priority="high", tags="warning")
