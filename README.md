@@ -368,6 +368,10 @@ ExerciseSet contract rules:
   load and carries no classification probability
   ([ADR 0016](docs/adr/0016-fit-cannot-state-a-bodyweight-load.md)); any other
   value is rejected.
+- `EXPORT_FIT` arrives in a backfill only. Export data reaches the store as a
+  Backfill, which leaves a stored Activity's sets alone
+  ([ADR 0014](docs/adr/0014-export-data-is-backfill-only.md)); outside one it
+  would overwrite the API's reading of the same sets, so the batch is rejected.
 - Omitting `exerciseSets` from a later batch preserves the stored sets, the way
   an omitted `activityName` preserves the name; an empty array clears them.
 - `get_sync_status` reports an `ExerciseSet` collection and, when the most
@@ -775,13 +779,19 @@ Activity, keyed by the Activity's start time, which is the only thing linking a
 FIT file to an Activity ([ADR 0015](docs/adr/0015-export-fit-files-join-activities-by-start-time.md)).
 
 ```powershell
-dotnet run --project src/OakShore.Coach.ExportFit -- "$HOME\Downloads\<the export>.zip" exercise-sets.json
+dotnet run --project src/OakShore.Coach.ExportFit -- "$HOME\Downloads\<the export>.zip" export-set-index.json
 ```
 
 It reads nothing but the archive, writes nothing but that file, and opens no
 database. A file whose `file_id` says it is not an Activity — a weight scale's,
 a device's, a day of monitoring — is skipped, as is one that fails to decode, so
-an archive the download truncated still yields what it holds.
+an archive the download truncated still yields what it holds. A start time two
+Activity FIT files state is left out of the index altogether rather than letting
+one of them win, the same way the importer leaves a shared start minute
+unmatched. A `set` message whose `set_type` FIT leaves unstated — its only value
+besides Active and Rest, and one the real export's 4629 sets never carry — is
+left out, because a set with no stated type cannot become an ExerciseSet without
+inventing one.
 
 Weight arrives as a count of sixteenths of a kilogram and duration as a count of
 milliseconds, so both land exactly on the kilograms and seconds the contract
@@ -798,10 +808,10 @@ runs the sync needs nothing new:
 
 ```powershell
 $env:COACH_INGEST_URL = 'https://<app-host>/ingest'
-python src/sync/import_export_archive.py "$HOME\Downloads\<the export>.zip" --exercise-sets exercise-sets.json
+python src/sync/import_export_archive.py "$HOME\Downloads\<the export>.zip" --export-set-index export-set-index.json
 ```
 
-Without `--exercise-sets` the archive imports exactly as before, its Activities
+Without `--export-set-index` the archive imports exactly as before, its Activities
 unenriched. With it, each Activity is posted together with the ExerciseSets the
 index holds for its start time, in the same Backfill: posted in a later one they
 would be dropped, because a Backfill naming an Activity the store already holds is

@@ -1,4 +1,326 @@
 {
+  "2026-08-08T11:33:33Z": [
+    {
+      "setType": "ACTIVE",
+      "repetitions": 3,
+      "weightKg": 115,
+      "exercise": {
+        "category": "DEADLIFT",
+        "name": "TRAP_BAR_DEADLIFT"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T11:33:33Z",
+      "durationSeconds": 38.942,
+      "wktStepIndex": 0,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T11:34:12Z",
+      "durationSeconds": 163.531,
+      "wktStepIndex": 1,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 3,
+      "weightKg": 115,
+      "exercise": {
+        "category": "DEADLIFT",
+        "name": "TRAP_BAR_DEADLIFT"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T11:36:55Z",
+      "durationSeconds": 29.299,
+      "wktStepIndex": 0,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T11:37:25Z",
+      "durationSeconds": 203.216,
+      "wktStepIndex": 1,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 5,
+      "weightKg": 12,
+      "exercise": {
+        "category": "LUNGE",
+        "name": "DUMBBELL_BULGARIAN_SPLIT_SQUAT"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T11:40:48Z",
+      "durationSeconds": 56.717,
+      "wktStepIndex": 3,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T11:41:45Z",
+      "durationSeconds": 152.661,
+      "wktStepIndex": 4,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 5,
+      "weightKg": 12,
+      "exercise": {
+        "category": "LUNGE",
+        "name": "DUMBBELL_BULGARIAN_SPLIT_SQUAT"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T11:44:17Z",
+      "durationSeconds": 60.66,
+      "wktStepIndex": 3,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T11:45:18Z",
+      "durationSeconds": 260.241,
+      "wktStepIndex": 4,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 5,
+      "weightKg": 67.5,
+      "exercise": {
+        "category": "BENCH_PRESS"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T11:49:38Z",
+      "durationSeconds": 6.315,
+      "wktStepIndex": 6,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T11:49:44Z",
+      "durationSeconds": 263.586,
+      "wktStepIndex": 7,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 5,
+      "weightKg": 67.5,
+      "exercise": {
+        "category": "BENCH_PRESS"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T11:54:08Z",
+      "durationSeconds": 35.121,
+      "wktStepIndex": 6,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T11:54:43Z",
+      "durationSeconds": 221.686,
+      "wktStepIndex": 7,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 8,
+      "weightKg": 75,
+      "exercise": {
+        "category": "ROW",
+        "name": "SEATED_CABLE_ROW"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T11:58:26Z",
+      "durationSeconds": 1.794,
+      "wktStepIndex": 9,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T11:58:28Z",
+      "durationSeconds": 162.025,
+      "wktStepIndex": 10,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 8,
+      "weightKg": 75,
+      "exercise": {
+        "category": "ROW",
+        "name": "SEATED_CABLE_ROW"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T12:01:10Z",
+      "durationSeconds": 33.505,
+      "wktStepIndex": 9,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:01:43Z",
+      "durationSeconds": 104.212,
+      "wktStepIndex": 10,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 0,
+      "weightKg": 55,
+      "exercise": {
+        "category": "LEG_CURL",
+        "name": "WEIGHTED_LEG_CURL"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T12:03:27Z",
+      "durationSeconds": 19.135,
+      "wktStepIndex": 12,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:03:47Z",
+      "durationSeconds": 5.138,
+      "wktStepIndex": 13,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 5,
+      "exercise": {
+        "category": "CALF_RAISE",
+        "name": "STANDING_CALF_RAISE"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T12:03:52Z",
+      "durationSeconds": 221.399,
+      "wktStepIndex": 15,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 8,
+      "weightKg": 13.5,
+      "exercise": {
+        "category": "CORE",
+        "name": "CABLE_CORE_PRESS"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T12:07:33Z",
+      "durationSeconds": 75.834,
+      "wktStepIndex": 18,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:08:49Z",
+      "durationSeconds": 142.706,
+      "wktStepIndex": 19,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 8,
+      "weightKg": 13.5,
+      "exercise": {
+        "category": "CORE",
+        "name": "CABLE_CORE_PRESS"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T12:11:12Z",
+      "durationSeconds": 63.687,
+      "wktStepIndex": 18,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:12:15Z",
+      "durationSeconds": 161.44,
+      "wktStepIndex": 19,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:14:58Z",
+      "durationSeconds": 9.821,
+      "wktStepIndex": 13,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 10,
+      "weightKg": 0,
+      "exercise": {
+        "category": "CALF_RAISE",
+        "name": "STANDING_CALF_RAISE"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T12:15:08Z",
+      "durationSeconds": 79.978,
+      "wktStepIndex": 15,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:16:28Z",
+      "durationSeconds": 211.886,
+      "wktStepIndex": 16,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 10,
+      "weightKg": 0,
+      "exercise": {
+        "category": "CALF_RAISE",
+        "name": "STANDING_CALF_RAISE"
+      },
+      "candidateCount": 3,
+      "startTimeUtc": "2026-08-08T12:20:00Z",
+      "durationSeconds": 65.387,
+      "wktStepIndex": 15,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:21:05Z",
+      "durationSeconds": 5.92,
+      "wktStepIndex": 16,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "REST",
+      "candidateCount": 0,
+      "startTimeUtc": "2026-08-08T12:21:13Z",
+      "durationSeconds": 7.524,
+      "source": "EXPORT_FIT"
+    },
+    {
+      "setType": "ACTIVE",
+      "repetitions": 0,
+      "candidateCount": 2,
+      "startTimeUtc": "2026-08-08T12:21:21Z",
+      "durationSeconds": 2.212,
+      "source": "EXPORT_FIT"
+    }
+  ],
   "2026-09-07T14:51:13Z": [
     {
       "setType": "ACTIVE",

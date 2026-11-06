@@ -27,6 +27,11 @@ batch a set has to ride in: a Backfill naming an Activity the store already hold
 is dropped whole ([ADR 0014](0014-export-data-is-backfill-only.md)), per-set
 detail included.
 
+The extractor decides only which start times the ExportSetIndex can state, and it
+applies the same rule to the narrower case it can see: the index is keyed by start
+time, so a second two Activity FIT files state names neither Activity's sets and is
+left out of the index rather than filled by whichever file was read last.
+
 ## Consequences
 
 - An Activity whose FIT file the export omits keeps the detail it has, or none.

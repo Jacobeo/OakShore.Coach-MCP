@@ -42,5 +42,14 @@ seam.
 by spec 01 are replayed as fixtures. The sync under test is asserted on the
 batches it POSTs to ingest.
 
+**One exception, in process.** `ExportArchiveExerciseSets` is read directly, with no
+host and no ingest, by the few tests that hand it an ExportArchive shaped as the real
+export never is: a FIT file the download truncated, and two Activity FIT files stating
+the same start second. Neither seam can reach those. The extractor runs on the home
+machine and writes a file, so nothing it reads ever crosses the MCP tool boundary, and
+the Python sync never parses FIT, so nothing it reads crosses the Garmin client
+boundary either. Every other assertion about FIT parsing uses the extractor to produce
+input and then asserts through `/ingest`, which is the .NET seam.
+
 The two seams meet at the ingest contract, which is the only place the runtimes
 touch. Spec 01's raw dumps are the fixture corpus for both.

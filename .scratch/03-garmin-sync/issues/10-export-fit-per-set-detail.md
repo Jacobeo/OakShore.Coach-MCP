@@ -15,11 +15,12 @@ per-ExerciseSet detail.
   official .NET FIT SDK, and their set messages produce ExerciseSets in the shape
   ticket 03 established.
 - [x] FIT weight is converted to the same canonical unit at the same boundary as
-  the API path, so the two source encodings cannot diverge in the store.
+  the API path, so the two source encodings cannot diverge in the store. **Met for
+  the unit, conceded for the divergence**, see the note below.
 - [x] Where an Activity exists in both sources, the API-derived detail wins, and
   the source of a stored ExerciseSet is recoverable.
 - [x] A file whose type is not an activity is skipped without failing the import.
-- [x] Asserted at the ingest seam with one real FIT file committed as a fixture.
+- [x] Asserted at the ingest seam with real FIT files committed as a fixture.
 
 ## Comments
 
@@ -43,12 +44,32 @@ inferring it from an absent `topProbability`, would be a guess rather than a
 recoverable fact. "The API-derived detail wins" needed no new precedence logic:
 ADR 0014's gap-filling filter already drops a Backfill's ExerciseSets for a stored
 Activity, and the positional replace already lets a later API sync overwrite
-backfilled sets — both now asserted. Category and Exercise name come from slot 0
+backfilled sets — both now asserted. It rests on the batch kind as well, by the
+EXPORT_FIT rule below. Category and Exercise name come from slot 0
 of FIT's three-slot classification array, upper-snake-cased from the SDK's
 constants; checked against the API corpus for every set of the five Activities in
 both sources, 156 of 156 names agree. `candidateCount` is the count of filled
 slots, which matches the API's `len(exercises)` for those; `topProbability` has no
 FIT counterpart and is left absent.
+
+Checkbox 2 is ticked for what it can be. Both paths land on the same validated
+`weightKg` contract in kilograms, so the unit cannot diverge, and both are asserted
+against the same Activity's figures. Two things it claims are not literally true.
+The conversion happens twice, in two runtimes — grams in `sync_activities.py`, FIT's
+sixteenths of a kilogram in the extractor — not at one boundary; they meet at the
+ingest contract rather than before it, which is defensible but is a judgment call.
+And the two encodings do diverge for one physical set: the same bodyweight calf raise
+stores `bodyweight: true` with no `weightKg` from the API and `weightKg: 0` or no
+weight at all from FIT. [ADR 0016](../../../docs/adr/0016-fit-cannot-state-a-bodyweight-load.md)
+labels that divergence with `source` rather than preventing it, because FIT has no
+bodyweight sentinel to convert. Activity 23898645459 is in the fixture for exactly
+that reason, and both FIT readings are asserted at the ingest seam.
+
+An `EXPORT_FIT` ExerciseSet is now rejected outside a Backfill. Nothing produced one
+— the importer posts only Backfills and the sync posts only `GARMIN_API` — but
+without the rule a non-backfill batch could overwrite API detail, which is the
+failure checkbox 3 exists to prevent. Also a judgment call: it narrows the contract
+to what the two writers already do.
 
 Two findings became ADRs. A FIT file joins its Activity by `session.start_time`,
 exact for 137 of the athlete's 149 strength files and within the same minute for

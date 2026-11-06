@@ -19,7 +19,7 @@ FIXTURES = ROOT / "tests" / "python" / "fixtures" / "garmin-export"
 def main() -> int:
     posted: list[dict] = []
     import_export_archive(FIXTURES / "archive", posted.append,
-                          json.loads((FIXTURES / "exercise-sets.json").read_text(encoding="utf-8")))
+                          json.loads((FIXTURES / "export-set-index.json").read_text(encoding="utf-8")))
     target = FIXTURES / "ingest-batches.json"
     target.write_text(json.dumps(posted, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {len(posted)} batches to {target}")

@@ -8,9 +8,9 @@ using OakShore.Coach.Domain;
 namespace OakShore.Coach.Infrastructure;
 
 /// <summary>
-/// The ExerciseSets an ExportArchive's FIT files hold, keyed by the start time of the
-/// Activity each was recorded for. Nothing in the archive links a FIT file to an
-/// Activity id, so that start time is the only join (ADR 0015).
+/// Reads an ExportArchive's FIT files into an ExportSetIndex. Nothing in the archive links a
+/// FIT file to an Activity id, so the start time its session message states is the only join
+/// (ADR 0015).
 /// </summary>
 public sealed class ExportArchiveExerciseSets
 {
@@ -30,21 +30,27 @@ public sealed class ExportArchiveExerciseSets
                     .ToDictionary(names => names.Key, names => names.First().Name));
 
     /// <summary>Read the archive, which may be the zip Garmin sends or the folder it was unpacked to.</summary>
-    public IReadOnlyDictionary<string, IReadOnlyList<ExerciseSetInput>> Read(string archive)
+    public ExportSetIndex Read(string archive)
     {
         var byStartTime = new SortedDictionary<string, IReadOnlyList<ExerciseSetInput>>(StringComparer.Ordinal);
+        var shared = new HashSet<string>(StringComparer.Ordinal);
         foreach (var (name, open) in ArchiveFiles(archive))
         {
             if (!name.EndsWith(".fit", StringComparison.OrdinalIgnoreCase))
                 continue;
             using var file = open();
-            if (Activity(file) is { } activity)
-                byStartTime[activity.StartTimeUtc] = activity.ExerciseSets;
+            if (RecordedActivity(file) is { } activity
+                && !byStartTime.TryAdd(activity.StartTimeUtc, activity.ExerciseSets))
+                shared.Add(activity.StartTimeUtc);
         }
-        return byStartTime;
+        // A start time two Activity FIT files state names neither Activity's sets, so the index
+        // states none for it rather than letting the last file read win (ADR 0015).
+        foreach (var start in shared)
+            byStartTime.Remove(start);
+        return new ExportSetIndex(byStartTime);
     }
 
-    private static (string StartTimeUtc, IReadOnlyList<ExerciseSetInput> ExerciseSets)? Activity(Stream file)
+    private static (string StartTimeUtc, IReadOnlyList<ExerciseSetInput> ExerciseSets)? RecordedActivity(Stream file)
     {
         var listener = new FitListener();
         var decode = new Decode();
@@ -78,6 +84,9 @@ public sealed class ExportArchiveExerciseSets
             Dynastream.Fit.SetType.Rest => "REST",
             _ => null
         };
+        // FIT's only other set_type is Invalid, its word for a field the file does not state,
+        // and a set with no stated type cannot become an ExerciseSet without inventing one. The
+        // real export holds none among its 4629 sets.
         if (setType is null)
             return null;
         var categories = Enumerable.Range(0, set.GetNumCategory()).Select(set.GetCategory)
@@ -85,7 +94,7 @@ public sealed class ExportArchiveExerciseSets
                 && name is not ("Invalid" or "Unknown") ? name : null).ToArray();
         ExerciseInput? exercise = null;
         if (categories.FirstOrDefault() is { } top)
-            exercise = new ExerciseInput(Garmin(top), ExerciseName(top, set.GetCategorySubtype(0)));
+            exercise = new ExerciseInput(UpperSnakeCase(top), ExerciseName(top, set.GetCategorySubtype(0)));
         // Bodyweight and a classification probability have no FIT counterpart and are left
         // unstated rather than invented (ADR 0016).
         return new ExerciseSetInput(
@@ -104,7 +113,7 @@ public sealed class ExportArchiveExerciseSets
         subtype is { } value && value != UnstatedExerciseName
             && ExerciseNames.TryGetValue(category, out var names)
             && names.TryGetValue(value, out var name) && name != "Invalid"
-            ? Garmin(name) : null;
+            ? UpperSnakeCase(name) : null;
 
     private static double? Seconds(float? duration) =>
         // FIT counts a set's duration in milliseconds, so three decimal places are exact and
@@ -121,7 +130,7 @@ public sealed class ExportArchiveExerciseSets
 
     // Garmin's API spells a category or Exercise name in upper snake case, where the SDK's
     // constants are Pascal case; the two name the same values.
-    private static string Garmin(string constant)
+    private static string UpperSnakeCase(string constant)
     {
         var spelling = new StringBuilder(constant.Length + 8);
         for (var index = 0; index < constant.Length; index++)
@@ -139,16 +148,17 @@ public sealed class ExportArchiveExerciseSets
     {
         if (!Directory.Exists(archive))
         {
-            foreach (var file in Listed(Path.GetFileName(archive), () => System.IO.File.OpenRead(archive)))
+            foreach (var file in FilesIn(Path.GetFileName(archive), () => System.IO.File.OpenRead(archive)))
                 yield return file;
             yield break;
         }
         foreach (var path in Directory.EnumerateFiles(archive, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
-            foreach (var file in Listed(Path.GetFileName(path), () => System.IO.File.OpenRead(path)))
+            foreach (var file in FilesIn(Path.GetFileName(path), () => System.IO.File.OpenRead(path)))
                 yield return file;
     }
 
-    private static IEnumerable<(string Name, Func<Stream> Open)> Listed(string name, Func<Stream> open)
+    // One file, or, when it is a zip, every file it holds at any depth, in its place.
+    private static IEnumerable<(string Name, Func<Stream> Open)> FilesIn(string name, Func<Stream> open)
     {
         if (!name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
@@ -161,7 +171,7 @@ public sealed class ExportArchiveExerciseSets
         {
             if (entry.Name.Length == 0)
                 continue;
-            foreach (var nested in Listed(entry.Name, () => Copied(entry)))
+            foreach (var nested in FilesIn(entry.Name, () => Copied(entry)))
                 yield return nested;
         }
     }

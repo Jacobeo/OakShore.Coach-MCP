@@ -1007,6 +1007,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         using var posted = await client.PostAsJsonAsync("/ingest", new
         {
             version = 2,
+            backfill = true,
             activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-21" },
             activities = new[] { new
             {
@@ -1027,6 +1028,36 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal("EXPORT_FIT", rows[1].GetProperty("source").GetString());
     }
 
+    [Fact]
+    public async Task An_export_fit_exercise_set_outside_a_backfill_rejects_the_whole_batch()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        object Batch(bool backfill) => new
+        {
+            version = 2,
+            backfill,
+            activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-21" },
+            activities = new[] { new
+            {
+                activityId = 993L, startTimeUtc = "2026-09-21T10:00:00Z", typeKey = "strength_training",
+                durationSeconds = 600.0,
+                exerciseSets = new[] { new ExerciseSetInput("ACTIVE", Repetitions: 5, Source: "EXPORT_FIT") }
+            } }
+        };
+
+        using var synced = await client.PostAsJsonAsync("/ingest", Batch(false));
+        Assert.Equal(HttpStatusCode.BadRequest, synced.StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await CallTool(client, "get_sync_status"))
+            .GetProperty("latestActivity").ValueKind);
+
+        using var backfilled = await client.PostAsJsonAsync("/ingest", Batch(true));
+        Assert.Equal(HttpStatusCode.OK, backfilled.StatusCode);
+    }
+
+    // This test and the next read an ExportArchive in process, the third seam
+    // .scratch/00-README.md states a reason for: neither the MCP tool boundary nor the Garmin
+    // client boundary reaches an archive shaped as the real export never is.
     // A FIT header with a body cut short, an empty file, and bytes that were never FIT.
     [Theory]
     [InlineData(600)]
@@ -1045,7 +1076,35 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
             File.WriteAllBytes(Path.Combine(archive.FullName, "truncated.fit"),
                 kept < 0 ? System.Text.Encoding.UTF8.GetBytes("not a FIT file at all") : whole.ToArray()[..kept]);
 
-            Assert.Empty(new ExportArchiveExerciseSets().Read(archive.FullName));
+            Assert.Empty(new ExportArchiveExerciseSets().Read(archive.FullName).ByActivityStartTime);
+        }
+        finally
+        {
+            archive.Delete(true);
+        }
+    }
+
+    [Fact]
+    public void Two_activity_fit_files_stating_the_same_start_second_leave_both_out_of_the_index()
+    {
+        var archive = Directory.CreateTempSubdirectory();
+        try
+        {
+            using (var zip = System.IO.Compression.ZipFile.OpenRead(Path.Combine(ExportArchive,
+                       "DI_CONNECT", "DI-Connect-Uploaded-Files", "UploadedFiles_0-_Part1.zip")))
+            {
+                var entry = zip.Entries.Single(member => member.Name.EndsWith("479519066433.fit"));
+                foreach (var name in new[] { "first.fit", "second.fit" })
+                {
+                    using var member = entry.Open();
+                    using var copy = File.Create(Path.Combine(archive.FullName, name));
+                    member.CopyTo(copy);
+                }
+            }
+
+            // Nothing names the Activity either file was recorded for, so the start time the two
+            // state is left unmatched rather than guessed at (ADR 0015).
+            Assert.Empty(new ExportArchiveExerciseSets().Read(archive.FullName).ByActivityStartTime);
         }
         finally
         {
@@ -1058,7 +1117,8 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     {
         await using var host = new CoachHost(database);
         using var client = AthleteClient(host);
-        var fromFit = new ExportArchiveExerciseSets().Read(ExportArchive)["2026-09-07T14:51:13Z"];
+        var fromFit = new ExportArchiveExerciseSets().Read(ExportArchive)
+            .ByActivityStartTime["2026-09-07T14:51:13Z"];
         var fromApi = FixtureExerciseSets(24272601315);
         object Batch(object? exerciseSets, bool backfill) => new
         {
@@ -1101,21 +1161,17 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     {
         await using var host = new CoachHost(database);
         using var client = AthleteClient(host);
-        var byStartTime = new ExportArchiveExerciseSets().Read(ExportArchive);
-        // The archive's other FIT file is a weight scale's, not an Activity's.
-        var exerciseSets = Assert.Single(byStartTime).Value;
-        Assert.Equal("2026-09-07T14:51:13Z", Assert.Single(byStartTime).Key);
+        var index = new ExportArchiveExerciseSets().Read(ExportArchive);
+        // The archive's two Activity FIT files; its third is a weight scale's.
+        Assert.Equal(["2026-08-08T11:33:33Z", "2026-09-07T14:51:13Z"], index.ByActivityStartTime.Keys);
+        var exerciseSets = index.ByActivityStartTime["2026-09-07T14:51:13Z"];
         // The committed index the export importer reads is what the extractor writes for this archive.
-        Assert.Equal(JsonSerializer.Deserialize<Dictionary<string, Domain.ExerciseSetInput[]>>(
-                File.ReadAllText(ExportFixture("exercise-sets.json")),
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!
-            .ToDictionary(activity => activity.Key,
-                activity => (IReadOnlyList<Domain.ExerciseSetInput>)activity.Value),
-            byStartTime);
+        Assert.Equal(CommittedExportSetIndex(), index.ByActivityStartTime);
 
         using var posted = await client.PostAsJsonAsync("/ingest", new
         {
             version = 2,
+            backfill = true,
             activityRange = new { fromDate = "2026-09-07", toDate = "2026-09-07" },
             activities = new[] { new
             {
@@ -1159,6 +1215,107 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         // The export's own rollup for this Activity states 16 active sets and 83 repetitions.
         Assert.Equal(15, detail.GetProperty("workingExerciseSets").GetInt32());
         Assert.Equal(83d / 15, detail.GetProperty("averageRepetitions").GetDouble());
+    }
+
+    [Fact]
+    public async Task Fits_two_readings_of_a_bodyweight_set_persist_as_zero_and_as_no_weight_at_all()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var fromFit = new ExportArchiveExerciseSets().Read(ExportArchive)
+            .ByActivityStartTime["2026-08-08T11:33:33Z"];
+
+        using var posted = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2,
+            backfill = true,
+            activityRange = new { fromDate = "2026-08-08", toDate = "2026-08-08" },
+            activities = new[] { new
+            {
+                activityId = 23898645459L, startTimeUtc = "2026-08-08T11:33:33Z",
+                typeKey = "strength_training", durationSeconds = 2865.577880859375,
+                exerciseSets = fromFit
+            } }
+        });
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var detail = (await CallTool(client, "get_sync_status")).GetProperty("latestActivityStrengthDetail");
+        var rows = detail.GetProperty("exerciseSets");
+        Assert.Equal(30, rows.GetArrayLength());
+        // Garmin wrote this Activity's three bodyweight calf raises two ways, one stating no
+        // weight and two stating zero, and neither reading is a bodyweight load (ADR 0016).
+        var unstated = rows[18];
+        var zeroed = new[] { rows[24], rows[26] };
+        foreach (var calfRaise in zeroed.Append(unstated))
+        {
+            Assert.Equal("STANDING_CALF_RAISE", calfRaise.GetProperty("exercise").GetProperty("name").GetString());
+            Assert.False(calfRaise.GetProperty("bodyweight").GetBoolean());
+            Assert.True(calfRaise.GetProperty("working").GetBoolean());
+            Assert.Equal("EXPORT_FIT", calfRaise.GetProperty("source").GetString());
+        }
+        Assert.Equal(JsonValueKind.Null, unstated.GetProperty("weightKg").ValueKind);
+        Assert.Equal(5, unstated.GetProperty("repetitions").GetInt32());
+        Assert.All(zeroed, row => Assert.Equal((0m, 10),
+            (row.GetProperty("weightKg").GetDecimal(), row.GetProperty("repetitions").GetInt32())));
+        // All three add their repetitions to the average and no kilograms to the volume, as the
+        // API's own bodyweight sets do. The export's rollup states 13 active sets and 83 reps.
+        Assert.Equal(2901m, detail.GetProperty("volumeKg").GetDecimal());
+        Assert.Equal(13, detail.GetProperty("workingExerciseSets").GetInt32());
+        Assert.Equal(83d / 13, detail.GetProperty("averageRepetitions").GetDouble());
+
+        // The API reports the same three sets as a stated bodyweight load, the divergence the
+        // source field records rather than prevents.
+        var fromApi = FixtureExerciseSets(23898645459).Where(set => set.Bodyweight == true).ToArray();
+        Assert.Equal(3, fromApi.Length);
+        Assert.All(fromApi, set => Assert.Null(set.WeightKg));
+    }
+
+    [Fact]
+    public async Task Exercise_sets_stored_before_the_source_column_existed_survive_its_migration()
+    {
+        var legacy = new DatabaseFixture();
+        await legacy.InitializeAsync();
+        try
+        {
+            // The production store already held ExerciseSets, so the column is added to a
+            // populated table; a container migrated in one go never reaches that path.
+            await using var connection = new SqlConnection(legacy.ConnectionString);
+            await connection.OpenAsync();
+            foreach (var resource in new[]
+            {
+                "0001_InitialAthleteProfile", "0002_StableFactsAndGoal", "0003_PrioritizedGoals",
+                "0004_TemporaryConstraints", "0005_Activities", "0006_ActivityName", "0007_ExerciseSets",
+                "0008_HeartRateZones", "0009_DailyWellness", "0010_DailyForm"
+            })
+            {
+                await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(
+                    $"OakShore.Coach.Infrastructure.Migrations.{resource}.sql")!;
+                using var reader = new StreamReader(stream);
+                await using var command = new SqlCommand(await reader.ReadToEndAsync(), connection);
+                await command.ExecuteNonQueryAsync();
+            }
+            var userId = Guid.NewGuid().ToString();
+            await using (var seed = new SqlCommand(
+                "INSERT dbo.Activities (UserId, ActivityId, StartTimeUtc, TypeKey, DurationSeconds)"
+                + " VALUES (@userId, 24444892080, '2026-09-21 14:34:01 +00:00', N'strength_training', 2820.37890625);"
+                + "INSERT dbo.ExerciseSets (UserId, ActivityId, Position, SetType, Repetitions, WeightKg, Bodyweight)"
+                + " VALUES (@userId, 24444892080, 0, N'ACTIVE', 5, 60, 0);", connection))
+            {
+                seed.Parameters.AddWithValue("@userId", userId);
+                await seed.ExecuteNonQueryAsync();
+            }
+
+            await using var host = new CoachHost(legacy);
+            using var client = AthleteClient(host, userId);
+
+            var rows = (await CallTool(client, "get_sync_status"))
+                .GetProperty("latestActivityStrengthDetail").GetProperty("exerciseSets");
+            Assert.Equal("GARMIN_API", Assert.Single(rows.EnumerateArray()).GetProperty("source").GetString());
+        }
+        finally
+        {
+            await legacy.DisposeAsync();
+        }
     }
 
     [Theory]
@@ -1321,8 +1478,8 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         await PostExportBatches(client);
 
         var after = await CallTool(client, "get_sync_status");
-        // The two 2024 Activities and the two June days are the gaps.
-        foreach (var (name, filled) in new[] { ("Activity", 2), ("SleepNight", 2), ("DailySummary", 2) })
+        // The two 2024 Activities, the 2026-08-08 strength Activity and the two June days are the gaps.
+        foreach (var (name, filled) in new[] { ("Activity", 3), ("SleepNight", 2), ("DailySummary", 2) })
             Assert.Equal(Collection(before, name).GetProperty("count").GetInt32() + filled,
                 Collection(after, name).GetProperty("count").GetInt32());
         foreach (var collection in before.GetProperty("collections").EnumerateArray())
@@ -1344,7 +1501,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         await PostExportBatches(client);
 
         var filled = await CallTool(client, "get_sync_status");
-        foreach (var (name, count) in new[] { ("Activity", 5), ("SleepNight", 4), ("DailySummary", 4) })
+        foreach (var (name, count) in new[] { ("Activity", 6), ("SleepNight", 4), ("DailySummary", 4) })
         {
             Assert.Equal(count, Collection(filled, name).GetProperty("count").GetInt32());
             Assert.Equal(JsonValueKind.Null, Collection(filled, name).GetProperty("lastSyncedAt").ValueKind);
@@ -1703,6 +1860,13 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
 
     private static string ExportFixture(string name) => Path.GetFullPath(Path.Combine(
         AppContext.BaseDirectory, $"../../../../../tests/python/fixtures/garmin-export/{name}"));
+
+    private static IReadOnlyDictionary<string, IReadOnlyList<Domain.ExerciseSetInput>> CommittedExportSetIndex() =>
+        JsonSerializer.Deserialize<Dictionary<string, Domain.ExerciseSetInput[]>>(
+                File.ReadAllText(ExportFixture("export-set-index.json")),
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!
+            .ToDictionary(activity => activity.Key,
+                activity => (IReadOnlyList<Domain.ExerciseSetInput>)activity.Value);
 
     private static string ExportArchive => ExportFixture("archive");
 

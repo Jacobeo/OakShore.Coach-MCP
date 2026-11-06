@@ -234,7 +234,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fixtures", "fixtures", "{6C
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "garmin-export", "garmin-export", "{63229554-442F-4D96-9496-DC19548E503A}"
 	ProjectSection(SolutionItems) = preProject
-		tests\python\fixtures\garmin-export\exercise-sets.json = tests\python\fixtures\garmin-export\exercise-sets.json
+		tests\python\fixtures\garmin-export\export-set-index.json = tests\python\fixtures\garmin-export\export-set-index.json
 		tests\python\fixtures\garmin-export\ingest-batches.json = tests\python\fixtures\garmin-export\ingest-batches.json
 		tests\python\fixtures\garmin-export\README.md = tests\python\fixtures\garmin-export\README.md
 	EndProjectSection

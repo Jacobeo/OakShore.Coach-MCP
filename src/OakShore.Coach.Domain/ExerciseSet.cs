@@ -113,8 +113,7 @@ public sealed record ExerciseSetInput(
             throw new ArgumentException("ExerciseSet durationSeconds must be finite, nonnegative and below 1000000000.");
         if (WktStepIndex is < 0 or > 99999)
             throw new ArgumentException("ExerciseSet wktStepIndex must be between 0 and 99999.");
-        // An unstated source is the API: every ExerciseSet posted before the ExportArchive's
-        // FIT files were parsed came from there.
+        // An unstated source is the API, the only source there was.
         var source = Source ?? ExerciseSetSource.GarminApi;
         if (!ExerciseSetSource.IsKnown(source))
             throw new ArgumentException("ExerciseSet source must be GARMIN_API or EXPORT_FIT.");

@@ -295,7 +295,8 @@ _Avoid_: backfill (that is the batch, not the run), migration, history sync, imp
 **ExportSetIndex**:
 The per-ExerciseSet detail one ExportArchive's FIT files hold, read out of it on the
 home machine and keyed by the start time of the Activity each file was recorded for,
-because nothing in the archive names an Activity (ADR 0015). It exists because an
+because nothing in the archive names an Activity (ADR 0015). A start time two FIT
+files state is absent from it rather than claimed by one of them. It exists because an
 ExportImport has to post a historic Activity and its ExerciseSets in one Backfill:
 posted later, the sets would be dropped (ADR 0014). Written once per ExportArchive
 and read by the ExportImport; it is not stored and reaches the store only as the

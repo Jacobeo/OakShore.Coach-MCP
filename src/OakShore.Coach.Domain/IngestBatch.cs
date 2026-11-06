@@ -107,6 +107,11 @@ public sealed class IngestService(
             exerciseSets[input.ActivityId] = exerciseSetInputs.Select(exerciseSetInput => (exerciseSetInput
                 ?? throw new ArgumentException("ExerciseSets cannot contain null.")).ToExerciseSet()).ToArray();
         }
+        // Export data reaches the store only as a Backfill, which leaves a stored Activity's
+        // sets alone (ADR 0014). Outside one, an EXPORT_FIT set would overwrite the API's.
+        if (!batch.Backfill && exerciseSets.Values.Any(sets =>
+                sets.Any(exerciseSet => exerciseSet.Source == ExerciseSetSource.ExportFit)))
+            throw new ArgumentException("An ExerciseSet whose source is EXPORT_FIT arrives in a backfill.");
         if (batch.SportProfiles is { Count: > 20 })
             throw new ArgumentException("A batch carries at most 20 SportProfiles.");
         var sportProfiles = (batch.SportProfiles ?? []).Select(input => (input

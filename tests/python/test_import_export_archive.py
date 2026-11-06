@@ -20,16 +20,16 @@ ARCHIVE = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "archive"
 # What the importer posts for ARCHIVE. The .NET ingest tests post the same file.
 INGEST_BATCHES = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "ingest-batches.json"
 # What the ExportFit extractor writes for ARCHIVE, asserted on the .NET side to be exactly that.
-EXERCISE_SETS = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "exercise-sets.json"
+EXPORT_SET_INDEX = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "export-set-index.json"
 LIST_ENTRIES = json.loads((ROOT / "fixtures" / "garmin" / "activitylist-service--search-activities__page-00.json")
                           .read_text(encoding="utf-8"))
 
 
-def imported(archive=ARCHIVE, exercise_sets=None):
+def imported(archive=ARCHIVE, export_set_index=None):
     posted = []
-    if exercise_sets is None:
-        exercise_sets = json.loads(EXERCISE_SETS.read_text(encoding="utf-8"))
-    import_export_archive(archive, posted.append, exercise_sets)
+    if export_set_index is None:
+        export_set_index = json.loads(EXPORT_SET_INDEX.read_text(encoding="utf-8"))
+    import_export_archive(archive, posted.append, export_set_index)
     return posted
 
 
@@ -44,8 +44,8 @@ class ExportArchiveImportTests(unittest.TestCase):
     def test_an_activity_also_synced_from_the_api_is_posted_with_the_identity_and_units_the_sync_posts(self):
         activities = posted_activities(imported())
 
-        # One strength, one running and one indoor cycling Activity sit in both corpora.
-        for activity_id in (24272601315, 24313465171, 24174672446):
+        # Two strength, one running and one indoor cycling Activity sit in both corpora.
+        for activity_id in (23898645459, 24272601315, 24313465171, 24174672446):
             api_entry = next(entry for entry in LIST_ENTRIES if entry["activityId"] == activity_id)
             posted = {key: value for key, value in activities[activity_id].items() if key != "exerciseSets"}
             self.assertEqual(activity_from_garmin(api_entry), posted)
@@ -59,8 +59,18 @@ class ExportArchiveImportTests(unittest.TestCase):
         self.assertEqual({"EXPORT_FIT"}, {row["source"] for row in activities[24272601315]["exerciseSets"]})
         self.assertNotIn("exerciseSets", activities[24313465171])
 
+    def test_the_bodyweight_activitys_sets_ride_as_fit_wrote_them_neither_claiming_bodyweight(self):
+        sets = posted_activities(imported())[23898645459]["exerciseSets"]
+
+        # Garmin wrote this Activity's three bodyweight calf raises as one stating no weight
+        # and two stating zero; FIT can state neither as a bodyweight load (ADR 0016).
+        calf_raises = [row for row in sets if (row.get("exercise") or {}).get("name") == "STANDING_CALF_RAISE"]
+        self.assertEqual([None, 0, 0], [row.get("weightKg") for row in calf_raises])
+        self.assertEqual([5, 10, 10], [row["repetitions"] for row in calf_raises])
+        self.assertEqual([None, None, None], [row.get("bodyweight") for row in calf_raises])
+
     def test_an_activity_the_export_dates_to_the_whole_minute_still_takes_its_fit_exercise_sets(self):
-        index = json.loads(EXERCISE_SETS.read_text(encoding="utf-8"))
+        index = json.loads(EXPORT_SET_INDEX.read_text(encoding="utf-8"))
         # Another Activity's sets, recorded in the same hour but a different minute.
         index["2026-09-07T14:58:40Z"] = [{"setType": "REST", "source": "EXPORT_FIT"}]
         with tempfile.TemporaryDirectory() as directory:
@@ -80,7 +90,7 @@ class ExportArchiveImportTests(unittest.TestCase):
         self.assertEqual(32, len(posted[24272601315]["exerciseSets"]))
 
     def test_a_start_minute_holding_two_fit_files_leaves_the_activity_unenriched(self):
-        index = json.loads(EXERCISE_SETS.read_text(encoding="utf-8"))
+        index = json.loads(EXPORT_SET_INDEX.read_text(encoding="utf-8"))
         index["2026-09-07T14:51:40Z"] = [{"setType": "REST", "source": "EXPORT_FIT"}]
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory, "archive")
@@ -96,8 +106,8 @@ class ExportArchiveImportTests(unittest.TestCase):
 
         self.assertNotIn("exerciseSets", posted[24272601315])
 
-    def test_an_archive_imported_without_an_exercise_set_index_posts_its_activities_unenriched(self):
-        activities = posted_activities(imported(exercise_sets={}))
+    def test_an_archive_imported_without_an_export_set_index_posts_its_activities_unenriched(self):
+        activities = posted_activities(imported(export_set_index={}))
 
         self.assertNotIn("exerciseSets", activities[24272601315])
 
@@ -109,7 +119,7 @@ class ExportArchiveImportTests(unittest.TestCase):
             ("2024-06-01", "2024-06-30", [16155825735], [], []),
             ("2024-08-01", "2024-08-31", [16867435216], [], []),
             ("2026-06-01", "2026-06-30", [], ["2026-06-08", "2026-06-09"], ["2026-06-08", "2026-06-09"]),
-            ("2026-08-01", "2026-08-31", [24174672446], [], []),
+            ("2026-08-01", "2026-08-31", [23898645459, 24174672446], [], []),
             ("2026-09-01", "2026-09-30", [24272601315, 24313465171],
              ["2026-09-15", "2026-09-16"], ["2026-09-15", "2026-09-16"]),
         ], [(batch["activityRange"]["fromDate"], batch["activityRange"]["toDate"],
@@ -225,8 +235,8 @@ class ExportArchiveImportTests(unittest.TestCase):
 
             summary = import_export_archive(archive, posted.append)
 
-        self.assertEqual((5, 13, 0), import_export_archive(ARCHIVE, [].append))
-        self.assertEqual((4, 12, 1), summary)
+        self.assertEqual((5, 14, 0), import_export_archive(ARCHIVE, [].append))
+        self.assertEqual((4, 13, 1), summary)
         self.assertNotIn(16155825735, posted_activities(posted))
         self.assertEqual("2024-08-01", posted[0]["activityRange"]["fromDate"])
 

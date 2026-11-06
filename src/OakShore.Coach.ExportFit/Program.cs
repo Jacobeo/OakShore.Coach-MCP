@@ -7,7 +7,7 @@ using OakShore.Coach.Infrastructure;
 if (args.Length != 2)
 {
     await Console.Error.WriteLineAsync(
-        "usage: OakShore.Coach.ExportFit <archive zip or folder> <exercise-sets.json>");
+        "usage: OakShore.Coach.ExportFit <archive zip or folder> <export-set-index.json>");
     return 2;
 }
 var (archive, output) = (args[0], args[1]);
@@ -17,8 +17,9 @@ if (!File.Exists(archive) && !Directory.Exists(archive))
     return 1;
 }
 
-var exerciseSets = new ExportArchiveExerciseSets().Read(archive);
-var json = JsonSerializer.Serialize(exerciseSets, new JsonSerializerOptions
+var index = new ExportArchiveExerciseSets().Read(archive);
+// The index is written as its own start-time-to-sets mapping, which is what the ExportImport reads.
+var json = JsonSerializer.Serialize(index.ByActivityStartTime, new JsonSerializerOptions
 {
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -26,6 +27,6 @@ var json = JsonSerializer.Serialize(exerciseSets, new JsonSerializerOptions
 });
 await File.WriteAllTextAsync(output, json + "\n");
 
-Console.WriteLine($"Wrote {exerciseSets.Sum(activity => activity.Value.Count)} ExerciseSets for"
-    + $" {exerciseSets.Count} Activities to {output}");
+Console.WriteLine($"Wrote {index.ExerciseSetCount} ExerciseSets for"
+    + $" {index.ByActivityStartTime.Count} Activities to {output}");
 return 0;
