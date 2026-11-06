@@ -1121,6 +1121,38 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal("CYCLING", ride.GetProperty("sportProfile").GetProperty("name").GetString());
     }
 
+    [Fact]
+    public async Task An_activity_backfilled_from_the_export_after_its_sync_is_not_duplicated_and_keeps_its_time_in_zones()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var ride = FixtureCardioActivity(24174672446);
+        using var synced = await client.PostAsJsonAsync("/ingest", CardioBatch(FixtureSportProfiles(), ride));
+        Assert.Equal(HttpStatusCode.OK, synced.StatusCode);
+        var before = await CallTool(client, "get_sync_status");
+        Assert.NotEqual(JsonValueKind.Null, before.GetProperty("latestActivityCardioDetail").ValueKind);
+
+        // As the export importer posts it: the same identity and units, inside its month's
+        // version 3 batch, with no time in zones and no SportProfiles.
+        using var backfilled = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 3,
+            activityRange = new { fromDate = "2026-08-01", toDate = "2026-08-31" },
+            activities = new[] { new { activityId = ride.ActivityId, activityName = "indoor_cycling",
+                startTimeUtc = ride.StartTimeUtc, typeKey = ride.TypeKey, durationSeconds = ride.DurationSeconds,
+                distanceMeters = 162.22000122070312 } },
+            sleepNights = Array.Empty<object>(),
+            dailySummaries = Array.Empty<object>()
+        });
+        Assert.Equal(HttpStatusCode.OK, backfilled.StatusCode);
+
+        var after = await CallTool(client, "get_sync_status");
+        Assert.Equal(1, Collection(after, "Activity").GetProperty("count").GetInt32());
+        Assert.Equal(24174672446L, after.GetProperty("latestActivity").GetProperty("activityId").GetInt64());
+        Assert.Equal(before.GetProperty("latestActivityCardioDetail").ToString(),
+            after.GetProperty("latestActivityCardioDetail").ToString());
+    }
+
     [Theory]
     [InlineData("running", "RUNNING")]
     [InlineData("trail_running", "RUNNING")]

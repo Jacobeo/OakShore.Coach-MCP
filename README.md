@@ -22,6 +22,12 @@ validator still checks the signature, issuer, audience, expiry, and subject.
 Only the issuer's discovery metadata and the HTTP transport into the in-process
 test host are supplied by the harness. Repositories and SQL Server are real.
 
+The Python sync's tests, with `src/sync/requirements.txt` installed:
+
+```powershell
+python -m unittest discover -s tests/python
+```
+
 ## Run the API
 
 Set these environment variables before running the API:
@@ -734,6 +740,82 @@ is the agent-facing signal; the push notification is the athlete-facing one.
 On the machine itself, `Get-ScheduledTaskInfo -TaskName 'Coach Garmin sync'`
 reports the last run time and its result, and the run prints how many days it
 synced and how many remain.
+
+## Export archive backfill
+
+Years of history come from Garmin's own data export, the ExportArchive, rather
+than from the API: it costs no Garmin calls at all, so it carries no blocking risk
+([ADR 0005](docs/adr/0005-bounded-resumable-sync.md)). The sync's
+`COACH_SYNC_EARLIEST_DATE` then only needs to reach back to where the export ends.
+
+### Request the export
+
+Sign in at [account.garmin.com](https://account.garmin.com), open **Data
+Management → Export Your Data**, and choose **Request Data Export**. Garmin emails
+a download link, usually within two days though it allows itself up to thirty. The
+download is one zip. Keep it, or the folder you unpack it to, outside this working
+tree; a folder named `garmin dump/` at the repository root is gitignored for this.
+The export is the athlete's own health data and is never committed. Only a
+trimmed, anonymised sample of it is, under
+[tests/python/fixtures/garmin-export](tests/python/fixtures/garmin-export/README.md).
+
+### Run the import
+
+The import uses the same settings and the same saved sign-in as the sync (see
+[Sign in once](#sign-in-once-so-a-run-needs-nobody)), so a machine that already
+runs the sync needs nothing new:
+
+```powershell
+$env:COACH_INGEST_URL = 'https://<app-host>/ingest'
+python src/sync/import_export_archive.py "$HOME\Downloads\<the export>.zip"
+```
+
+Point it at the zip as downloaded or at the folder it was unpacked to; both import
+alike. It never imports or constructs the Garmin client and makes no call to
+Garmin, only to ingest. It takes the SyncSlot, because the saved sign-in it
+shares with the sync rotates on use: while a sync is running the import stops at
+once, and can simply be run again afterwards.
+
+What it reads, from wherever in the archive the files lie, nested zips included,
+reading every date-chunked file of each kind:
+
+| Files | Becomes |
+| --- | --- |
+| `*summarizedActivities*.json` | Activities: identity, start, type, duration, distance and strength totals |
+| `*sleepData*.json` | SleepNights |
+| `UDSFile*.json` | DailySummaries, with BodyBattery and StressLevel |
+
+The export counts milliseconds, centimetres and epoch milliseconds where the API
+counts seconds, metres and GMT text, and names its sleep and stress fields
+differently. Each record is translated into the API's names and units and built
+by the sync's own code, so an Activity or day synced both ways posts the same
+values. It is posted as version 3 batches, one per calendar month that holds a
+record, oldest first. A range never reaches past the archive's last record,
+because version 3 states that every date in its range was synced.
+
+Not imported: per-ExerciseSet detail, which the export carries only in its FIT
+files ([ticket 10](.scratch/03-garmin-sync/issues/10-export-fit-per-set-detail.md));
+time in zones, because the export's zone seconds are split differently from the
+Activity list's; and TrainingLoad and VO2max.
+
+Where the export and the sync meet:
+
+- An Activity is stored once, by its Activity id. The export's version updates
+  its summary figures with the same values, and keeps the ExerciseSets and time
+  in zones the sync stored.
+- A day's SleepNight and DailySummary are replaced by the export's figures, and
+  its archived `garminResponse` by the export's record of that day, arrays
+  removed.
+- Running the import again posts identical batches, which ingest treats as the
+  same delivery: nothing changes and freshness does not move. A first import does
+  set the Activity and wellness sync times to when it ran.
+
+Every field is optional. A missing field is posted as unknown, never zero, and a
+missing file costs only what it held. A record that holds nothing ingest can
+store — an Activity without its id, start, type or duration, or a day without
+its date — is left out, and the closing line reports how many were. A day whose
+stress Garmin could not measure, which the export writes as a negative level, is
+posted with its level unknown.
 
 ## Project boundaries
 

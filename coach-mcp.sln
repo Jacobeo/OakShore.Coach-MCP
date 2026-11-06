@@ -193,6 +193,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sync", "Sync", "{C235129B-A
 	ProjectSection(SolutionItems) = preProject
 		src\sync\atomic_file.py = src\sync\atomic_file.py
 		src\sync\garmin_client.py = src\sync\garmin_client.py
+		src\sync\import_export_archive.py = src\sync\import_export_archive.py
 		src\sync\notify.py = src\sync\notify.py
 		src\sync\register-scheduled-task.ps1 = src\sync\register-scheduled-task.ps1
 		src\sync\requirements.txt = src\sync\requirements.txt
@@ -205,6 +206,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Sync", "Sync", "{C235129B-A
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Python tests", "Python tests", "{C6DA51B4-D77B-4FD2-B64B-E19D60C0045A}"
 	ProjectSection(SolutionItems) = preProject
+		tests\python\test_import_export_archive.py = tests\python\test_import_export_archive.py
 		tests\python\test_sync_activities.py = tests\python\test_sync_activities.py
 		tests\python\test_sync_daily_form.py = tests\python\test_sync_daily_form.py
 		tests\python\test_sync_notifications.py = tests\python\test_sync_notifications.py
@@ -212,6 +214,40 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Python tests", "Python test
 		tests\python\test_sync_slot.py = tests\python\test_sync_slot.py
 		tests\python\test_sync_watermark.py = tests\python\test_sync_watermark.py
 		tests\python\test_sync_wellness.py = tests\python\test_sync_wellness.py
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fixtures", "fixtures", "{6C5D1598-EAB5-43E8-92B5-4ADC419DAD07}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "garmin-export", "garmin-export", "{63229554-442F-4D96-9496-DC19548E503A}"
+	ProjectSection(SolutionItems) = preProject
+		tests\python\fixtures\garmin-export\README.md = tests\python\fixtures\garmin-export\README.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "archive", "archive", "{3916E4E0-CA23-4390-BD92-A38BE43A0D9F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DI_CONNECT", "DI_CONNECT", "{11A8439E-CB0E-4E89-9E91-B71B70F7FA1D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DI-Connect-Aggregator", "DI-Connect-Aggregator", "{A1CED116-78E0-4B06-B3C7-78BF0E8CF348}"
+	ProjectSection(SolutionItems) = preProject
+		tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Aggregator\UDSFile_2026-03-02_2026-06-10.json = tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Aggregator\UDSFile_2026-03-02_2026-06-10.json
+		tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Aggregator\UDSFile_2026-06-10_2026-09-18.json = tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Aggregator\UDSFile_2026-06-10_2026-09-18.json
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DI-Connect-Fitness", "DI-Connect-Fitness", "{6574B0C6-D515-422D-AAC6-8391C3E59D9D}"
+	ProjectSection(SolutionItems) = preProject
+		tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Fitness\athlete@example.invalid_1_summarizedActivities.json = tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Fitness\athlete@example.invalid_1_summarizedActivities.json
+		tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Fitness\athlete@example.invalid_301_summarizedActivities.json = tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Fitness\athlete@example.invalid_301_summarizedActivities.json
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DI-Connect-Uploaded-Files", "DI-Connect-Uploaded-Files", "{95288CC3-B93B-49B9-B8AF-985E54F44815}"
+	ProjectSection(SolutionItems) = preProject
+		tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Uploaded-Files\UploadedFiles_0-_Part1.zip = tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Uploaded-Files\UploadedFiles_0-_Part1.zip
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DI-Connect-Wellness", "DI-Connect-Wellness", "{74B3A587-25EC-43EC-AF2E-A8064B40ED0F}"
+	ProjectSection(SolutionItems) = preProject
+		tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Wellness\2026-03-02_2026-06-10_1_sleepData.json = tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Wellness\2026-03-02_2026-06-10_1_sleepData.json
+		tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Wellness\2026-06-10_2026-09-18_1_sleepData.json = tests\python\fixtures\garmin-export\archive\DI_CONNECT\DI-Connect-Wellness\2026-06-10_2026-09-18_1_sleepData.json
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
@@ -319,5 +355,13 @@ Global
 		{2E48B232-0D9B-4E29-89DF-F50862E612AD} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{ABF7D3CB-0931-45E8-AE47-832D9411A212} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{C235129B-A641-43ED-941A-F524366EA99A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{6C5D1598-EAB5-43E8-92B5-4ADC419DAD07} = {C6DA51B4-D77B-4FD2-B64B-E19D60C0045A}
+		{63229554-442F-4D96-9496-DC19548E503A} = {6C5D1598-EAB5-43E8-92B5-4ADC419DAD07}
+		{3916E4E0-CA23-4390-BD92-A38BE43A0D9F} = {63229554-442F-4D96-9496-DC19548E503A}
+		{11A8439E-CB0E-4E89-9E91-B71B70F7FA1D} = {3916E4E0-CA23-4390-BD92-A38BE43A0D9F}
+		{A1CED116-78E0-4B06-B3C7-78BF0E8CF348} = {11A8439E-CB0E-4E89-9E91-B71B70F7FA1D}
+		{6574B0C6-D515-422D-AAC6-8391C3E59D9D} = {11A8439E-CB0E-4E89-9E91-B71B70F7FA1D}
+		{95288CC3-B93B-49B9-B8AF-985E54F44815} = {11A8439E-CB0E-4E89-9E91-B71B70F7FA1D}
+		{74B3A587-25EC-43EC-AF2E-A8064B40ED0F} = {11A8439E-CB0E-4E89-9E91-B71B70F7FA1D}
 	EndGlobalSection
 EndGlobal

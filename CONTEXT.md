@@ -256,6 +256,15 @@ works most recent first through the days, from a configured earliest date to
 today, that the Watermark does not cover, and stops at a per-run ceiling.
 _Avoid_: checkpoint, cursor, last-run time, high-water mark
 
+**ExportArchive**:
+Garmin's own bulk export of the athlete's account, requested by hand from Garmin's
+account pages and delivered as a zip of files chunked by date or by count, with
+nested zips holding the raw FIT files. The source of history before the Watermark's
+earliest date: read at home and posted through ingest like any other delivery, at no
+cost in Garmin API calls. Its structure varies between exports, so no file name is
+assumed and every field in it is optional.
+_Avoid_: dump, backup, takeout, bulk export, data download
+
 **SyncSlot**:
 The home machine's permission to run one sync at a time, held for the length of a
 run. A run that cannot take it stops without fetching anything, because the run
