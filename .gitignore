@@ -8,6 +8,8 @@ __pycache__/
 .local/
 .vs/
 TestResults/
+garmin dump/
+
 
 # Real training data, not committed. See spikes/strength-data-spike/README.md.
 spikes/strength-data-spike/dumps/
