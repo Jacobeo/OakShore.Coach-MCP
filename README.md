@@ -759,9 +759,10 @@ The export is the athlete's own health data and is never committed. Only a
 trimmed, anonymised sample of it is, under
 [tests/python/fixtures/garmin-export](tests/python/fixtures/garmin-export/README.md).
 
-### Run the import
+### Run an ExportImport
 
-The import uses the same settings and the same saved sign-in as the sync (see
+An ExportImport is one run of the importer over the archive, started by hand;
+nothing schedules it. It uses the same settings and the same saved sign-in as the sync (see
 [Sign in once](#sign-in-once-so-a-run-needs-nobody)), so a machine that already
 runs the sync needs nothing new:
 

@@ -275,6 +275,13 @@ cost in Garmin API calls. Its structure varies between exports, so no file name 
 assumed and every field in it is optional.
 _Avoid_: dump, backup, takeout, bulk export, data download
 
+**ExportImport**:
+One run of the importer over an ExportArchive, started by hand on the home machine,
+posting what the archive holds as Backfills. Nothing schedules it: it is run once to
+load history, and again only when a newer ExportArchive is worth reading. Running it
+twice over the same archive changes nothing.
+_Avoid_: backfill (that is the batch, not the run), migration, history sync, import job
+
 **SyncSlot**:
 The home machine's permission to run one sync at a time, held for the length of a
 run. A run that cannot take it stops without fetching anything, because the run

@@ -20,3 +20,11 @@ per-ExerciseSet detail.
   the source of a stored ExerciseSet is recoverable.
 - [ ] A file whose type is not an activity is skipped without failing the import.
 - [ ] Asserted at the ingest seam with one real FIT file committed as a fixture.
+
+## Comments
+
+Since ticket 09, export data is backfill-only ([ADR 0014](../../../docs/adr/0014-export-data-is-backfill-only.md)):
+a Backfill drops everything for an Activity the store already holds, ExerciseSets
+included. A historic Activity's FIT-derived ExerciseSets must therefore arrive in
+the same Backfill as the Activity itself; posted later, they would be dropped.
+Ticket 11's production ExportImport waits for this ticket for that reason.

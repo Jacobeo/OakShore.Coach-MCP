@@ -181,6 +181,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "issues", "issues", "{C7F2B9
 		.scratch\03-garmin-sync\issues\08-scheduled-and-manual-runs.md = .scratch\03-garmin-sync\issues\08-scheduled-and-manual-runs.md
 		.scratch\03-garmin-sync\issues\09-export-archive-backfill.md = .scratch\03-garmin-sync\issues\09-export-archive-backfill.md
 		.scratch\03-garmin-sync\issues\10-export-fit-per-set-detail.md = .scratch\03-garmin-sync\issues\10-export-fit-per-set-detail.md
+		.scratch\03-garmin-sync\issues\11-export-import-rehearsal-and-production-run.md = .scratch\03-garmin-sync\issues\11-export-import-rehearsal-and-production-run.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Migrations", "Migrations", "{ABF7D3CB-0931-45E8-AE47-832D9411A212}"
