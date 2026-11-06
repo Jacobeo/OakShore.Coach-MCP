@@ -13,7 +13,8 @@ public sealed record IngestBatch(
     IReadOnlyList<SleepNightInput?>? SleepNights = null,
     IReadOnlyList<DailySummaryInput?>? DailySummaries = null,
     IReadOnlyList<TrainingLoadInput?>? TrainingLoads = null,
-    IReadOnlyList<VO2maxInput?>? VO2maxEstimates = null);
+    IReadOnlyList<VO2maxInput?>? VO2maxEstimates = null,
+    bool Backfill = false);
 
 public interface IIngestRepository
 {
@@ -21,7 +22,7 @@ public interface IIngestRepository
         ActivityRange range, IReadOnlyList<Activity> activities,
         IReadOnlyDictionary<long, IReadOnlyList<ExerciseSet>> exerciseSets,
         IReadOnlyList<SportProfile> sportProfiles, IReadOnlyDictionary<long, ActivityTimeInHeartRateZones> timeInHeartRateZones,
-        int version, IReadOnlyList<SleepNight> sleepNights, IReadOnlyList<DailySummary> dailySummaries,
+        int version, bool backfill, IReadOnlyList<SleepNight> sleepNights, IReadOnlyList<DailySummary> dailySummaries,
         IReadOnlyList<TrainingLoad> trainingLoads, IReadOnlyList<VO2max> vo2maxEstimates,
         string batchHash, DateTimeOffset lastSyncedAt, CancellationToken cancellationToken);
 }
@@ -38,7 +39,7 @@ public sealed class IngestService(
         {
             if (batch.ActivityRange is not null || batch.Activities is not null || batch.SportProfiles is not null
                 || batch.SleepNights is not null || batch.DailySummaries is not null
-                || batch.TrainingLoads is not null || batch.VO2maxEstimates is not null)
+                || batch.TrainingLoads is not null || batch.VO2maxEstimates is not null || batch.Backfill)
                 throw new ArgumentException("Version 1 accepts AthleteProfile changes only.");
             if (batch.AthleteProfiles is not { Count: > 0 and <= 100 })
                 throw new ArgumentException("Supply between 1 and 100 AthleteProfile changes.");
@@ -50,6 +51,9 @@ public sealed class IngestService(
         if (batch.ActivityRange is null || batch.Activities is not { Count: <= 5000 }
             || batch.AthleteProfiles is { Count: > 100 })
             throw new ArgumentException("Versions 2 to 4 require an ActivityRange and 0 to 5000 Activities, with at most 100 AthleteProfile changes.");
+        // AthleteProfile changes, SportProfiles and daily form each carry a sync time of their own.
+        if (batch.Backfill && (batch.Version == 4 || batch.AthleteProfiles is not null || batch.SportProfiles is not null))
+            throw new ArgumentException("A backfill carries Activities, SleepNights and DailySummaries only, in version 2 or 3.");
         var (from, to) = batch.ActivityRange.Validate();
         IReadOnlyList<SleepNight> sleepNights = [];
         IReadOnlyList<DailySummary> dailySummaries = [];
@@ -128,7 +132,7 @@ public sealed class IngestService(
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(batch))));
         await ingest.SaveAsync(userId, (batch.AthleteProfiles ?? []).Select(change => change!).ToArray(),
             batch.ActivityRange, activities, exerciseSets, sportProfiles, timeInHeartRateZones,
-            batch.Version, sleepNights, dailySummaries, trainingLoads, vo2maxEstimates, hash, now, cancellationToken);
+            batch.Version, batch.Backfill, sleepNights, dailySummaries, trainingLoads, vo2maxEstimates, hash, now, cancellationToken);
         return await status.GetAsync(userId, cancellationToken);
     }
 }

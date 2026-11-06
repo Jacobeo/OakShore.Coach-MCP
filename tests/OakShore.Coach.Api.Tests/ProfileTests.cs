@@ -1122,35 +1122,101 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     }
 
     [Fact]
-    public async Task An_activity_backfilled_from_the_export_after_its_sync_is_not_duplicated_and_keeps_its_time_in_zones()
+    public async Task The_export_backfill_after_an_api_sync_fills_only_the_gaps_and_leaves_api_values_and_freshness_unchanged()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2030, 4, 10, 12, 0, 0, TimeSpan.Zero));
+        await using var host = new CoachHost(database) { Clock = clock };
+        using var client = AthleteClient(host);
+        var run = FixtureCardioActivity(24313465171);
+        using var synced = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 3,
+            activityRange = new { fromDate = "2026-08-30", toDate = "2026-09-16" },
+            sportProfiles = FixtureSportProfiles(),
+            activities = new object[]
+            {
+                FixtureCardioActivity(24174672446),
+                FixtureCardioActivity(24272601315) with { TimeInHeartRateZones = [] },
+                // Renamed in Garmin after the export was taken, so only the API knows the name.
+                new { run.ActivityId, activityName = "Tempo by the river", run.StartTimeUtc, run.TypeKey,
+                    run.DurationSeconds, run.TimeInHeartRateZones }
+            },
+            sleepNights = new[] { "2026-09-15", "2026-09-16" }.Select(date => new
+            {
+                calendarDate = date, startTimeUtc = $"{date}T00:30:00Z", endTimeUtc = $"{date}T06:30:00Z", sleepMinutes = 340
+            }),
+            // Days the watch recorded no BodyBattery; the export's records of them hold one.
+            dailySummaries = new[] { "2026-09-15", "2026-09-16" }.Select(date => new
+            {
+                calendarDate = date, stressLevel = new { average = 30, maximum = 91 }
+            })
+        });
+        Assert.Equal(HttpStatusCode.OK, synced.StatusCode);
+        var before = await CallTool(client, "get_sync_status");
+
+        clock.Set(clock.GetUtcNow().AddDays(1));
+        await PostExportBatches(client);
+
+        var after = await CallTool(client, "get_sync_status");
+        // The two 2024 Activities and the two June days are the gaps.
+        foreach (var (name, filled) in new[] { ("Activity", 2), ("SleepNight", 2), ("DailySummary", 2) })
+            Assert.Equal(Collection(before, name).GetProperty("count").GetInt32() + filled,
+                Collection(after, name).GetProperty("count").GetInt32());
+        foreach (var collection in before.GetProperty("collections").EnumerateArray())
+            Assert.Equal(collection.GetProperty("lastSyncedAt").ToString(),
+                Collection(after, collection.GetProperty("name").GetString()!).GetProperty("lastSyncedAt").ToString());
+        foreach (var property in new[] { "latestActivity", "latestActivityCardioDetail", "latestWellnessDay", "lastSyncedAt" })
+            Assert.Equal(before.GetProperty(property).ToString(), after.GetProperty(property).ToString());
+        Assert.Equal("Tempo by the river", after.GetProperty("latestActivity").GetProperty("activityName").GetString());
+        Assert.DoesNotContain("BodyBattery", after.GetProperty("latestWellnessDay").GetProperty("holds")
+            .EnumerateArray().Select(item => item.GetString()));
+    }
+
+    [Fact]
+    public async Task The_export_backfill_into_an_empty_store_fills_its_history_without_reporting_a_sync()
     {
         await using var host = new CoachHost(database);
         using var client = AthleteClient(host);
-        var ride = FixtureCardioActivity(24174672446);
-        using var synced = await client.PostAsJsonAsync("/ingest", CardioBatch(FixtureSportProfiles(), ride));
-        Assert.Equal(HttpStatusCode.OK, synced.StatusCode);
-        var before = await CallTool(client, "get_sync_status");
-        Assert.NotEqual(JsonValueKind.Null, before.GetProperty("latestActivityCardioDetail").ValueKind);
 
-        // As the export importer posts it: the same identity and units, inside its month's
-        // version 3 batch, with no time in zones and no SportProfiles.
-        using var backfilled = await client.PostAsJsonAsync("/ingest", new
+        await PostExportBatches(client);
+
+        var filled = await CallTool(client, "get_sync_status");
+        foreach (var (name, count) in new[] { ("Activity", 5), ("SleepNight", 4), ("DailySummary", 4) })
         {
-            version = 3,
-            activityRange = new { fromDate = "2026-08-01", toDate = "2026-08-31" },
-            activities = new[] { new { activityId = ride.ActivityId, activityName = "indoor_cycling",
-                startTimeUtc = ride.StartTimeUtc, typeKey = ride.TypeKey, durationSeconds = ride.DurationSeconds,
-                distanceMeters = 162.22000122070312 } },
-            sleepNights = Array.Empty<object>(),
-            dailySummaries = Array.Empty<object>()
-        });
-        Assert.Equal(HttpStatusCode.OK, backfilled.StatusCode);
+            Assert.Equal(count, Collection(filled, name).GetProperty("count").GetInt32());
+            Assert.Equal(JsonValueKind.Null, Collection(filled, name).GetProperty("lastSyncedAt").ValueKind);
+        }
+        Assert.Equal(JsonValueKind.Null, filled.GetProperty("lastSyncedAt").ValueKind);
+        // The latest day reached is a sync's to report; the export reaches none.
+        Assert.Equal(JsonValueKind.Null, filled.GetProperty("latestWellnessDay").ValueKind);
+        var latest = filled.GetProperty("latestActivity");
+        Assert.Equal((24313465171L, "running", 2490.14990234375), (latest.GetProperty("activityId").GetInt64(),
+            latest.GetProperty("activityName").GetString(), latest.GetProperty("distanceMeters").GetDouble()));
 
-        var after = await CallTool(client, "get_sync_status");
-        Assert.Equal(1, Collection(after, "Activity").GetProperty("count").GetInt32());
-        Assert.Equal(24174672446L, after.GetProperty("latestActivity").GetProperty("activityId").GetInt64());
-        Assert.Equal(before.GetProperty("latestActivityCardioDetail").ToString(),
-            after.GetProperty("latestActivityCardioDetail").ToString());
+        await PostExportBatches(client);
+        Assert.Equal(filled.ToString(), (await CallTool(client, "get_sync_status")).ToString());
+    }
+
+    // Each would move a sync time or replace synced figures, which a backfill never does.
+    [Theory]
+    [InlineData("{\"version\":1,\"backfill\":true,\"athleteProfiles\":[{\"bodyWeightKg\":65}]}")]
+    [InlineData("{\"version\":3,\"backfill\":true,\"athleteProfiles\":[{\"bodyWeightKg\":65}],"
+        + "\"activityRange\":{\"fromDate\":\"2026-09-01\",\"toDate\":\"2026-09-30\"},\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[]}")]
+    [InlineData("{\"version\":2,\"backfill\":true,\"sportProfiles\":[{\"name\":\"DEFAULT\",\"heartRateZones\":[{\"zoneNumber\":1,\"lowBoundaryBpm\":100}]}],"
+        + "\"activityRange\":{\"fromDate\":\"2026-09-01\",\"toDate\":\"2026-09-30\"},\"activities\":[]}")]
+    [InlineData("{\"version\":4,\"backfill\":true,\"activityRange\":{\"fromDate\":\"2026-09-01\",\"toDate\":\"2026-09-30\"},"
+        + "\"activities\":[],\"sleepNights\":[],\"dailySummaries\":[],\"trainingLoads\":[],\"vo2maxEstimates\":[]}")]
+    public async Task A_backfill_carrying_anything_but_activities_and_daily_wellness_is_rejected(string batch)
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var before = await CallTool(client, "get_sync_status");
+
+        using var content = new StringContent(batch, System.Text.Encoding.UTF8, "application/json");
+        using var rejected = await client.PostAsync("/ingest", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        Assert.Equal(before.ToString(), (await CallTool(client, "get_sync_status")).ToString());
     }
 
     [Theory]
@@ -1471,6 +1537,19 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
 
     private static string Fixture(string name) => File.ReadAllText(Path.GetFullPath(Path.Combine(
         AppContext.BaseDirectory, $"../../../../../fixtures/garmin/{name}")));
+
+    // What the export importer posts for its fixture archive, asserted on the Python side to be exactly that.
+    private static async Task PostExportBatches(HttpClient client)
+    {
+        using var batches = JsonDocument.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory, "../../../../../tests/python/fixtures/garmin-export/ingest-batches.json"))));
+        foreach (var batch in batches.RootElement.EnumerateArray())
+        {
+            using var content = new StringContent(batch.GetRawText(), System.Text.Encoding.UTF8, "application/json");
+            using var posted = await client.PostAsync("/ingest", content);
+            Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+        }
+    }
 
     private static int? Int(JsonElement entry, string name) =>
         entry.GetProperty(name).ValueKind == JsonValueKind.Null ? null : entry.GetProperty(name).GetInt32();

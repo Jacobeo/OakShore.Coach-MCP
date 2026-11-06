@@ -1,0 +1,616 @@
+[
+  {
+    "version": 3,
+    "backfill": true,
+    "activityRange": {
+      "fromDate": "2024-06-01",
+      "toDate": "2024-06-30"
+    },
+    "activities": [
+      {
+        "activityId": 16155825735,
+        "activityName": "walking",
+        "startTimeUtc": "2024-06-29T11:41:13Z",
+        "typeKey": "walking",
+        "durationSeconds": 1486.427001953125,
+        "distanceMeters": 494.0899963378906,
+        "totalSets": null,
+        "activeSets": null,
+        "totalReps": null
+      }
+    ],
+    "sleepNights": [],
+    "dailySummaries": []
+  },
+  {
+    "version": 3,
+    "backfill": true,
+    "activityRange": {
+      "fromDate": "2024-08-01",
+      "toDate": "2024-08-31"
+    },
+    "activities": [
+      {
+        "activityId": 16867435216,
+        "activityName": "yoga",
+        "startTimeUtc": "2024-08-26T16:52:45Z",
+        "typeKey": "yoga",
+        "durationSeconds": 570.8159790039062,
+        "distanceMeters": null,
+        "totalSets": 8,
+        "activeSets": 8,
+        "totalReps": 0
+      }
+    ],
+    "sleepNights": [],
+    "dailySummaries": []
+  },
+  {
+    "version": 3,
+    "backfill": true,
+    "activityRange": {
+      "fromDate": "2026-06-01",
+      "toDate": "2026-06-30"
+    },
+    "activities": [],
+    "sleepNights": [
+      {
+        "calendarDate": "2026-06-08",
+        "startTimeUtc": "2026-06-07T19:48:00Z",
+        "endTimeUtc": "2026-06-08T04:06:00Z",
+        "sleepMinutes": 483,
+        "deepSleepMinutes": 46,
+        "lightSleepMinutes": 284,
+        "remSleepMinutes": 153,
+        "awakeSleepMinutes": 15,
+        "unmeasurableSleepMinutes": 0,
+        "garminResponse": {
+          "sleepStartTimestampGMT": "2026-06-07T19:48:00.0",
+          "sleepEndTimestampGMT": "2026-06-08T04:06:00.0",
+          "calendarDate": "2026-06-08",
+          "sleepWindowConfirmationType": "ENHANCED_CONFIRMED_FINAL",
+          "deepSleepSeconds": 2760,
+          "lightSleepSeconds": 17040,
+          "remSleepSeconds": 9180,
+          "awakeSleepSeconds": 900,
+          "unmeasurableSeconds": 0,
+          "spo2SleepSummary": {
+            "userProfilePk": 1,
+            "deviceId": 1,
+            "sleepMeasurementStartGMT": "2026-06-07T20:01:00.0",
+            "sleepMeasurementEndGMT": "2026-06-08T04:00:00.0",
+            "averageSPO2": 91.55,
+            "averageHR": 59.0,
+            "lowestSPO2": 74
+          },
+          "averageRespiration": 13.01,
+          "lowestRespiration": 9.0,
+          "highestRespiration": 20.0,
+          "retro": false
+        }
+      },
+      {
+        "calendarDate": "2026-06-09",
+        "startTimeUtc": "2026-06-08T20:02:00Z",
+        "endTimeUtc": "2026-06-09T04:12:00Z",
+        "sleepMinutes": 478,
+        "deepSleepMinutes": 73,
+        "lightSleepMinutes": 281,
+        "remSleepMinutes": 124,
+        "awakeSleepMinutes": 11,
+        "unmeasurableSleepMinutes": 0,
+        "garminResponse": {
+          "sleepStartTimestampGMT": "2026-06-08T20:02:00.0",
+          "sleepEndTimestampGMT": "2026-06-09T04:12:00.0",
+          "calendarDate": "2026-06-09",
+          "sleepWindowConfirmationType": "ENHANCED_CONFIRMED",
+          "deepSleepSeconds": 4380,
+          "lightSleepSeconds": 16860,
+          "remSleepSeconds": 7440,
+          "awakeSleepSeconds": 660,
+          "unmeasurableSeconds": 0,
+          "spo2SleepSummary": {
+            "userProfilePk": 1,
+            "deviceId": 1,
+            "sleepMeasurementStartGMT": "2026-06-08T20:03:00.0",
+            "sleepMeasurementEndGMT": "2026-06-09T03:59:00.0",
+            "averageSPO2": 91.3,
+            "averageHR": 60.0,
+            "lowestSPO2": 81
+          },
+          "averageRespiration": 12.7,
+          "lowestRespiration": 10.0,
+          "highestRespiration": 17.0,
+          "retro": false
+        }
+      }
+    ],
+    "dailySummaries": [
+      {
+        "calendarDate": "2026-06-08",
+        "bodyBattery": {
+          "charged": 76,
+          "drained": 43,
+          "highest": 64,
+          "lowest": 5
+        },
+        "stressLevel": {
+          "average": 26,
+          "maximum": 96,
+          "restSeconds": 52560,
+          "lowSeconds": 14760,
+          "mediumSeconds": 5880,
+          "highSeconds": 2880
+        },
+        "garminResponse": {
+          "userProfilePK": 1,
+          "calendarDate": "2026-06-08",
+          "uuid": "00000000000000000000000000000001",
+          "durationInMilliseconds": 86400000,
+          "totalKilocalories": 2777.0,
+          "activeKilocalories": 379.0,
+          "bmrKilocalories": 2398.0,
+          "wellnessKilocalories": 2777.0,
+          "wellnessTotalKilocalories": 2777.0,
+          "wellnessActiveKilocalories": 379.0,
+          "restingCaloriesFromActivity": 93.0,
+          "totalSteps": 4018,
+          "dailyStepGoal": 7000,
+          "totalDistanceMeters": 3319,
+          "wellnessDistanceMeters": 3319,
+          "wellnessStartTimeGmt": "2026-06-07T22:00:00.0",
+          "wellnessEndTimeGmt": "2026-06-08T22:00:00.0",
+          "wellnessStartTimeLocal": "2026-06-08T00:00:00.0",
+          "wellnessEndTimeLocal": "2026-06-09T00:00:00.0",
+          "highlyActiveSeconds": 232,
+          "activeSeconds": 5418,
+          "moderateIntensityMinutes": 32,
+          "vigorousIntensityMinutes": 1,
+          "isVigorousDay": false,
+          "userIntensityMinutesGoal": 150,
+          "userFloorsAscendedGoal": 10,
+          "minHeartRate": 46,
+          "maxHeartRate": 117,
+          "restingHeartRate": 53,
+          "currentDayRestingHeartRate": 51,
+          "restingHeartRateTimestamp": 1780956000000,
+          "includesWellnessData": true,
+          "includesActivityData": true,
+          "includesCalorieConsumedData": false,
+          "includesSingleMeasurement": false,
+          "includesContinuousMeasurement": false,
+          "includesAllDayPulseOx": true,
+          "includesSleepPulseOx": true,
+          "source": 0,
+          "allDayStress": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-06-08"
+          },
+          "bodyBattery": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-06-08",
+            "chargedValue": 76,
+            "drainedValue": 43,
+            "bodyBatteryVersion": 2.0
+          },
+          "minAvgHeartRate": 47,
+          "maxAvgHeartRate": 113,
+          "version": 63780002,
+          "averageSpo2Value": 91.0,
+          "lowestSpo2Value": 74,
+          "latestSpo2Value": 95,
+          "latestSpo2ValueReadingTimeGmt": "2026-06-08T21:59:00.0",
+          "latestSpo2ValueReadingTimeLocal": "2026-06-08T23:59:00.0",
+          "hydration": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-06-08",
+            "valueInML": 0.0,
+            "activityIntakeInML": 0.0,
+            "goalInML": 2800.0,
+            "capped": false,
+            "sweatLossInML": 334.0,
+            "adjustedGoalInML": 3134.0,
+            "lastEntryTimestampLocal": "2026-06-08T16:47:05.0"
+          },
+          "respiration": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-06-08",
+            "avgWakingRespirationValue": 14.0,
+            "highestRespirationValue": 21.0,
+            "lowestRespirationValue": 9.0,
+            "latestRespirationValue": 12.0,
+            "latestRespirationTimeGMT": "2026-06-08T21:59:00.0",
+            "algorithmVersion": 100
+          }
+        }
+      },
+      {
+        "calendarDate": "2026-06-09",
+        "bodyBattery": {
+          "charged": 44,
+          "drained": 54,
+          "highest": 74,
+          "lowest": 22
+        },
+        "stressLevel": {
+          "average": 32,
+          "maximum": 94,
+          "restSeconds": 32580,
+          "lowSeconds": 37200,
+          "mediumSeconds": 8820,
+          "highSeconds": 1140
+        },
+        "garminResponse": {
+          "userProfilePK": 1,
+          "calendarDate": "2026-06-09",
+          "uuid": "00000000000000000000000000000002",
+          "durationInMilliseconds": 86400000,
+          "totalKilocalories": 2531.0,
+          "activeKilocalories": 133.0,
+          "bmrKilocalories": 2398.0,
+          "wellnessKilocalories": 2531.0,
+          "wellnessTotalKilocalories": 2531.0,
+          "wellnessActiveKilocalories": 133.0,
+          "totalSteps": 3117,
+          "dailyStepGoal": 7000,
+          "totalDistanceMeters": 2592,
+          "wellnessDistanceMeters": 2592,
+          "wellnessStartTimeGmt": "2026-06-08T22:00:00.0",
+          "wellnessEndTimeGmt": "2026-06-09T22:00:00.0",
+          "wellnessStartTimeLocal": "2026-06-09T00:00:00.0",
+          "wellnessEndTimeLocal": "2026-06-10T00:00:00.0",
+          "highlyActiveSeconds": 420,
+          "activeSeconds": 4140,
+          "moderateIntensityMinutes": 0,
+          "vigorousIntensityMinutes": 0,
+          "isVigorousDay": false,
+          "userIntensityMinutesGoal": 150,
+          "userFloorsAscendedGoal": 10,
+          "minHeartRate": 48,
+          "maxHeartRate": 101,
+          "restingHeartRate": 53,
+          "currentDayRestingHeartRate": 51,
+          "restingHeartRateTimestamp": 1781042400000,
+          "includesWellnessData": true,
+          "includesActivityData": false,
+          "includesCalorieConsumedData": false,
+          "includesSingleMeasurement": false,
+          "includesContinuousMeasurement": false,
+          "includesAllDayPulseOx": false,
+          "includesSleepPulseOx": true,
+          "source": 0,
+          "allDayStress": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-06-09"
+          },
+          "bodyBattery": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-06-09",
+            "chargedValue": 44,
+            "drainedValue": 54,
+            "bodyBatteryVersion": 2.0
+          },
+          "minAvgHeartRate": 50,
+          "maxAvgHeartRate": 99,
+          "version": 68460002,
+          "averageSpo2Value": 92.0,
+          "lowestSpo2Value": 81,
+          "latestSpo2Value": 88,
+          "latestSpo2ValueReadingTimeGmt": "2026-06-09T03:59:00.0",
+          "latestSpo2ValueReadingTimeLocal": "2026-06-09T05:59:00.0",
+          "respiration": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-06-09",
+            "avgWakingRespirationValue": 13.0,
+            "highestRespirationValue": 19.0,
+            "lowestRespirationValue": 10.0,
+            "latestRespirationValue": 12.0,
+            "latestRespirationTimeGMT": "2026-06-09T22:00:00.0",
+            "algorithmVersion": 100
+          }
+        }
+      }
+    ]
+  },
+  {
+    "version": 3,
+    "backfill": true,
+    "activityRange": {
+      "fromDate": "2026-08-01",
+      "toDate": "2026-08-31"
+    },
+    "activities": [
+      {
+        "activityId": 24174672446,
+        "activityName": "indoor_cycling",
+        "startTimeUtc": "2026-08-30T15:28:32Z",
+        "typeKey": "indoor_cycling",
+        "durationSeconds": 1800.0,
+        "distanceMeters": 162.22000122070312,
+        "totalSets": null,
+        "activeSets": null,
+        "totalReps": null
+      }
+    ],
+    "sleepNights": [],
+    "dailySummaries": []
+  },
+  {
+    "version": 3,
+    "backfill": true,
+    "activityRange": {
+      "fromDate": "2026-09-01",
+      "toDate": "2026-09-30"
+    },
+    "activities": [
+      {
+        "activityId": 24272601315,
+        "activityName": "strength_training",
+        "startTimeUtc": "2026-09-07T14:51:13Z",
+        "typeKey": "strength_training",
+        "durationSeconds": 3317.2900390625,
+        "distanceMeters": 0.0,
+        "totalSets": 16,
+        "activeSets": 16,
+        "totalReps": 83
+      },
+      {
+        "activityId": 24313465171,
+        "activityName": "running",
+        "startTimeUtc": "2026-09-10T17:12:57Z",
+        "typeKey": "running",
+        "durationSeconds": 2849.37890625,
+        "distanceMeters": 2490.14990234375,
+        "totalSets": null,
+        "activeSets": null,
+        "totalReps": null
+      }
+    ],
+    "sleepNights": [
+      {
+        "calendarDate": "2026-09-15",
+        "startTimeUtc": "2026-09-14T19:34:00Z",
+        "endTimeUtc": "2026-09-15T04:07:00Z",
+        "sleepMinutes": 496,
+        "deepSleepMinutes": 33,
+        "lightSleepMinutes": 285,
+        "remSleepMinutes": 178,
+        "awakeSleepMinutes": 17,
+        "unmeasurableSleepMinutes": 0,
+        "garminResponse": {
+          "sleepStartTimestampGMT": "2026-09-14T19:34:00.0",
+          "sleepEndTimestampGMT": "2026-09-15T04:07:00.0",
+          "calendarDate": "2026-09-15",
+          "sleepWindowConfirmationType": "ENHANCED_CONFIRMED_FINAL",
+          "deepSleepSeconds": 1980,
+          "lightSleepSeconds": 17100,
+          "remSleepSeconds": 10680,
+          "awakeSleepSeconds": 1020,
+          "unmeasurableSeconds": 0,
+          "spo2SleepSummary": {
+            "userProfilePk": 1,
+            "deviceId": 1,
+            "sleepMeasurementStartGMT": "2026-09-14T20:25:00.0",
+            "sleepMeasurementEndGMT": "2026-09-15T04:00:00.0",
+            "averageSPO2": 91.74,
+            "averageHR": 56.0,
+            "lowestSPO2": 79
+          },
+          "averageRespiration": 12.72,
+          "lowestRespiration": 10.0,
+          "highestRespiration": 16.0,
+          "retro": false
+        }
+      },
+      {
+        "calendarDate": "2026-09-16",
+        "startTimeUtc": "2026-09-15T20:04:00Z",
+        "endTimeUtc": "2026-09-16T04:07:00Z",
+        "sleepMinutes": 473,
+        "deepSleepMinutes": 88,
+        "lightSleepMinutes": 234,
+        "remSleepMinutes": 151,
+        "awakeSleepMinutes": 10,
+        "unmeasurableSleepMinutes": 0,
+        "garminResponse": {
+          "sleepStartTimestampGMT": "2026-09-15T20:04:00.0",
+          "sleepEndTimestampGMT": "2026-09-16T04:07:00.0",
+          "calendarDate": "2026-09-16",
+          "sleepWindowConfirmationType": "ENHANCED_CONFIRMED_FINAL",
+          "deepSleepSeconds": 5280,
+          "lightSleepSeconds": 14040,
+          "remSleepSeconds": 9060,
+          "awakeSleepSeconds": 600,
+          "unmeasurableSeconds": 0,
+          "spo2SleepSummary": {
+            "userProfilePk": 1,
+            "deviceId": 1,
+            "sleepMeasurementStartGMT": "2026-09-15T20:08:00.0",
+            "sleepMeasurementEndGMT": "2026-09-16T04:00:00.0",
+            "averageSPO2": 86.75,
+            "averageHR": 61.0,
+            "lowestSPO2": 78
+          },
+          "averageRespiration": 12.75,
+          "lowestRespiration": 9.0,
+          "highestRespiration": 17.0,
+          "retro": false
+        }
+      }
+    ],
+    "dailySummaries": [
+      {
+        "calendarDate": "2026-09-15",
+        "bodyBattery": {
+          "charged": 40,
+          "drained": 76,
+          "highest": 93,
+          "lowest": 21
+        },
+        "stressLevel": {
+          "average": 33,
+          "maximum": 93,
+          "restSeconds": 32940,
+          "lowSeconds": 32520,
+          "mediumSeconds": 13380,
+          "highSeconds": 1980
+        },
+        "garminResponse": {
+          "userProfilePK": 1,
+          "calendarDate": "2026-09-15",
+          "uuid": "00000000000000000000000000000003",
+          "durationInMilliseconds": 86400000,
+          "totalKilocalories": 2497.0,
+          "activeKilocalories": 93.0,
+          "bmrKilocalories": 2404.0,
+          "wellnessKilocalories": 2497.0,
+          "wellnessTotalKilocalories": 2497.0,
+          "wellnessActiveKilocalories": 93.0,
+          "totalSteps": 2452,
+          "dailyStepGoal": 7000,
+          "totalDistanceMeters": 2019,
+          "wellnessDistanceMeters": 2019,
+          "wellnessStartTimeGmt": "2026-09-14T22:00:00.0",
+          "wellnessEndTimeGmt": "2026-09-15T22:00:00.0",
+          "wellnessStartTimeLocal": "2026-09-15T00:00:00.0",
+          "wellnessEndTimeLocal": "2026-09-16T00:00:00.0",
+          "highlyActiveSeconds": 300,
+          "activeSeconds": 3670,
+          "moderateIntensityMinutes": 0,
+          "vigorousIntensityMinutes": 0,
+          "isVigorousDay": false,
+          "userIntensityMinutesGoal": 150,
+          "userFloorsAscendedGoal": 10,
+          "minHeartRate": 48,
+          "maxHeartRate": 110,
+          "restingHeartRate": 51,
+          "currentDayRestingHeartRate": 50,
+          "restingHeartRateTimestamp": 1789509600000,
+          "includesWellnessData": true,
+          "includesActivityData": false,
+          "includesCalorieConsumedData": false,
+          "includesSingleMeasurement": false,
+          "includesContinuousMeasurement": false,
+          "includesAllDayPulseOx": true,
+          "includesSleepPulseOx": true,
+          "source": 0,
+          "allDayStress": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-09-15"
+          },
+          "bodyBattery": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-09-15",
+            "chargedValue": 40,
+            "drainedValue": 76,
+            "bodyBatteryVersion": 2.0
+          },
+          "minAvgHeartRate": 48,
+          "maxAvgHeartRate": 101,
+          "version": 66240002,
+          "averageSpo2Value": 91.0,
+          "lowestSpo2Value": 79,
+          "latestSpo2Value": 85,
+          "latestSpo2ValueReadingTimeGmt": "2026-09-15T22:00:00.0",
+          "latestSpo2ValueReadingTimeLocal": "2026-09-16T00:00:00.0",
+          "respiration": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-09-15",
+            "avgWakingRespirationValue": 14.0,
+            "highestRespirationValue": 18.0,
+            "lowestRespirationValue": 10.0,
+            "latestRespirationValue": 12.0,
+            "latestRespirationTimeGMT": "2026-09-15T22:00:00.0",
+            "algorithmVersion": 100
+          }
+        }
+      },
+      {
+        "calendarDate": "2026-09-16",
+        "bodyBattery": {
+          "charged": 48,
+          "drained": 44,
+          "highest": 57,
+          "lowest": 19
+        },
+        "stressLevel": {
+          "average": 28,
+          "maximum": 90,
+          "restSeconds": 43980,
+          "lowSeconds": 23760,
+          "mediumSeconds": 5640,
+          "highSeconds": 1260
+        },
+        "garminResponse": {
+          "userProfilePK": 1,
+          "calendarDate": "2026-09-16",
+          "uuid": "00000000000000000000000000000004",
+          "durationInMilliseconds": 86400000,
+          "totalKilocalories": 2576.0,
+          "activeKilocalories": 172.0,
+          "bmrKilocalories": 2404.0,
+          "wellnessKilocalories": 2576.0,
+          "wellnessTotalKilocalories": 2576.0,
+          "wellnessActiveKilocalories": 172.0,
+          "totalSteps": 4749,
+          "dailyStepGoal": 7000,
+          "totalDistanceMeters": 3911,
+          "wellnessDistanceMeters": 3911,
+          "wellnessStartTimeGmt": "2026-09-15T22:00:00.0",
+          "wellnessEndTimeGmt": "2026-09-16T22:00:00.0",
+          "wellnessStartTimeLocal": "2026-09-16T00:00:00.0",
+          "wellnessEndTimeLocal": "2026-09-17T00:00:00.0",
+          "highlyActiveSeconds": 480,
+          "activeSeconds": 6460,
+          "moderateIntensityMinutes": 0,
+          "vigorousIntensityMinutes": 0,
+          "isVigorousDay": false,
+          "userIntensityMinutesGoal": 150,
+          "userFloorsAscendedGoal": 10,
+          "minHeartRate": 47,
+          "maxHeartRate": 98,
+          "restingHeartRate": 51,
+          "currentDayRestingHeartRate": 52,
+          "restingHeartRateTimestamp": 1789596000000,
+          "includesWellnessData": true,
+          "includesActivityData": false,
+          "includesCalorieConsumedData": false,
+          "includesSingleMeasurement": false,
+          "includesContinuousMeasurement": false,
+          "includesAllDayPulseOx": true,
+          "includesSleepPulseOx": true,
+          "source": 0,
+          "allDayStress": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-09-16"
+          },
+          "bodyBattery": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-09-16",
+            "chargedValue": 48,
+            "drainedValue": 44,
+            "bodyBatteryVersion": 2.0
+          },
+          "minAvgHeartRate": 48,
+          "maxAvgHeartRate": 96,
+          "version": 68340002,
+          "averageSpo2Value": 88.0,
+          "lowestSpo2Value": 78,
+          "latestSpo2Value": 90,
+          "latestSpo2ValueReadingTimeGmt": "2026-09-16T22:00:00.0",
+          "latestSpo2ValueReadingTimeLocal": "2026-09-17T00:00:00.0",
+          "respiration": {
+            "userProfilePK": 1,
+            "calendarDate": "2026-09-16",
+            "avgWakingRespirationValue": 14.0,
+            "highestRespirationValue": 20.0,
+            "lowestRespirationValue": 9.0,
+            "latestRespirationValue": 12.0,
+            "latestRespirationTimeGMT": "2026-09-16T22:00:00.0",
+            "algorithmVersion": 100
+          }
+        }
+      }
+    ]
+  }
+]

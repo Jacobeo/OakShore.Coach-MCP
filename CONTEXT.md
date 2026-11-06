@@ -225,8 +225,17 @@ held nothing for rather than one never attempted. Version 4 adds each date's
 systemic TrainingLoad and the VO2max estimates delivered with it, and states that
 every date was synced for those as well; a VO2max estimate keeps the date Garmin
 computed it, which may precede the range. Replaying identical content is the
-same delivery and does not advance freshness.
+same delivery and does not advance freshness. A batch marked as a Backfill states
+nothing about what was synced.
 _Avoid_: upload, payload
+
+**Backfill**:
+An IngestBatch that fills gaps in the stored history rather than syncing it
+(ADR 0014). It stores only the Activities, SleepNights and DailySummaries the store
+does not already hold and changes nothing that it does, so data read from the API
+always wins. It is not a sync: it moves no sync time and no latest date reached.
+The ExportArchive enters the store only as Backfills.
+_Avoid_: history sync, catch-up, initial load
 
 **SyncAlert**:
 One push notification about a run that gave up, sent from the home machine to the
@@ -244,8 +253,9 @@ The stored record count and last successful sync time for each collection, plus
 the most recent Activity summary when one is stored, and the latest date a
 version 3 or later IngestBatch reached with the kinds of record that date holds — none,
 for a date Garmin held nothing for.
-A null time means the collection has never been synced; a non-null time with zero
-records means a completed sync found none.
+A null time means the collection has never been synced, so any records it holds
+came from a Backfill; a non-null time with zero records means a completed sync
+found none.
 _Avoid_: sync health, sync state
 
 **Watermark**:
@@ -257,10 +267,10 @@ today, that the Watermark does not cover, and stops at a per-run ceiling.
 _Avoid_: checkpoint, cursor, last-run time, high-water mark
 
 **ExportArchive**:
-Garmin's own bulk export of the athlete's account, requested by hand from Garmin's
-account pages and delivered as a zip of files chunked by date or by count, with
-nested zips holding the raw FIT files. The source of history before the Watermark's
-earliest date: read at home and posted through ingest like any other delivery, at no
+Garmin's own copy of everything the athlete's account holds, requested by hand from
+Garmin's account pages and delivered as a zip of files chunked by date or by count,
+with nested zips holding the raw FIT files. The source of history before the
+Watermark's earliest date: read at home and posted through ingest as Backfills, at no
 cost in Garmin API calls. Its structure varies between exports, so no file name is
 assumed and every field in it is optional.
 _Avoid_: dump, backup, takeout, bulk export, data download

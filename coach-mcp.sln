@@ -26,6 +26,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{9ADE9AEC-C3C
 		docs\adr\0011-this-watch-records-no-hrv.md = docs\adr\0011-this-watch-records-no-hrv.md
 		docs\adr\0012-daily-form-is-one-training-status-call.md = docs\adr\0012-daily-form-is-one-training-status-call.md
 		docs\adr\0013-the-sync-holds-its-own-workos-sign-in.md = docs\adr\0013-the-sync-holds-its-own-workos-sign-in.md
+		docs\adr\0014-export-data-is-backfill-only.md = docs\adr\0014-export-data-is-backfill-only.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "agents", "agents", "{B3BE0EBF-4AC1-4D9D-A26B-10AD35452E72}"
@@ -220,6 +221,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "fixtures", "fixtures", "{6C
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "garmin-export", "garmin-export", "{63229554-442F-4D96-9496-DC19548E503A}"
 	ProjectSection(SolutionItems) = preProject
+		tests\python\fixtures\garmin-export\ingest-batches.json = tests\python\fixtures\garmin-export\ingest-batches.json
 		tests\python\fixtures\garmin-export\README.md = tests\python\fixtures\garmin-export\README.md
 	EndProjectSection
 EndProject

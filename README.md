@@ -789,26 +789,30 @@ The export counts milliseconds, centimetres and epoch milliseconds where the API
 counts seconds, metres and GMT text, and names its sleep and stress fields
 differently. Each record is translated into the API's names and units and built
 by the sync's own code, so an Activity or day synced both ways posts the same
-values. It is posted as version 3 batches, one per calendar month that holds a
-record, oldest first. A range never reaches past the archive's last record,
-because version 3 states that every date in its range was synced.
+values. It is posted as version 3 Backfill batches, marked `"backfill": true`, one
+per calendar month that holds a record, oldest first. What the importer posts for
+the fixture archive is committed as
+[ingest-batches.json](tests/python/fixtures/garmin-export/ingest-batches.json), and
+both runtimes' tests hold it to that.
 
 Not imported: per-ExerciseSet detail, which the export carries only in its FIT
 files ([ticket 10](.scratch/03-garmin-sync/issues/10-export-fit-per-set-detail.md));
 time in zones, because the export's zone seconds are split differently from the
 Activity list's; and TrainingLoad and VO2max.
 
-Where the export and the sync meet:
+Where the export and the sync meet, ingest decides
+([ADR 0014](docs/adr/0014-export-data-is-backfill-only.md)):
 
-- An Activity is stored once, by its Activity id. The export's version updates
-  its summary figures with the same values, and keeps the ExerciseSets and time
-  in zones the sync stored.
-- A day's SleepNight and DailySummary are replaced by the export's figures, and
-  its archived `garminResponse` by the export's record of that day, arrays
-  removed.
-- Running the import again posts identical batches, which ingest treats as the
-  same delivery: nothing changes and freshness does not move. A first import does
-  set the Activity and wellness sync times to when it ran.
+- A Backfill fills gaps only. An Activity, SleepNight or DailySummary the store
+  already holds keeps everything it has: its figures, its archived
+  `garminResponse`, its ExerciseSets and time in zones. Data read from the API
+  always wins, and a day the sync reaches after the import replaces the export's
+  version of it.
+- A Backfill is not a sync. No sync time in `get_sync_status` moves, nor its
+  latest wellness day; a store holding only imported history reports the counts
+  with no sync time.
+- Running the import again changes nothing, because everything it posts is
+  already held.
 
 Every field is optional. A missing field is posted as unknown, never zero, and a
 missing file costs only what it held. A record that holds nothing ingest can

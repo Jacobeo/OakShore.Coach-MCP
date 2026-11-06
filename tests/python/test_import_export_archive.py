@@ -17,6 +17,8 @@ from sync_activities import activity_from_garmin  # noqa: E402
 
 
 ARCHIVE = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "archive"
+# What the importer posts for ARCHIVE. The .NET ingest tests post the same file.
+INGEST_BATCHES = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "ingest-batches.json"
 LIST_ENTRIES = json.loads((ROOT / "fixtures" / "garmin" / "activitylist-service--search-activities__page-00.json")
                           .read_text(encoding="utf-8"))
 
@@ -32,6 +34,9 @@ def posted_activities(posted):
 
 
 class ExportArchiveImportTests(unittest.TestCase):
+    def test_the_fixture_archive_posts_exactly_the_committed_ingest_batches(self):
+        self.assertEqual(json.loads(INGEST_BATCHES.read_text(encoding="utf-8")), imported())
+
     def test_an_activity_also_synced_from_the_api_is_posted_with_the_identity_and_units_the_sync_posts(self):
         activities = posted_activities(imported())
 
@@ -40,18 +45,16 @@ class ExportArchiveImportTests(unittest.TestCase):
             api_entry = next(entry for entry in LIST_ENTRIES if entry["activityId"] == activity_id)
             self.assertEqual(activity_from_garmin(api_entry), activities[activity_id])
 
-    def test_each_month_holding_a_record_is_one_version_3_batch_bounded_by_what_the_archive_covers(self):
+    def test_each_month_holding_a_record_is_one_version_3_backfill_batch_spanning_the_month(self):
         posted = imported()
 
-        self.assertEqual([3] * 5, [batch["version"] for batch in posted])
-        # A version 3 range states every date in it was synced, so it never reaches before the
-        # archive's first record or past its last.
+        self.assertEqual([(3, True)] * 5, [(batch["version"], batch["backfill"]) for batch in posted])
         self.assertEqual([
-            ("2024-06-29", "2024-06-30", [16155825735], [], []),
+            ("2024-06-01", "2024-06-30", [16155825735], [], []),
             ("2024-08-01", "2024-08-31", [16867435216], [], []),
             ("2026-06-01", "2026-06-30", [], ["2026-06-08", "2026-06-09"], ["2026-06-08", "2026-06-09"]),
             ("2026-08-01", "2026-08-31", [24174672446], [], []),
-            ("2026-09-01", "2026-09-16", [24272601315, 24313465171],
+            ("2026-09-01", "2026-09-30", [24272601315, 24313465171],
              ["2026-09-15", "2026-09-16"], ["2026-09-15", "2026-09-16"]),
         ], [(batch["activityRange"]["fromDate"], batch["activityRange"]["toDate"],
              [activity["activityId"] for activity in batch["activities"]],
@@ -169,7 +172,7 @@ class ExportArchiveImportTests(unittest.TestCase):
         self.assertEqual((5, 13, 0), import_export_archive(ARCHIVE, [].append))
         self.assertEqual((4, 12, 1), summary)
         self.assertNotIn(16155825735, posted_activities(posted))
-        self.assertEqual("2024-08-26", posted[0]["activityRange"]["fromDate"])
+        self.assertEqual("2024-08-01", posted[0]["activityRange"]["fromDate"])
 
     def test_the_importer_never_loads_the_garmin_client(self):
         script = (f"import sys; sys.path.insert(0, {str(ROOT / 'src' / 'sync')!r});"

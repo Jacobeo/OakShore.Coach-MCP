@@ -10,7 +10,7 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
         ActivityRange range, IReadOnlyList<Activity> activities,
         IReadOnlyDictionary<long, IReadOnlyList<ExerciseSet>> exerciseSets,
         IReadOnlyList<SportProfile> sportProfiles, IReadOnlyDictionary<long, ActivityTimeInHeartRateZones> timeInHeartRateZones,
-        int version, IReadOnlyList<SleepNight> sleepNights, IReadOnlyList<DailySummary> dailySummaries,
+        int version, bool backfill, IReadOnlyList<SleepNight> sleepNights, IReadOnlyList<DailySummary> dailySummaries,
         IReadOnlyList<TrainingLoad> trainingLoads, IReadOnlyList<VO2max> vo2maxEstimates,
         string batchHash, DateTimeOffset lastSyncedAt, CancellationToken cancellationToken)
     {
@@ -23,6 +23,13 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
         var activityIds = activities.Select(activity => activity.ActivityId).ToArray();
         var existing = await store.Activities.Where(row => row.UserId == userId && activityIds.Contains(row.ActivityId))
             .ToDictionaryAsync(row => row.ActivityId, cancellationToken);
+        // A backfill fills gaps only: an Activity already stored keeps everything it has (ADR 0014).
+        if (backfill)
+        {
+            activities = activities.Where(activity => !existing.ContainsKey(activity.ActivityId)).ToArray();
+            exerciseSets = exerciseSets.Where(entry => !existing.ContainsKey(entry.Key)).ToDictionary();
+            timeInHeartRateZones = timeInHeartRateZones.Where(entry => !existing.ContainsKey(entry.Key)).ToDictionary();
+        }
         var retyped = new HashSet<long>();
         foreach (var activity in activities)
         {
@@ -101,27 +108,32 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             }
             store.TimeInHeartRateZones.RemoveRange(rows.Values);
         }
-        await SaveSleepNightsAsync(userId, sleepNights, cancellationToken);
-        await SaveDailySummariesAsync(userId, dailySummaries, cancellationToken);
+        await SaveSleepNightsAsync(userId, sleepNights, backfill, cancellationToken);
+        await SaveDailySummariesAsync(userId, dailySummaries, backfill, cancellationToken);
         await SaveTrainingLoadsAsync(userId, trainingLoads, cancellationToken);
         await SaveVO2maxEstimatesAsync(userId, vo2maxEstimates, cancellationToken);
-        var dates = range.Validate();
-        store.IngestBatches.Add(new IngestBatchRow
+        // A backfill is not a sync, so it leaves no IngestBatch for freshness to read.
+        if (!backfill)
         {
-            UserId = userId,
-            BatchHash = batchHash,
-            FromDate = dates.From,
-            ToDate = dates.To,
-            LastSyncedAt = lastSyncedAt,
-            Version = version
-        });
+            var dates = range.Validate();
+            store.IngestBatches.Add(new IngestBatchRow
+            {
+                UserId = userId,
+                BatchHash = batchHash,
+                FromDate = dates.From,
+                ToDate = dates.To,
+                LastSyncedAt = lastSyncedAt,
+                Version = version
+            });
+        }
         await store.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 
-    // A delivered day replaces its stored figures; a day a batch leaves out keeps them, as an
-    // Activity left out of a later batch is kept. An omitted garminResponse keeps the archived one.
-    private async Task SaveSleepNightsAsync(string userId, IReadOnlyList<SleepNight> sleepNights, CancellationToken cancellationToken)
+    // A delivered day replaces its stored figures, unless it arrives in a backfill; a day a batch
+    // leaves out keeps them, as an Activity left out of a later batch is kept. An omitted
+    // garminResponse keeps the archived one.
+    private async Task SaveSleepNightsAsync(string userId, IReadOnlyList<SleepNight> sleepNights, bool backfill, CancellationToken cancellationToken)
     {
         if (sleepNights.Count == 0)
             return;
@@ -130,7 +142,12 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             .ToDictionaryAsync(row => row.CalendarDate, cancellationToken);
         foreach (var night in sleepNights)
         {
-            if (!stored.TryGetValue(night.CalendarDate, out var row))
+            if (stored.TryGetValue(night.CalendarDate, out var row))
+            {
+                if (backfill)
+                    continue;
+            }
+            else
             {
                 row = new SleepNightRow { UserId = userId, CalendarDate = night.CalendarDate };
                 store.SleepNights.Add(row);
@@ -148,7 +165,7 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
         }
     }
 
-    private async Task SaveDailySummariesAsync(string userId, IReadOnlyList<DailySummary> dailySummaries, CancellationToken cancellationToken)
+    private async Task SaveDailySummariesAsync(string userId, IReadOnlyList<DailySummary> dailySummaries, bool backfill, CancellationToken cancellationToken)
     {
         if (dailySummaries.Count == 0)
             return;
@@ -157,7 +174,12 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
             .ToDictionaryAsync(row => row.CalendarDate, cancellationToken);
         foreach (var summary in dailySummaries)
         {
-            if (!stored.TryGetValue(summary.CalendarDate, out var row))
+            if (stored.TryGetValue(summary.CalendarDate, out var row))
+            {
+                if (backfill)
+                    continue;
+            }
+            else
             {
                 row = new DailySummaryRow { UserId = userId, CalendarDate = summary.CalendarDate };
                 store.DailySummaries.Add(row);

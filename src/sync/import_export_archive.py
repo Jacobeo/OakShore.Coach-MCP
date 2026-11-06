@@ -1,8 +1,8 @@
 """Backfill history from Garmin's ExportArchive with no Garmin API calls: its
-Activities, SleepNights and DailySummaries, posted to ingest as version 3 batches,
-one per calendar month. Run it against the zip Garmin sends or the folder it was
-unpacked to; re-running it posts the same batches, which ingest treats as the same
-delivery."""
+Activities, SleepNights and DailySummaries, posted to ingest as version 3 backfill
+batches, one per calendar month. Run it against the zip Garmin sends or the folder it
+was unpacked to. Ingest stores only what it does not already hold, so re-running it
+changes nothing (ADR 0014)."""
 
 from __future__ import annotations
 
@@ -15,51 +15,15 @@ from calendar import monthrange
 from datetime import date, datetime, timezone
 from fnmatch import fnmatchcase
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Iterator
+from typing import Any, BinaryIO, Callable, Iterator, NamedTuple
 
 from sync_activities import (activity_from_garmin, add_machine_arguments, daily_summary_from_garmin,
                              ingest_token, post_to_ingest, sleep_night_from_garmin, without_arrays)
 from sync_slot import AlreadyRunning, sync_slot
 
 
-# Files are chunked by date or by count and named after the account, so each kind is
-# found by pattern, every chunk of it read.
-ACTIVITY_FILES = "*summarizedActivities*.json"
-SLEEP_FILES = "*sleepData*.json"
-DAILY_SUMMARY_FILES = "UDSFile*.json"
 SLEEP_STAGES = ("deepSleepSeconds", "lightSleepSeconds", "remSleepSeconds")
-
-
-def archive_files(archive: Path, patterns: tuple[str, ...]) -> Iterator[tuple[str, bytes]]:
-    """Each file whose name matches one of the patterns, wherever it lies, as the pattern
-    it matched and its content. Zips are opened at any depth."""
-    if not archive.is_dir():
-        with zipfile.ZipFile(archive) as zipped:
-            yield from zip_files(zipped, patterns)
-        return
-    for path in sorted(path for path in archive.rglob("*") if path.is_file()):
-        if path.suffix.lower() == ".zip":
-            with zipfile.ZipFile(path) as zipped:
-                yield from zip_files(zipped, patterns)
-        elif pattern := matching(path.name, patterns):
-            yield pattern, path.read_bytes()
-
-
-def zip_files(zipped: zipfile.ZipFile, patterns: tuple[str, ...]) -> Iterator[tuple[str, bytes]]:
-    for info in sorted(zipped.infolist(), key=lambda info: info.filename):
-        name = PurePosixPath(info.filename).name
-        if info.is_dir():
-            continue
-        if name.lower().endswith(".zip"):
-            # Read whole, because seeking back inside a compressed member restarts its decompression.
-            with zipfile.ZipFile(io.BytesIO(zipped.read(info))) as nested:
-                yield from zip_files(nested, patterns)
-        elif pattern := matching(name, patterns):
-            yield pattern, zipped.read(info)
-
-
-def matching(name: str, patterns: tuple[str, ...]) -> str | None:
-    return next((pattern for pattern in patterns if fnmatchcase(name, pattern)), None)
+ACTIVITY_REQUIRED = ("activityId", "startTimeGmt", "activityType", "duration")
 
 
 # Each export record is translated into the field names and units of Garmin's API, then
@@ -67,17 +31,18 @@ def matching(name: str, patterns: tuple[str, ...]) -> str | None:
 
 def activity_from_export(record: dict[str, Any]) -> dict[str, Any] | None:
     """An Activity without its time in zones: the export's hrTimeInZone_N add zones 0 and 6
-    and split time differently from the list's, so the sync's stored seconds are kept."""
-    if any(record.get(field) is None for field in ("activityId", "startTimeGmt", "activityType", "duration")):
-        return None
+    and split time differently from the list's."""
+    for field in ACTIVITY_REQUIRED:
+        if record.get(field) is None:
+            return None
     distance = record.get("distance")
     # The export counts epoch milliseconds, milliseconds and centimetres where the API's
     # list carries GMT text, seconds and metres.
+    start = datetime.fromtimestamp(record["startTimeGmt"] / 1000, timezone.utc)
     return activity_from_garmin({
         "activityId": record["activityId"],
         "activityName": record.get("name"),
-        "startTimeGMT": datetime.fromtimestamp(record["startTimeGmt"] / 1000, timezone.utc)
-        .strftime("%Y-%m-%d %H:%M:%S"),
+        "startTimeGMT": start.strftime("%Y-%m-%d %H:%M:%S"),
         "activityType": {"typeKey": record["activityType"]},
         "duration": record["duration"] / 1000,
         "distance": None if distance is None else distance / 100,
@@ -92,16 +57,20 @@ def epoch_ms(gmt: str) -> int:
 
 
 def sleep_night_from_export(record: dict[str, Any]) -> dict[str, Any] | None:
-    start, end = record.get("sleepStartTimestampGMT"), record.get("sleepEndTimestampGMT")
+    start = record.get("sleepStartTimestampGMT")
+    end = record.get("sleepEndTimestampGMT")
     if record.get("calendarDate") is None or start is None or end is None:
         return None
     # The export states no total. Garmin's sleep time is the deep, light and REM stages.
-    stages = [record[stage] for stage in SLEEP_STAGES if record.get(stage) is not None]
+    stage_seconds = []
+    for stage in SLEEP_STAGES:
+        if record.get(stage) is not None:
+            stage_seconds.append(record[stage])
     night = sleep_night_from_garmin(date.fromisoformat(record["calendarDate"]), {"dailySleepDTO": {
         "calendarDate": record["calendarDate"],
         "sleepStartTimestampGMT": epoch_ms(start),
         "sleepEndTimestampGMT": epoch_ms(end),
-        "sleepTimeSeconds": sum(stages) if stages else None,
+        "sleepTimeSeconds": sum(stage_seconds) if stage_seconds else None,
         "deepSleepSeconds": record.get("deepSleepSeconds"),
         "lightSleepSeconds": record.get("lightSleepSeconds"),
         "remSleepSeconds": record.get("remSleepSeconds"),
@@ -113,20 +82,26 @@ def sleep_night_from_export(record: dict[str, Any]) -> dict[str, Any] | None:
     return night
 
 
-def stress_level(value: int | None) -> int | None:
+def measured(level: int | None) -> int | None:
     # A negative level marks a day with no measurable minute: -2 when every one was too active.
-    return None if value is None or value < 0 else value
+    if level is None or level < 0:
+        return None
+    return level
 
 
 def daily_summary_from_export(record: dict[str, Any]) -> dict[str, Any] | None:
     if record.get("calendarDate") is None:
         return None
     body_battery = record.get("bodyBattery") or {}
-    body_battery_stats = {stat.get("bodyBatteryStatType"): stat.get("statsValue")
-                          for stat in body_battery.get("bodyBatteryStatList") or []}
-    # The whole day's stress; the export also splits it into its awake and asleep shares.
-    stress = next((aggregate for aggregate in (record.get("allDayStress") or {}).get("aggregatorList") or []
-                   if aggregate.get("type") == "TOTAL"), {})
+    body_battery_stats = {}
+    for stat in body_battery.get("bodyBatteryStatList") or []:
+        body_battery_stats[stat.get("bodyBatteryStatType")] = stat.get("statsValue")
+    # The whole day's StressLevel; the export also splits it into its awake and asleep shares.
+    stress_level = {}
+    for aggregate in (record.get("allDayStress") or {}).get("aggregatorList") or []:
+        if aggregate.get("type") == "TOTAL":
+            stress_level = aggregate
+            break
     summary = daily_summary_from_garmin(date.fromisoformat(record["calendarDate"]), {
         "calendarDate": record["calendarDate"],
         "includesWellnessData": record.get("includesWellnessData"),
@@ -135,79 +110,143 @@ def daily_summary_from_export(record: dict[str, Any]) -> dict[str, Any] | None:
         "bodyBatteryDrainedValue": body_battery.get("drainedValue"),
         "bodyBatteryHighestValue": body_battery_stats.get("HIGHEST"),
         "bodyBatteryLowestValue": body_battery_stats.get("LOWEST"),
-        "averageStressLevel": stress_level(stress.get("averageStressLevel")),
-        "maxStressLevel": stress_level(stress.get("maxStressLevel")),
-        "restStressDuration": stress.get("restDuration"),
-        "lowStressDuration": stress.get("lowDuration"),
-        "mediumStressDuration": stress.get("mediumDuration"),
-        "highStressDuration": stress.get("highDuration"),
+        "averageStressLevel": measured(stress_level.get("averageStressLevel")),
+        "maxStressLevel": measured(stress_level.get("maxStressLevel")),
+        "restStressDuration": stress_level.get("restDuration"),
+        "lowStressDuration": stress_level.get("lowDuration"),
+        "mediumStressDuration": stress_level.get("mediumDuration"),
+        "highStressDuration": stress_level.get("highDuration"),
     })
     if summary is not None:
         summary["garminResponse"] = without_arrays(record)
     return summary
 
 
-def month_batches(
-    activities: list[dict[str, Any]],
-    sleep_nights: list[dict[str, Any]],
-    daily_summaries: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """One version 3 batch per calendar month holding a record, oldest first."""
-    dated = ([activity["startTimeUtc"][:10] for activity in activities]
-             + [night["calendarDate"] for night in sleep_nights]
-             + [summary["calendarDate"] for summary in daily_summaries])
-    if not dated:
-        return []
-    # Version 3 states that every date in its range was synced, so no range reaches
-    # before the archive's first record or past its last.
-    first, last = min(dated), max(dated)
-    batches = []
-    for month in sorted({day[:7] for day in dated}):
-        days_in_month = monthrange(int(month[:4]), int(month[5:]))[1]
-        batches.append({
-            "version": 3,
-            "activityRange": {"fromDate": max(f"{month}-01", first),
-                              "toDate": min(f"{month}-{days_in_month:02d}", last)},
-            "activities": sorted((activity for activity in activities if activity["startTimeUtc"].startswith(month)),
-                                 key=lambda activity: (activity["startTimeUtc"], activity["activityId"])),
-            "sleepNights": sorted((night for night in sleep_nights if night["calendarDate"].startswith(month)),
-                                  key=lambda night: night["calendarDate"]),
-            "dailySummaries": sorted((summary for summary in daily_summaries
-                                      if summary["calendarDate"].startswith(month)),
-                                     key=lambda summary: summary["calendarDate"]),
-        })
-    return batches
+class ExportFileKind(NamedTuple):
+    pattern: str
+    build: Callable[[dict[str, Any]], dict[str, Any] | None]
+    batch_list: str
+    identity: str
+
+
+# Files are chunked by date or by count and named after the account, so each kind is
+# found by pattern and every chunk of it read. A record the archive holds twice shares
+# its identity, so it is posted once.
+EXPORT_FILE_KINDS = (
+    ExportFileKind("*summarizedActivities*.json", activity_from_export, "activities", "activityId"),
+    ExportFileKind("*sleepData*.json", sleep_night_from_export, "sleepNights", "calendarDate"),
+    ExportFileKind("UDSFile*.json", daily_summary_from_export, "dailySummaries", "calendarDate"),
+)
+
+
+def kind_of(name: str) -> ExportFileKind | None:
+    for kind in EXPORT_FILE_KINDS:
+        if fnmatchcase(name, kind.pattern):
+            return kind
+    return None
+
+
+def archive_files(archive: Path) -> Iterator[tuple[str, Callable[[], BinaryIO]]]:
+    """Each file in the archive, wherever it lies, as its name and how to open it. Zips are
+    opened at any depth and their files listed in their place."""
+    if not archive.is_dir():
+        yield from listed(archive.name, file_opener(archive))
+        return
+    for path in sorted(archive.rglob("*")):
+        if path.is_file():
+            yield from listed(path.name, file_opener(path))
+
+
+def listed(name: str, open_file: Callable[[], BinaryIO]) -> Iterator[tuple[str, Callable[[], BinaryIO]]]:
+    if not name.lower().endswith(".zip"):
+        yield name, open_file
+        return
+    with open_file() as file, zipfile.ZipFile(file) as zipped:
+        for info in sorted(zipped.infolist(), key=lambda member: member.filename):
+            if not info.is_dir():
+                yield from listed(PurePosixPath(info.filename).name, member_opener(zipped, info))
+
+
+def file_opener(path: Path) -> Callable[[], BinaryIO]:
+    return lambda: path.open("rb")
+
+
+def member_opener(zipped: zipfile.ZipFile, info: zipfile.ZipInfo) -> Callable[[], BinaryIO]:
+    # Read whole, because seeking back inside a compressed member restarts its decompression.
+    return lambda: io.BytesIO(zipped.read(info))
+
+
+def file_records(content: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The records one export file holds; Activity files wrap theirs in one more list."""
+    records = []
+    for item in content:
+        if "summarizedActivitiesExport" in item:
+            records.extend(item["summarizedActivitiesExport"] or [])
+        else:
+            records.append(item)
+    return records
+
+
+def month_of(record: dict[str, Any]) -> date:
+    # A day is dated by its calendar date, an Activity by the UTC date it started.
+    day = datetime.fromisoformat(record.get("calendarDate") or record["startTimeUtc"]).date()
+    return day.replace(day=1)
+
+
+def backfill_batch(month: date) -> dict[str, Any]:
+    last_day = month.replace(day=monthrange(month.year, month.month)[1])
+    return {
+        "version": 3,
+        "backfill": True,
+        "activityRange": {"fromDate": month.isoformat(), "toDate": last_day.isoformat()},
+        "activities": [],
+        "sleepNights": [],
+        "dailySummaries": [],
+    }
+
+
+def month_batches(records: dict[str, dict[Any, dict[str, Any]]]) -> list[dict[str, Any]]:
+    """One backfill batch per calendar month holding a record, oldest first, each list in
+    order of identity. `records` holds each batch list's records by identity."""
+    batches: dict[date, dict[str, Any]] = {}
+    for batch_list, by_identity in records.items():
+        for identity in sorted(by_identity):
+            record = by_identity[identity]
+            month = month_of(record)
+            if month not in batches:
+                batches[month] = backfill_batch(month)
+            batches[month][batch_list].append(record)
+    ordered = []
+    for month in sorted(batches):
+        ordered.append(batches[month])
+    return ordered
 
 
 def import_export_archive(archive: Path, post: Callable[[dict[str, Any]], Any]) -> tuple[int, int, int]:
     """Post the archive's history; returns (batches, records posted, records left out)."""
-    # Keyed by identity, so a record the archive holds twice is posted once.
-    activities: dict[int, dict[str, Any]] = {}
-    sleep_nights: dict[str, dict[str, Any]] = {}
-    daily_summaries: dict[str, dict[str, Any]] = {}
+    records: dict[str, dict[Any, dict[str, Any]]] = {}
+    for kind in EXPORT_FILE_KINDS:
+        records[kind.batch_list] = {}
     left_out = 0
-    for pattern, content in archive_files(archive, (ACTIVITY_FILES, SLEEP_FILES, DAILY_SUMMARY_FILES)):
-        for item in json.loads(content):
-            if pattern == ACTIVITY_FILES:
-                for record in item.get("summarizedActivitiesExport") or []:
-                    if activity := activity_from_export(record):
-                        activities[activity["activityId"]] = activity
-                    else:
-                        left_out += 1
-            elif pattern == SLEEP_FILES:
-                if night := sleep_night_from_export(item):
-                    sleep_nights[night["calendarDate"]] = night
-                else:
-                    left_out += 1
-            elif summary := daily_summary_from_export(item):
-                daily_summaries[summary["calendarDate"]] = summary
-            else:
+    for name, open_file in archive_files(archive):
+        kind = kind_of(name)
+        if kind is None:
+            continue
+        with open_file() as file:
+            content = json.load(file)
+        for record in file_records(content):
+            built = kind.build(record)
+            if built is None:
                 left_out += 1
-    batches = month_batches(list(activities.values()), list(sleep_nights.values()),
-                            list(daily_summaries.values()))
+            else:
+                records[kind.batch_list][built[kind.identity]] = built
+    batches = month_batches(records)
     for batch in batches:
         post(batch)
-    return len(batches), len(activities) + len(sleep_nights) + len(daily_summaries), left_out
+    posted = 0
+    for by_identity in records.values():
+        posted += len(by_identity)
+    return len(batches), posted, left_out
 
 
 def main() -> int:
@@ -228,7 +267,7 @@ def main() -> int:
     except AlreadyRunning as held:
         print(f"{held}; wait for it to finish before importing.", file=sys.stderr)
         return 1
-    print(f"Imported {posted} records in {batches} monthly batches; {left_out} records"
+    print(f"Posted {posted} records in {batches} monthly backfill batches; {left_out} records"
           " held nothing ingest can store and were left out")
     return 0
 

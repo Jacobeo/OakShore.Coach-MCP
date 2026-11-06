@@ -3,9 +3,14 @@
 A trimmed, anonymised sample of the athlete's real Garmin data export, the
 ExportArchive, which drives
 [test_import_export_archive.py](../../test_import_export_archive.py) at the
-Python ingest seam. Only the Python importer reads it, which is why it lives
-here rather than beside the shared API corpus in
+Python ingest seam. Only the Python importer reads the archive, which is why it
+lives here rather than beside the shared API corpus in
 [fixtures/garmin](../../../../fixtures/garmin/README.md).
+
+[ingest-batches.json](ingest-batches.json) is what the importer posts for it,
+where the two runtimes meet: the Python test asserts the importer reproduces it
+exactly, and the .NET ingest tests post it. After a deliberate change to what the
+importer posts, regenerate it from the importer and review the diff.
 
 The full export is never committed. This sample was cut from it by hand: the
 file names, directory layout, field names and number formats are Garmin's own;
@@ -49,10 +54,12 @@ The rules follow the API corpus's
 | `uuid` (daily rollups) | a placeholder, one per day | per-day identifier |
 | `uuidMsb`, `uuidLsb` (Activities) | `0` | per-Activity identifier |
 | `name` (Activities) | the Activity's type | free text naming places |
-| `locationName` | `"Somewhere"` | locates the session |
-| every `…Latitude` and `…Longitude` | `null` | locates the session to the metre |
+| `locationName` | `"Somewhere"` | locates the Activity |
+| every `…Latitude` and `…Longitude` | `null` | locates the Activity to the metre |
 | `splits`, `splitSummaries` | removed | per-lap series carrying positions; absent from half the real Activities anyway |
 
-Kept as Garmin wrote them: `activityId`, every timestamp and `timeZoneId`, and
-every physiological figure, for the reasons the API corpus gives. After trimming,
+Kept as Garmin wrote them: `activityId`; the upload id in the FIT file's name
+(`131826115348`), a per-upload file id rather than the account's; every timestamp
+and `timeZoneId`; and every physiological figure, for the reasons the API corpus
+gives. After trimming,
 no file name or byte of the sample held any of the values replaced.
