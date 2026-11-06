@@ -2,7 +2,8 @@
 Activities, SleepNights and DailySummaries, posted to ingest as version 3 backfill
 batches, one per calendar month. Run it against the zip Garmin sends or the folder it
 was unpacked to. Ingest stores only what it does not already hold, so re-running it
-changes nothing (ADR 0014)."""
+changes nothing (ADR 0014). Given an ExportSetIndex written by OakShore.Coach.ExportFit,
+each strength Activity is posted with the ExerciseSets its FIT file holds."""
 
 from __future__ import annotations
 
@@ -187,6 +188,32 @@ def file_records(content: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return records
 
 
+def with_exercise_sets(activity: dict[str, Any],
+                       exercise_sets: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """The Activity with the ExerciseSets the ExportSetIndex holds for its start time, if any.
+    They must ride in the Activity's own backfill batch, because a later one naming an
+    Activity already stored is dropped whole (ADR 0014)."""
+    started = activity["startTimeUtc"]
+    found = exercise_sets.get(started)
+    if found is None:
+        found = same_minute(started, exercise_sets)
+    if found is None:
+        return activity
+    return {**activity, "exerciseSets": found}
+
+
+def same_minute(started: str,
+                exercise_sets: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]] | None:
+    """The sets of the one FIT file recorded in `started`'s minute, for the Activities the
+    export dates to the whole minute while their FIT file states the second (ADR 0015).
+    A minute holding more than one FIT file is left unmatched rather than guessed at."""
+    if not started.endswith(":00Z"):
+        return None
+    minute = started[:-len(":00Z")]
+    within = [sets for start, sets in exercise_sets.items() if start.startswith(minute + ":")]
+    return within[0] if len(within) == 1 else None
+
+
 def month_of(record: dict[str, Any]) -> date:
     # A day is dated by its calendar date, an Activity by the UTC date it started.
     day = datetime.fromisoformat(record.get("calendarDate") or record["startTimeUtc"]).date()
@@ -222,8 +249,10 @@ def month_batches(records: dict[str, dict[Any, dict[str, Any]]]) -> list[dict[st
     return ordered
 
 
-def import_export_archive(archive: Path, post: Callable[[dict[str, Any]], Any]) -> tuple[int, int, int]:
+def import_export_archive(archive: Path, post: Callable[[dict[str, Any]], Any],
+                          exercise_sets: dict[str, list[dict[str, Any]]] | None = None) -> tuple[int, int, int]:
     """Post the archive's history; returns (batches, records posted, records left out)."""
+    exercise_sets = exercise_sets or {}
     records: dict[str, dict[Any, dict[str, Any]]] = {}
     for kind in EXPORT_FILE_KINDS:
         records[kind.batch_list] = {}
@@ -239,6 +268,8 @@ def import_export_archive(archive: Path, post: Callable[[dict[str, Any]], Any]) 
             if built is None:
                 left_out += 1
             else:
+                if kind.batch_list == "activities":
+                    built = with_exercise_sets(built, exercise_sets)
                 records[kind.batch_list][built[kind.identity]] = built
     batches = month_batches(records)
     for batch in batches:
@@ -252,18 +283,26 @@ def import_export_archive(archive: Path, post: Callable[[dict[str, Any]], Any]) 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path, help="the export zip, or the folder it was unpacked to")
+    parser.add_argument("--exercise-sets", type=Path,
+                        help="the ExportSetIndex OakShore.Coach.ExportFit wrote for this archive")
     add_machine_arguments(parser)
     args = parser.parse_args()
     archive = args.archive.expanduser()
     if not archive.exists():
         parser.error(f"{archive} does not exist")
+    exercise_sets = None
+    if args.exercise_sets is not None:
+        index = args.exercise_sets.expanduser()
+        if not index.exists():
+            parser.error(f"{index} does not exist")
+        exercise_sets = json.loads(index.read_text(encoding="utf-8"))
     token = ingest_token(parser, args)
     # The SyncSignIn rotates its saved refresh token, so the import takes the SyncSlot
     # rather than racing a scheduled sync for that file.
     try:
         with sync_slot(Path(args.slot_file).expanduser()):
             batches, posted, left_out = import_export_archive(
-                archive, lambda batch: post_to_ingest(args.ingest_url, token, batch))
+                archive, lambda batch: post_to_ingest(args.ingest_url, token, batch), exercise_sets)
     except AlreadyRunning as held:
         print(f"{held}; wait for it to finish before importing.", file=sys.stderr)
         return 1

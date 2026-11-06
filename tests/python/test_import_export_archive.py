@@ -19,13 +19,17 @@ from sync_activities import activity_from_garmin  # noqa: E402
 ARCHIVE = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "archive"
 # What the importer posts for ARCHIVE. The .NET ingest tests post the same file.
 INGEST_BATCHES = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "ingest-batches.json"
+# What the ExportFit extractor writes for ARCHIVE, asserted on the .NET side to be exactly that.
+EXERCISE_SETS = ROOT / "tests" / "python" / "fixtures" / "garmin-export" / "exercise-sets.json"
 LIST_ENTRIES = json.loads((ROOT / "fixtures" / "garmin" / "activitylist-service--search-activities__page-00.json")
                           .read_text(encoding="utf-8"))
 
 
-def imported(archive=ARCHIVE):
+def imported(archive=ARCHIVE, exercise_sets=None):
     posted = []
-    import_export_archive(archive, posted.append)
+    if exercise_sets is None:
+        exercise_sets = json.loads(EXERCISE_SETS.read_text(encoding="utf-8"))
+    import_export_archive(archive, posted.append, exercise_sets)
     return posted
 
 
@@ -43,7 +47,59 @@ class ExportArchiveImportTests(unittest.TestCase):
         # One strength, one running and one indoor cycling Activity sit in both corpora.
         for activity_id in (24272601315, 24313465171, 24174672446):
             api_entry = next(entry for entry in LIST_ENTRIES if entry["activityId"] == activity_id)
-            self.assertEqual(activity_from_garmin(api_entry), activities[activity_id])
+            posted = {key: value for key, value in activities[activity_id].items() if key != "exerciseSets"}
+            self.assertEqual(activity_from_garmin(api_entry), posted)
+
+    def test_the_strength_activitys_fit_exercise_sets_ride_in_the_same_backfill_as_the_activity(self):
+        activities = posted_activities(imported())
+
+        # A backfill drops everything for an Activity already stored, so per-set detail
+        # posted in a later batch would never land (ADR 0014).
+        self.assertEqual(32, len(activities[24272601315]["exerciseSets"]))
+        self.assertEqual({"EXPORT_FIT"}, {row["source"] for row in activities[24272601315]["exerciseSets"]})
+        self.assertNotIn("exerciseSets", activities[24313465171])
+
+    def test_an_activity_the_export_dates_to_the_whole_minute_still_takes_its_fit_exercise_sets(self):
+        index = json.loads(EXERCISE_SETS.read_text(encoding="utf-8"))
+        # Another Activity's sets, recorded in the same hour but a different minute.
+        index["2026-09-07T14:58:40Z"] = [{"setType": "REST", "source": "EXPORT_FIT"}]
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory, "archive")
+            shutil.copytree(ARCHIVE, archive)
+            activities = next(archive.rglob("*_1_summarizedActivities.json"))
+            chunks = json.loads(activities.read_text(encoding="utf-8"))
+            for record in chunks[0]["summarizedActivitiesExport"]:
+                if record["activityId"] == 24272601315:
+                    # As a twelfth of the real export's strength Activities read.
+                    record["startTimeGmt"] -= 13_000
+            activities.write_text(json.dumps(chunks), encoding="utf-8")
+
+            posted = posted_activities(imported(archive, index))
+
+        self.assertEqual("2026-09-07T14:51:00Z", posted[24272601315]["startTimeUtc"])
+        self.assertEqual(32, len(posted[24272601315]["exerciseSets"]))
+
+    def test_a_start_minute_holding_two_fit_files_leaves_the_activity_unenriched(self):
+        index = json.loads(EXERCISE_SETS.read_text(encoding="utf-8"))
+        index["2026-09-07T14:51:40Z"] = [{"setType": "REST", "source": "EXPORT_FIT"}]
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory, "archive")
+            shutil.copytree(ARCHIVE, archive)
+            activities = next(archive.rglob("*_1_summarizedActivities.json"))
+            chunks = json.loads(activities.read_text(encoding="utf-8"))
+            for record in chunks[0]["summarizedActivitiesExport"]:
+                if record["activityId"] == 24272601315:
+                    record["startTimeGmt"] -= 13_000
+            activities.write_text(json.dumps(chunks), encoding="utf-8")
+
+            posted = posted_activities(imported(archive, index))
+
+        self.assertNotIn("exerciseSets", posted[24272601315])
+
+    def test_an_archive_imported_without_an_exercise_set_index_posts_its_activities_unenriched(self):
+        activities = posted_activities(imported(exercise_sets={}))
+
+        self.assertNotIn("exerciseSets", activities[24272601315])
 
     def test_each_month_holding_a_record_is_one_version_3_backfill_batch_spanning_the_month(self):
         posted = imported()

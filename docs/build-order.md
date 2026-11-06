@@ -167,6 +167,7 @@ coach-mcp/
 ├── src/
 │   ├── OakShore.Coach.Api/           MCP server, ingest endpoint
 │   ├── OakShore.Coach.Domain/        Macrocycle, Mesocycle, Activity, ExerciseSet, Constraint
+│   ├── OakShore.Coach.ExportFit/     console, reads an ExportArchive's FIT files at home
 │   ├── OakShore.Coach.Infrastructure/ persistence, FIT parsing
 │   └── sync/                Python, runs at home
 └── tests/

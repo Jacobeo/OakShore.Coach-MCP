@@ -352,7 +352,356 @@
         "distanceMeters": 0.0,
         "totalSets": 16,
         "activeSets": 16,
-        "totalReps": 83
+        "totalReps": 83,
+        "exerciseSets": [
+          {
+            "setType": "ACTIVE",
+            "repetitions": 0,
+            "exercise": {
+              "category": "BANDED_EXERCISES",
+              "name": "GLUTE_BRIDGE"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T14:51:13Z",
+            "durationSeconds": 6.973,
+            "wktStepIndex": 0,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 3,
+            "weightKg": 100,
+            "exercise": {
+              "category": "DEADLIFT",
+              "name": "TRAP_BAR_DEADLIFT"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T14:51:20Z",
+            "durationSeconds": 220.246,
+            "wktStepIndex": 4,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T14:55:00Z",
+            "durationSeconds": 111.081,
+            "wktStepIndex": 5,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 3,
+            "weightKg": 100,
+            "exercise": {
+              "category": "DEADLIFT",
+              "name": "TRAP_BAR_DEADLIFT"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T14:56:52Z",
+            "durationSeconds": 81.796,
+            "wktStepIndex": 4,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T14:58:13Z",
+            "durationSeconds": 65.297,
+            "wktStepIndex": 5,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 3,
+            "weightKg": 110,
+            "exercise": {
+              "category": "DEADLIFT",
+              "name": "TRAP_BAR_DEADLIFT"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T14:59:19Z",
+            "durationSeconds": 23.746,
+            "wktStepIndex": 4,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T14:59:42Z",
+            "durationSeconds": 147.057,
+            "wktStepIndex": 5,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 6,
+            "weightKg": 12,
+            "exercise": {
+              "category": "SQUAT",
+              "name": "DUMBBELL_SPLIT_SQUAT"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:02:09Z",
+            "durationSeconds": 48.804,
+            "wktStepIndex": 7,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:02:58Z",
+            "durationSeconds": 127.366,
+            "wktStepIndex": 8,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 6,
+            "weightKg": 12,
+            "exercise": {
+              "category": "SQUAT",
+              "name": "DUMBBELL_SPLIT_SQUAT"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:05:06Z",
+            "durationSeconds": 54.383,
+            "wktStepIndex": 7,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:06:00Z",
+            "durationSeconds": 293.51,
+            "wktStepIndex": 8,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 4,
+            "weightKg": 75,
+            "exercise": {
+              "category": "BENCH_PRESS"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:10:53Z",
+            "durationSeconds": 46.014,
+            "wktStepIndex": 10,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:11:39Z",
+            "durationSeconds": 188.778,
+            "wktStepIndex": 11,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 4,
+            "weightKg": 75,
+            "exercise": {
+              "category": "BENCH_PRESS"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:14:48Z",
+            "durationSeconds": 37.778,
+            "wktStepIndex": 10,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:15:26Z",
+            "durationSeconds": 138.606,
+            "wktStepIndex": 11,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 4,
+            "weightKg": 75,
+            "exercise": {
+              "category": "BENCH_PRESS"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:17:45Z",
+            "durationSeconds": 148.879,
+            "wktStepIndex": 10,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:20:14Z",
+            "durationSeconds": 40.732,
+            "wktStepIndex": 11,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 6,
+            "weightKg": 85,
+            "exercise": {
+              "category": "ROW",
+              "name": "SEATED_CABLE_ROW"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:20:54Z",
+            "durationSeconds": 29.922,
+            "wktStepIndex": 13,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:21:24Z",
+            "durationSeconds": 169.691,
+            "wktStepIndex": 14,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 6,
+            "weightKg": 85,
+            "exercise": {
+              "category": "ROW",
+              "name": "SEATED_CABLE_ROW"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:24:14Z",
+            "durationSeconds": 28.431,
+            "wktStepIndex": 13,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:24:42Z",
+            "durationSeconds": 135.682,
+            "wktStepIndex": 14,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 6,
+            "weightKg": 85,
+            "exercise": {
+              "category": "ROW",
+              "name": "SEATED_CABLE_ROW"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:26:58Z",
+            "durationSeconds": 37.88,
+            "wktStepIndex": 13,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:27:36Z",
+            "durationSeconds": 119.604,
+            "wktStepIndex": 14,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 8,
+            "weightKg": 35,
+            "exercise": {
+              "category": "LEG_CURL",
+              "name": "WEIGHTED_LEG_CURL"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:29:35Z",
+            "durationSeconds": 32.882,
+            "wktStepIndex": 16,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:30:08Z",
+            "durationSeconds": 91.244,
+            "wktStepIndex": 17,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 8,
+            "weightKg": 35,
+            "exercise": {
+              "category": "LEG_CURL",
+              "name": "WEIGHTED_LEG_CURL"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:31:40Z",
+            "durationSeconds": 34.632,
+            "wktStepIndex": 16,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:32:14Z",
+            "durationSeconds": 441.106,
+            "wktStepIndex": 17,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 8,
+            "weightKg": 12.5,
+            "exercise": {
+              "category": "CHOP",
+              "name": "CABLE_ROTATIONAL_LIFT"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:39:35Z",
+            "durationSeconds": 84.014,
+            "wktStepIndex": 19,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:40:59Z",
+            "durationSeconds": 309.073,
+            "wktStepIndex": 20,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "ACTIVE",
+            "repetitions": 8,
+            "weightKg": 12.5,
+            "exercise": {
+              "category": "CHOP",
+              "name": "CABLE_ROTATIONAL_LIFT"
+            },
+            "candidateCount": 3,
+            "startTimeUtc": "2026-09-07T15:46:08Z",
+            "durationSeconds": 0.778,
+            "wktStepIndex": 19,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:46:09Z",
+            "durationSeconds": 10.437,
+            "wktStepIndex": 20,
+            "source": "EXPORT_FIT"
+          },
+          {
+            "setType": "REST",
+            "candidateCount": 0,
+            "startTimeUtc": "2026-09-07T15:46:22Z",
+            "durationSeconds": 10.868,
+            "source": "EXPORT_FIT"
+          }
+        ]
       },
       {
         "activityId": 24313465171,

@@ -4,6 +4,16 @@ namespace OakShore.Coach.Domain;
 
 public sealed record Exercise(string Category, string? Name);
 
+// The two deliveries an ExerciseSet's detail can be read from. FIT cannot state a
+// bodyweight load, so a reader has to know which one it is looking at.
+public static class ExerciseSetSource
+{
+    public const string GarminApi = "GARMIN_API";
+    public const string ExportFit = "EXPORT_FIT";
+
+    public static bool IsKnown(string source) => source is GarminApi or ExportFit;
+}
+
 public sealed record ExerciseSet(
     string SetType,
     int? Repetitions,
@@ -14,7 +24,8 @@ public sealed record ExerciseSet(
     double? TopProbability,
     DateTimeOffset? StartTimeUtc,
     double? DurationSeconds,
-    int? WktStepIndex)
+    int? WktStepIndex,
+    string Source)
 {
     private const string ActiveSetType = "ACTIVE";
 
@@ -60,7 +71,8 @@ public sealed record ExerciseSetInput(
     double? TopProbability = null,
     string? StartTimeUtc = null,
     double? DurationSeconds = null,
-    int? WktStepIndex = null)
+    int? WktStepIndex = null,
+    string? Source = null)
 {
     public ExerciseSet ToExerciseSet()
     {
@@ -101,7 +113,12 @@ public sealed record ExerciseSetInput(
             throw new ArgumentException("ExerciseSet durationSeconds must be finite, nonnegative and below 1000000000.");
         if (WktStepIndex is < 0 or > 99999)
             throw new ArgumentException("ExerciseSet wktStepIndex must be between 0 and 99999.");
+        // An unstated source is the API: every ExerciseSet posted before the ExportArchive's
+        // FIT files were parsed came from there.
+        var source = Source ?? ExerciseSetSource.GarminApi;
+        if (!ExerciseSetSource.IsKnown(source))
+            throw new ArgumentException("ExerciseSet source must be GARMIN_API or EXPORT_FIT.");
         return new ExerciseSet(SetType, Repetitions, WeightKg, Bodyweight == true, exercise,
-            CandidateCount, TopProbability, start, DurationSeconds, WktStepIndex);
+            CandidateCount, TopProbability, start, DurationSeconds, WktStepIndex, source);
     }
 }

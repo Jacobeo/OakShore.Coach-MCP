@@ -999,6 +999,168 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
         Assert.Equal(6.5, detail.GetProperty("averageRepetitions").GetDouble());
     }
 
+    [Fact]
+    public async Task The_exercise_set_source_is_reported_and_an_unstated_source_is_the_garmin_api()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        using var posted = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2,
+            activityRange = new { fromDate = "2026-09-21", toDate = "2026-09-21" },
+            activities = new[] { new
+            {
+                activityId = 992L, startTimeUtc = "2026-09-21T10:00:00Z", typeKey = "strength_training",
+                durationSeconds = 600.0,
+                exerciseSets = new[]
+                {
+                    new ExerciseSetInput("ACTIVE", Repetitions: 5, WeightKg: 60m),
+                    new ExerciseSetInput("ACTIVE", Repetitions: 5, WeightKg: 60m, Source: "EXPORT_FIT")
+                }
+            } }
+        });
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var rows = (await CallTool(client, "get_sync_status"))
+            .GetProperty("latestActivityStrengthDetail").GetProperty("exerciseSets");
+        Assert.Equal("GARMIN_API", rows[0].GetProperty("source").GetString());
+        Assert.Equal("EXPORT_FIT", rows[1].GetProperty("source").GetString());
+    }
+
+    // A FIT header with a body cut short, an empty file, and bytes that were never FIT.
+    [Theory]
+    [InlineData(600)]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void A_fit_file_the_download_truncated_is_skipped_rather_than_failing_the_read(int kept)
+    {
+        var archive = Directory.CreateTempSubdirectory();
+        try
+        {
+            using var zip = System.IO.Compression.ZipFile.OpenRead(Path.Combine(ExportArchive,
+                "DI_CONNECT", "DI-Connect-Uploaded-Files", "UploadedFiles_0-_Part1.zip"));
+            using var member = zip.Entries.Single(entry => entry.Name.EndsWith("479519066433.fit")).Open();
+            using var whole = new MemoryStream();
+            member.CopyTo(whole);
+            File.WriteAllBytes(Path.Combine(archive.FullName, "truncated.fit"),
+                kept < 0 ? System.Text.Encoding.UTF8.GetBytes("not a FIT file at all") : whole.ToArray()[..kept]);
+
+            Assert.Empty(new ExportArchiveExerciseSets().Read(archive.FullName));
+        }
+        finally
+        {
+            archive.Delete(true);
+        }
+    }
+
+    [Fact]
+    public async Task Api_derived_exercise_sets_win_over_fit_derived_ones_in_either_order()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var fromFit = new ExportArchiveExerciseSets().Read(ExportArchive)["2026-09-07T14:51:13Z"];
+        var fromApi = FixtureExerciseSets(24272601315);
+        object Batch(object? exerciseSets, bool backfill) => new
+        {
+            version = 2,
+            backfill,
+            activityRange = new { fromDate = "2026-09-07", toDate = "2026-09-07" },
+            activities = new[] { new
+            {
+                activityId = 24272601315L, startTimeUtc = "2026-09-07T14:51:13Z",
+                typeKey = "strength_training", durationSeconds = 3317.2900390625, exerciseSets
+            } }
+        };
+
+        using var synced = await client.PostAsJsonAsync("/ingest", Batch(fromApi, false));
+        Assert.Equal(HttpStatusCode.OK, synced.StatusCode);
+        using var backfilled = await client.PostAsJsonAsync("/ingest", Batch(fromFit, true));
+        Assert.Equal(HttpStatusCode.OK, backfilled.StatusCode);
+
+        // The Activity was already stored, so the backfill left its API-derived sets alone.
+        var afterBackfill = (await CallTool(client, "get_sync_status"))
+            .GetProperty("latestActivityStrengthDetail").GetProperty("exerciseSets");
+        Assert.All(afterBackfill.EnumerateArray(),
+            row => Assert.Equal("GARMIN_API", row.GetProperty("source").GetString()));
+        Assert.Equal(99.609375, afterBackfill[1].GetProperty("topProbability").GetDouble());
+
+        // Syncing an Activity backfilled earlier replaces its FIT-derived sets with the API's.
+        using var second = await client.PostAsJsonAsync("/ingest", Batch(fromFit, true));
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+        using var resynced = await client.PostAsJsonAsync("/ingest", Batch(fromApi.Take(4).ToArray(), false));
+        Assert.Equal(HttpStatusCode.OK, resynced.StatusCode);
+        var afterResync = (await CallTool(client, "get_sync_status"))
+            .GetProperty("latestActivityStrengthDetail").GetProperty("exerciseSets");
+        Assert.Equal(4, afterResync.GetArrayLength());
+        Assert.All(afterResync.EnumerateArray(),
+            row => Assert.Equal("GARMIN_API", row.GetProperty("source").GetString()));
+    }
+
+    [Fact]
+    public async Task Exercise_sets_parsed_from_the_export_archives_fit_files_persist_in_kilograms()
+    {
+        await using var host = new CoachHost(database);
+        using var client = AthleteClient(host);
+        var byStartTime = new ExportArchiveExerciseSets().Read(ExportArchive);
+        // The archive's other FIT file is a weight scale's, not an Activity's.
+        var exerciseSets = Assert.Single(byStartTime).Value;
+        Assert.Equal("2026-09-07T14:51:13Z", Assert.Single(byStartTime).Key);
+        // The committed index the export importer reads is what the extractor writes for this archive.
+        Assert.Equal(JsonSerializer.Deserialize<Dictionary<string, Domain.ExerciseSetInput[]>>(
+                File.ReadAllText(ExportFixture("exercise-sets.json")),
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!
+            .ToDictionary(activity => activity.Key,
+                activity => (IReadOnlyList<Domain.ExerciseSetInput>)activity.Value),
+            byStartTime);
+
+        using var posted = await client.PostAsJsonAsync("/ingest", new
+        {
+            version = 2,
+            activityRange = new { fromDate = "2026-09-07", toDate = "2026-09-07" },
+            activities = new[] { new
+            {
+                activityId = 24272601315L, startTimeUtc = "2026-09-07T14:51:13Z",
+                typeKey = "strength_training", durationSeconds = 3317.2900390625, exerciseSets
+            } }
+        });
+        Assert.Equal(HttpStatusCode.OK, posted.StatusCode);
+
+        var detail = (await CallTool(client, "get_sync_status")).GetProperty("latestActivityStrengthDetail");
+        var rows = detail.GetProperty("exerciseSets");
+        Assert.Equal(32, rows.GetArrayLength());
+        var cancelled = rows[0];
+        Assert.Equal("EXPORT_FIT", cancelled.GetProperty("source").GetString());
+        Assert.Equal("BANDED_EXERCISES", cancelled.GetProperty("exercise").GetProperty("category").GetString());
+        Assert.Equal("GLUTE_BRIDGE", cancelled.GetProperty("exercise").GetProperty("name").GetString());
+        Assert.True(cancelled.GetProperty("cancelled").GetBoolean());
+        Assert.Equal(new DateTimeOffset(2026, 9, 7, 14, 51, 13, TimeSpan.Zero),
+            cancelled.GetProperty("startTimeUtc").GetDateTimeOffset());
+        // The API reports 6.973 seconds for this same set: FIT's milliseconds land on it exactly.
+        Assert.Equal(6.973, cancelled.GetProperty("durationSeconds").GetDouble());
+        var deadlift = rows[1];
+        Assert.Equal(("ACTIVE", 3, 100m), (deadlift.GetProperty("setType").GetString(),
+            deadlift.GetProperty("repetitions").GetInt32(), deadlift.GetProperty("weightKg").GetDecimal()));
+        Assert.Equal("DEADLIFT", deadlift.GetProperty("exercise").GetProperty("category").GetString());
+        Assert.Equal("TRAP_BAR_DEADLIFT", deadlift.GetProperty("exercise").GetProperty("name").GetString());
+        Assert.Equal(4, deadlift.GetProperty("wktStepIndex").GetInt32());
+        Assert.Equal(3, deadlift.GetProperty("candidateCount").GetInt32());
+        var rest = rows[2];
+        Assert.Equal("REST", rest.GetProperty("setType").GetString());
+        Assert.Equal(JsonValueKind.Null, rest.GetProperty("exercise").ValueKind);
+        Assert.Equal(0, rest.GetProperty("candidateCount").GetInt32());
+        // A category whose subtype the file leaves unstated is a complete Exercise.
+        var bench = rows[11];
+        Assert.Equal("BENCH_PRESS", bench.GetProperty("exercise").GetProperty("category").GetString());
+        Assert.Equal(JsonValueKind.Null, bench.GetProperty("exercise").GetProperty("name").ValueKind);
+        Assert.Equal(75m, bench.GetProperty("weightKg").GetDecimal());
+        // A sixteenth of a kilogram is the FIT weight step, so kilograms land exactly.
+        Assert.Equal(12.5m, rows[27].GetProperty("weightKg").GetDecimal());
+        Assert.Equal(4264m, detail.GetProperty("volumeKg").GetDecimal());
+        // The export's own rollup for this Activity states 16 active sets and 83 repetitions.
+        Assert.Equal(15, detail.GetProperty("workingExerciseSets").GetInt32());
+        Assert.Equal(83d / 15, detail.GetProperty("averageRepetitions").GetDouble());
+    }
+
     [Theory]
     [InlineData("{\"setType\":\"ACTIVE\",\"repetitions\":5,\"weightKg\":75.0,\"bodyweight\":true}")]
     [InlineData("{\"setType\":\"ACTIVE\",\"repetitions\":-1}")]
@@ -1006,6 +1168,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     [InlineData("{\"setType\":\"  \",\"repetitions\":5}")]
     [InlineData("{\"repetitions\":5}")]
     [InlineData("{\"setType\":\"ACTIVE\",\"exercise\":{\"category\":\"  \"}}")]
+    [InlineData("{\"setType\":\"ACTIVE\",\"repetitions\":5,\"source\":\"GUESS\"}")]
     [InlineData("null")]
     public async Task Invalid_exercise_set_rejects_the_whole_batch(string setJson)
     {
@@ -1538,11 +1701,15 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     private static string Fixture(string name) => File.ReadAllText(Path.GetFullPath(Path.Combine(
         AppContext.BaseDirectory, $"../../../../../fixtures/garmin/{name}")));
 
+    private static string ExportFixture(string name) => Path.GetFullPath(Path.Combine(
+        AppContext.BaseDirectory, $"../../../../../tests/python/fixtures/garmin-export/{name}"));
+
+    private static string ExportArchive => ExportFixture("archive");
+
     // What the export importer posts for its fixture archive, asserted on the Python side to be exactly that.
     private static async Task PostExportBatches(HttpClient client)
     {
-        using var batches = JsonDocument.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
-            AppContext.BaseDirectory, "../../../../../tests/python/fixtures/garmin-export/ingest-batches.json"))));
+        using var batches = JsonDocument.Parse(File.ReadAllText(ExportFixture("ingest-batches.json")));
         foreach (var batch in batches.RootElement.EnumerateArray())
         {
             using var content = new StringContent(batch.GetRawText(), System.Text.Encoding.UTF8, "application/json");
@@ -1708,7 +1875,7 @@ public sealed class ProfileTests(DatabaseFixture database) : IClassFixture<Datab
     private sealed record ExerciseSetInput(string SetType, int? Repetitions = null, decimal? WeightKg = null,
         bool? Bodyweight = null, object? Exercise = null, int? CandidateCount = null,
         double? TopProbability = null, string? StartTimeUtc = null, double? DurationSeconds = null,
-        int? WktStepIndex = null);
+        int? WktStepIndex = null, string? Source = null);
 
     private static object StrengthBatch(IReadOnlyList<ExerciseSetInput>? exerciseSets) => new
     {

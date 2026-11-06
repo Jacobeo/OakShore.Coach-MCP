@@ -60,6 +60,7 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
         exerciseSet.Property(row => row.WeightKg).HasPrecision(18, 4);
         exerciseSet.Property(row => row.ExerciseCategory).HasMaxLength(100);
         exerciseSet.Property(row => row.ExerciseName).HasMaxLength(100);
+        exerciseSet.Property(row => row.Source).HasMaxLength(20).UseCollation("Latin1_General_100_BIN2");
         exerciseSet.HasOne<ActivityRow>().WithMany().HasForeignKey(row => new { row.UserId, row.ActivityId });
 
         var sportProfile = modelBuilder.Entity<SportProfileRow>();
@@ -130,7 +131,8 @@ public sealed class AthleteProfileStore(IConfiguration configuration) : DbContex
             "OakShore.Coach.Infrastructure.Migrations.0007_ExerciseSets.sql",
             "OakShore.Coach.Infrastructure.Migrations.0008_HeartRateZones.sql",
             "OakShore.Coach.Infrastructure.Migrations.0009_DailyWellness.sql",
-            "OakShore.Coach.Infrastructure.Migrations.0010_DailyForm.sql"
+            "OakShore.Coach.Infrastructure.Migrations.0010_DailyForm.sql",
+            "OakShore.Coach.Infrastructure.Migrations.0011_ExerciseSetSource.sql"
         })
         {
             await using var stream = typeof(AthleteProfileStore).Assembly.GetManifestResourceStream(resource)
@@ -196,6 +198,7 @@ internal sealed class ExerciseSetRow
     public DateTimeOffset? StartTimeUtc { get; set; }
     public double? DurationSeconds { get; set; }
     public int? WktStepIndex { get; set; }
+    public string Source { get; set; } = "";
 }
 
 internal sealed class SportProfileRow

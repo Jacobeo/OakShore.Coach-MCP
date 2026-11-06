@@ -19,6 +19,13 @@ public sealed class DependencyTests
     [InlineData("OakShore.Coach.Domain", "System.ComponentModel.DataAnnotations")]
     [InlineData("OakShore.Coach.Api", "Microsoft.EntityFrameworkCore")]
     [InlineData("OakShore.Coach.Api", "Microsoft.Data.SqlClient")]
+    [InlineData("OakShore.Coach.Domain", "Dynastream.Fit")]
+    [InlineData("OakShore.Coach.Api", "Dynastream.Fit")]
+    [InlineData("OakShore.Coach.Domain", "OakShore.Coach.ExportFit")]
+    [InlineData("OakShore.Coach.Infrastructure", "OakShore.Coach.ExportFit")]
+    [InlineData("OakShore.Coach.Api", "OakShore.Coach.ExportFit")]
+    [InlineData("OakShore.Coach.ExportFit", "Microsoft.EntityFrameworkCore")]
+    [InlineData("OakShore.Coach.ExportFit", "Microsoft.Data.SqlClient")]
     public void Dependencies_point_inward(string assembly, string forbidden)
     {
         var result = Types.InAssembly(Assembly.Load(assembly))

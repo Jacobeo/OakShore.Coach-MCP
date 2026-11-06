@@ -38,13 +38,14 @@ concept has no term yet, add it to CONTEXT.md in the same change that introduces
 
 ## Architecture — dependency rules
 
-Four components, arrows pointing inward at `OakShore.Coach.Domain`:
+Five components, arrows pointing inward at `OakShore.Coach.Domain`:
 
 | Project | References | Holds |
 | --- | --- | --- |
 | `OakShore.Coach.Domain` | Nothing beyond the BCL | Domain types, and the interfaces the outer layers implement |
 | `OakShore.Coach.Infrastructure` | `OakShore.Coach.Domain` | Persistence, FIT parsing, the ingest write path |
 | `OakShore.Coach.Api` | `OakShore.Coach.Domain`, `OakShore.Coach.Infrastructure` | MCP tools, the ingest endpoint, composition root |
+| `OakShore.Coach.ExportFit` | `OakShore.Coach.Domain`, `OakShore.Coach.Infrastructure` | Local console: reads an ExportArchive's FIT files, writes the ExportSetIndex |
 | `src/sync/` (Python) | — | Garmin client; POSTs to ingest over HTTP |
 
 Checkable consequences:
@@ -58,8 +59,10 @@ Checkable consequences:
   `OakShore.Coach.Infrastructure`.
 - **SQL, connection strings and `DbContext` appear only in `OakShore.Coach.Infrastructure`.** A
   data-access `using` in `OakShore.Coach.Api` or `OakShore.Coach.Domain` means a line was crossed.
-- **Constructor injection only.** `new` on a service appears in `Program.cs` or in a test,
-  nowhere else. `Program.cs` is the single composition root.
+- **Constructor injection only.** `new` on a service appears in a `Program.cs` or in a test,
+  nowhere else. Each runnable project has exactly one composition root, its `Program.cs`.
+- **`OakShore.Coach.ExportFit` reads the archive and writes one file.** It opens no database
+  and makes no HTTP call; nothing references it.
 - **The Python sync never opens a database connection** ([ADR 0003](docs/adr/0003-python-for-garmin-dotnet-for-the-rest.md)).
   Its only route into the store is the ingest endpoint.
 - **Garmin API calls live behind one module in `src/sync/`**, so the Python test seam can

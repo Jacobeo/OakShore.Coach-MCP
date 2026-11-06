@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../OakShore.Coach.Domain/OakShore.Coach.Domain.csproj" />
+    <ProjectReference Include="../OakShore.Coach.Infrastructure/OakShore.Coach.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

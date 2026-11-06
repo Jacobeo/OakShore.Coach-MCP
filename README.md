@@ -362,6 +362,12 @@ ExerciseSet contract rules:
 - `repetitions` (0–99999), `startTimeUtc`, `durationSeconds` and `wktStepIndex`
   (0–99999) are optional. At most 1000 ExerciseSets per Activity; list entries
   cannot be null. An invalid ExerciseSet rejects the whole batch.
+- `source` is the ExerciseSetSource, `GARMIN_API` or `EXPORT_FIT`, and says which
+  delivery the row was read from. Omitting it states `GARMIN_API`, so every batch
+  the sync posts is unchanged. It matters because FIT cannot state a bodyweight
+  load and carries no classification probability
+  ([ADR 0016](docs/adr/0016-fit-cannot-state-a-bodyweight-load.md)); any other
+  value is rejected.
 - Omitting `exerciseSets` from a later batch preserves the stored sets, the way
   an omitted `activityName` preserves the name; an empty array clears them.
 - `get_sync_status` reports an `ExerciseSet` collection and, when the most
@@ -759,6 +765,30 @@ The export is the athlete's own health data and is never committed. Only a
 trimmed, anonymised sample of it is, under
 [tests/python/fixtures/garmin-export](tests/python/fixtures/garmin-export/README.md).
 
+### Read the archive's per-set detail
+
+The export carries per-ExerciseSet detail only in the raw FIT files inside its
+nested `UploadedFiles_*.zip` archives — thousands of them, of which only a few
+hundred are Activities. `OakShore.Coach.ExportFit` reads them with Garmin's
+official .NET FIT SDK and writes an ExportSetIndex: the sets of each strength
+Activity, keyed by the Activity's start time, which is the only thing linking a
+FIT file to an Activity ([ADR 0015](docs/adr/0015-export-fit-files-join-activities-by-start-time.md)).
+
+```powershell
+dotnet run --project src/OakShore.Coach.ExportFit -- "$HOME\Downloads\<the export>.zip" exercise-sets.json
+```
+
+It reads nothing but the archive, writes nothing but that file, and opens no
+database. A file whose `file_id` says it is not an Activity — a weight scale's,
+a device's, a day of monitoring — is skipped, as is one that fails to decode, so
+an archive the download truncated still yields what it holds.
+
+Weight arrives as a count of sixteenths of a kilogram and duration as a count of
+milliseconds, so both land exactly on the kilograms and seconds the contract
+names and match the figures the API reports for the same set. What FIT does not
+carry is left unstated rather than invented
+([ADR 0016](docs/adr/0016-fit-cannot-state-a-bodyweight-load.md)).
+
 ### Run an ExportImport
 
 An ExportImport is one run of the importer over the archive, started by hand;
@@ -768,8 +798,14 @@ runs the sync needs nothing new:
 
 ```powershell
 $env:COACH_INGEST_URL = 'https://<app-host>/ingest'
-python src/sync/import_export_archive.py "$HOME\Downloads\<the export>.zip"
+python src/sync/import_export_archive.py "$HOME\Downloads\<the export>.zip" --exercise-sets exercise-sets.json
 ```
+
+Without `--exercise-sets` the archive imports exactly as before, its Activities
+unenriched. With it, each Activity is posted together with the ExerciseSets the
+index holds for its start time, in the same Backfill: posted in a later one they
+would be dropped, because a Backfill naming an Activity the store already holds is
+dropped whole.
 
 Point it at the zip as downloaded or at the folder it was unpacked to; both import
 alike. It never imports or constructs the Garmin client and makes no call to
@@ -785,6 +821,7 @@ reading every date-chunked file of each kind:
 | `*summarizedActivities*.json` | Activities: identity, start, type, duration, distance and strength totals |
 | `*sleepData*.json` | SleepNights |
 | `UDSFile*.json` | DailySummaries, with BodyBattery and StressLevel |
+| `*.fit`, through the ExportSetIndex | the ExerciseSets of the strength Activities among them |
 
 The export counts milliseconds, centimetres and epoch milliseconds where the API
 counts seconds, metres and GMT text, and names its sleep and stress fields
@@ -796,10 +833,8 @@ the fixture archive is committed as
 [ingest-batches.json](tests/python/fixtures/garmin-export/ingest-batches.json), and
 both runtimes' tests hold it to that.
 
-Not imported: per-ExerciseSet detail, which the export carries only in its FIT
-files ([ticket 10](.scratch/03-garmin-sync/issues/10-export-fit-per-set-detail.md));
-time in zones, because the export's zone seconds are split differently from the
-Activity list's; and TrainingLoad and VO2max.
+Not imported: time in zones, because the export's zone seconds are split
+differently from the Activity list's; and TrainingLoad and VO2max.
 
 Where the export and the sync meet, ingest decides
 ([ADR 0014](docs/adr/0014-export-data-is-backfill-only.md)):

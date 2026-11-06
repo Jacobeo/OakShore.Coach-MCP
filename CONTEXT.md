@@ -38,6 +38,16 @@ is answered by the rest of the Activity, never by the row alone. Never counts
 towards volume or a per-set average.
 _Avoid_: empty set, failed set, zero set, bad data
 
+**ExerciseSetSource**:
+Which of the two deliveries a stored ExerciseSet's detail was read from: Garmin's
+API, which the sync asks for every strength Activity, or the FIT file inside the
+ExportArchive, which the ExportImport parses for history the API was never asked
+for. Recorded on every ExerciseSet because the two do not carry the same facts —
+FIT cannot state a bodyweight load (ADR 0016) and carries no classification
+probability — so a question those facts answer must know which rows can answer it.
+A set that states no source came from the API, the only source there was.
+_Avoid_: provenance, origin, import source, derivation
+
 **Volume**:
 The load a strength Activity's working ExerciseSets lifted: repetitions times
 weight in kilograms, summed. A CancelledExerciseSet never counts towards it, and
@@ -281,6 +291,16 @@ posting what the archive holds as Backfills. Nothing schedules it: it is run onc
 load history, and again only when a newer ExportArchive is worth reading. Running it
 twice over the same archive changes nothing.
 _Avoid_: backfill (that is the batch, not the run), migration, history sync, import job
+
+**ExportSetIndex**:
+The per-ExerciseSet detail one ExportArchive's FIT files hold, read out of it on the
+home machine and keyed by the start time of the Activity each file was recorded for,
+because nothing in the archive names an Activity (ADR 0015). It exists because an
+ExportImport has to post a historic Activity and its ExerciseSets in one Backfill:
+posted later, the sets would be dropped (ADR 0014). Written once per ExportArchive
+and read by the ExportImport; it is not stored and reaches the store only as the
+`exerciseSets` of the Activities a Backfill carries.
+_Avoid_: fit dump, set export, sidecar, manifest
 
 **SyncSlot**:
 The home machine's permission to run one sync at a time, held for the length of a

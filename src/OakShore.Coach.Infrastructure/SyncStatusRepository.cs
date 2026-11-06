@@ -33,7 +33,8 @@ public sealed class SyncStatusRepository(AthleteProfileStore store) : ISyncStatu
                 .OrderBy(row => row.Position)
                 .Select(row => new ExerciseSet(row.SetType, row.Repetitions, row.WeightKg, row.Bodyweight,
                     row.ExerciseCategory == null ? null : new Exercise(row.ExerciseCategory, row.ExerciseName),
-                    row.CandidateCount, row.TopProbability, row.StartTimeUtc, row.DurationSeconds, row.WktStepIndex))
+                    row.CandidateCount, row.TopProbability, row.StartTimeUtc, row.DurationSeconds,
+                    row.WktStepIndex, row.Source))
                 .ToArrayAsync(cancellationToken);
         CardioDetail? latestCardioDetail = null;
         IReadOnlyList<TimeInHeartRateZone> latestTimes = latest is null ? []

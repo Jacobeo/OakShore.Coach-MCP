@@ -78,6 +78,7 @@ public sealed class IngestRepository(AthleteProfileStore store, AthleteProfileRe
                 row.StartTimeUtc = exerciseSet.StartTimeUtc;
                 row.DurationSeconds = exerciseSet.DurationSeconds;
                 row.WktStepIndex = exerciseSet.WktStepIndex;
+                row.Source = exerciseSet.Source;
             }
             store.ExerciseSets.RemoveRange(exerciseSetsByActivity[activityId]
                 .Where(row => row.Position >= activityExerciseSets.Count));

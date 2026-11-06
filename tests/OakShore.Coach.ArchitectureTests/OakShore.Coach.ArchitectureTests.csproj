@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/OakShore.Coach.Api/OakShore.Coach.Api.csproj" />
+    <ProjectReference Include="../../src/OakShore.Coach.ExportFit/OakShore.Coach.ExportFit.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="NetArchTest.Rules" Version="1.3.2" />
     <PackageReference Include="xunit" Version="2.9.3" />
